@@ -1215,6 +1215,149 @@ const outputLayout = (compiledDocument: LastGoodDslDocument, layoutId: string) =
   return layout;
 };
 
+type ResolvedOutputPlanMetadata = {
+  outputId: string;
+  outputName: string;
+  layoutId: string;
+} & (
+  | { kind: "svg"; marginMm: number }
+  | {
+      kind: "print";
+      paper: "a4" | "a3";
+      orientation: "portrait" | "landscape";
+      paperWidthMm: number;
+      paperHeightMm: number;
+      overlapMm: number;
+    }
+);
+
+/** Rebuild physical output extents from already-resolved placement geometry. */
+const outputPlanFromResolvedPlacements = (
+  metadata: ResolvedOutputPlanMetadata,
+  placements: readonly OutputPlacementPlan[]
+): OutputPlan => {
+  const drawables = placements.flatMap((placement) => placement.drawables);
+  const empty = drawables.length === 0;
+  let renderedBounds = empty
+    ? { minX: 0, minY: 0, maxX: 0, maxY: 0, width: 0, height: 0 }
+    : emptyBounds();
+  for (const drawable of drawables) renderedBounds = mergeBounds(renderedBounds, drawableBounds(drawable));
+  if (!Number.isFinite(renderedBounds.minX) || !Number.isFinite(renderedBounds.minY)) {
+    throw new OutputPlanError("Output has invalid rendered bounds.");
+  }
+
+  if (metadata.kind === "svg") {
+    const marginMm = finiteNonNegative(metadata.marginMm, "svg margin");
+    const bounds = empty ? renderedBounds : expandBounds(renderedBounds, marginMm);
+    const rustPayload: RustSvgOutputPayload = {
+      version: 1,
+      kind: "svg",
+      bounds: renderedBounds,
+      widthMm: bounds.width,
+      heightMm: bounds.height,
+      contentOrigin: { x: bounds.minX, y: bounds.minY },
+      drawables
+    };
+    return {
+      ...metadata,
+      placements: [...placements],
+      drawables,
+      empty,
+      renderedBounds,
+      bounds,
+      rustPayload,
+      svg: {
+        widthMm: bounds.width,
+        heightMm: bounds.height,
+        viewBox: { x: 0, y: 0, width: bounds.width, height: bounds.height }
+      }
+    };
+  }
+
+  const tiling = printPages({
+    bounds: renderedBounds,
+    paperWidthMm: metadata.paperWidthMm,
+    paperHeightMm: metadata.paperHeightMm,
+    overlapMm: metadata.overlapMm,
+    empty
+  });
+  const rustPayload: RustPrintOutputPayload = {
+    version: 1,
+    kind: "print",
+    bounds: renderedBounds,
+    drawables,
+    paper: { widthMm: metadata.paperWidthMm, heightMm: metadata.paperHeightMm },
+    overlapMm: metadata.overlapMm,
+    stride: { x: tiling.strideXmm, y: tiling.strideYmm },
+    pages: tiling.pages
+  };
+  return {
+    ...metadata,
+    placements: [...placements],
+    drawables,
+    empty,
+    renderedBounds,
+    bounds: renderedBounds,
+    rustPayload,
+    print: {
+      paper: metadata.paper,
+      orientation: metadata.orientation,
+      paperWidthMm: metadata.paperWidthMm,
+      paperHeightMm: metadata.paperHeightMm,
+      overlapMm: metadata.overlapMm,
+      ...tiling
+    }
+  };
+};
+
+/** Reuses the canonical physical-output bounds, SVG-margin, and page planners. */
+export const rebuildOutputPlanFromResolvedPlacements = (
+  acceptedPlan: OutputPlan,
+  placements: readonly OutputPlacementPlan[]
+): OutputPlan => {
+  if (acceptedPlan.rustPayload.kind !== acceptedPlan.kind) {
+    throw new OutputPlanError("Accepted output plan payload kind is inconsistent.");
+  }
+  if (acceptedPlan.kind === "svg") {
+    const differences = acceptedPlan.empty
+      ? [0]
+      : [
+          acceptedPlan.renderedBounds.minX - acceptedPlan.bounds.minX,
+          acceptedPlan.renderedBounds.minY - acceptedPlan.bounds.minY,
+          acceptedPlan.bounds.maxX - acceptedPlan.renderedBounds.maxX,
+          acceptedPlan.bounds.maxY - acceptedPlan.renderedBounds.maxY
+        ];
+    const marginMm = differences[0];
+    if (
+      marginMm === undefined ||
+      !Number.isFinite(marginMm) ||
+      marginMm < 0 ||
+      differences.some((difference) => Math.abs(difference - marginMm) > 1e-9)
+    ) throw new OutputPlanError("Accepted SVG output plan has inconsistent margin metadata.");
+    return outputPlanFromResolvedPlacements({
+      kind: "svg",
+      outputId: acceptedPlan.outputId,
+      outputName: acceptedPlan.outputName,
+      layoutId: acceptedPlan.layoutId,
+      marginMm
+    }, placements);
+  }
+
+  const print = acceptedPlan.print;
+  if (!print) throw new OutputPlanError("Accepted print output plan has no paper metadata.");
+  return outputPlanFromResolvedPlacements({
+    kind: "print",
+    outputId: acceptedPlan.outputId,
+    outputName: acceptedPlan.outputName,
+    layoutId: acceptedPlan.layoutId,
+    paper: print.paper,
+    orientation: print.orientation,
+    paperWidthMm: print.paperWidthMm,
+    paperHeightMm: print.paperHeightMm,
+    overlapMm: print.overlapMm
+  }, placements);
+};
+
 export const buildOutputPlan = ({
   compiledDocument,
   output,
@@ -1292,44 +1435,32 @@ export const buildOutputPlan = ({
     selectedLayers,
     membershipFor
   ));
-  const drawables = placements.flatMap((placement) => placement.drawables);
-  const empty = drawables.length === 0;
-  let renderedBounds = empty
-    ? { minX: 0, minY: 0, maxX: 0, maxY: 0, width: 0, height: 0 }
-    : emptyBounds();
-  for (const drawable of drawables) renderedBounds = mergeBounds(renderedBounds, drawableBounds(drawable));
-  if (!Number.isFinite(renderedBounds.minX) || !Number.isFinite(renderedBounds.minY)) throw new OutputPlanError("Output has invalid rendered bounds.");
   const outputIndex = outputSourceIndex(compiledDocument, output.id);
   if (!("paper" in output)) {
     const marginMm = resolveNumeric({ value: output.margin, occurrence: propertyBindingOccurrenceKey(outputIndex, "margin"), compiledDocument, evaluation });
-    finiteNonNegative(marginMm, "svg margin");
-    const bounds = empty ? renderedBounds : expandBounds(renderedBounds, marginMm);
-    const contentOrigin = { x: bounds.minX, y: bounds.minY };
-    const rustPayload: RustSvgOutputPayload = { version: 1, kind: "svg", bounds: renderedBounds, widthMm: bounds.width, heightMm: bounds.height, contentOrigin, drawables };
-    return {
-      kind: "svg", outputId: output.id, outputName: output.name, layoutId: output.layoutId, empty,
-      placements, drawables, renderedBounds, bounds, rustPayload,
-      svg: { widthMm: bounds.width, heightMm: bounds.height, viewBox: { x: 0, y: 0, width: bounds.width, height: bounds.height } }
-    };
+    return outputPlanFromResolvedPlacements({
+      kind: "svg",
+      outputId: output.id,
+      outputName: output.name,
+      layoutId: output.layoutId,
+      marginMm
+    }, placements);
   }
   const paperBase = output.paper === "a4" ? { widthMm: 210, heightMm: 297 } : { widthMm: 297, heightMm: 420 };
   const paperWidthMm = output.orientation === "landscape" ? paperBase.heightMm : paperBase.widthMm;
   const paperHeightMm = output.orientation === "landscape" ? paperBase.widthMm : paperBase.heightMm;
   const overlapMm = resolveNumeric({ value: output.overlap, occurrence: propertyBindingOccurrenceKey(outputIndex, "overlap"), compiledDocument, evaluation });
-  const tiling = printPages({ bounds: renderedBounds, paperWidthMm, paperHeightMm, overlapMm, empty });
-  const rustPayload: RustPrintOutputPayload = { version: 1, kind: "print", bounds: renderedBounds, drawables, paper: { widthMm: paperWidthMm, heightMm: paperHeightMm }, overlapMm, stride: { x: tiling.strideXmm, y: tiling.strideYmm }, pages: tiling.pages };
-  return {
-    kind: "print", outputId: output.id, outputName: output.name, layoutId: output.layoutId, empty,
-    placements, drawables, renderedBounds, bounds: renderedBounds, rustPayload,
-    print: {
-      paper: output.paper,
-      orientation: output.orientation,
-      paperWidthMm,
-      paperHeightMm,
-      overlapMm,
-      ...tiling
-    }
-  };
+  return outputPlanFromResolvedPlacements({
+    kind: "print",
+    outputId: output.id,
+    outputName: output.name,
+    layoutId: output.layoutId,
+    paper: output.paper,
+    orientation: output.orientation,
+    paperWidthMm,
+    paperHeightMm,
+    overlapMm
+  }, placements);
 };
 
 /** Evaluate one output with the canonical document evaluator and scoped failures. */

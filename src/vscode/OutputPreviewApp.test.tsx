@@ -20,7 +20,8 @@ import { vscodeMultiDocumentGraphSnapshot, type VscodeMultiDocumentGraphPublicat
 import { projectVscodeMultiDocumentCanvasRuntime, serializeSourceEditingDocument } from "./multiDocumentRuntimeTransport";
 import { createRustStdioParityClient } from "../../test/evaluationParitySupport";
 import { evaluatePreparedRust } from "../geometry/rustEvaluationRunner";
-import { compileFreshCanonicalText, isLastGoodDslDocument } from "@nuinuicad/nui-language/document";
+import { compileFreshCanonicalText, isLastGoodDslDocument, type LastGoodDslDocument } from "@nuinuicad/nui-language/document";
+import * as documentCompiler from "@nuinuicad/nui-language/document";
 import type { VscodeToExtensionMessage, VscodeWebviewApi } from "./protocol";
 import { outputPreviewManualE2eSource } from "./outputPreviewManualFixture";
 import * as vscodeCanvasRibbonIcons from "./vscodeCanvasRibbonIcons";
@@ -312,12 +313,38 @@ const importedOutputRoot = [
   "svg Probe(layout: L, layers: [default], margin: 1)"
 ].join("\n");
 
+const importedTwoPlaceOutputRoot = [
+  "nui 1",
+  'import "./dart_seam.nui" as dart_seam',
+  "group G {",
+  "  instance dart_center = dart_seam::DartCenter()",
+  "}",
+  "layout L {",
+  "  place G(at: (0, 0))",
+  "  place G(at: (40, 0))",
+  "}",
+  "svg Preview(layout: L, layers: [default], margin: 1)"
+].join("\n");
+
+const standaloneTwoPlaceOutputSource = [
+  "nui 1",
+  "group G {",
+  "  line AB = segment(start: (0, 0), end: (10, 0))",
+  "}",
+  "layout L {",
+  "  place G(at: (0, 0))",
+  "  place G(at: (40, 0))",
+  "}",
+  "svg Preview(layout: L, layers: [default], margin: 1)"
+].join("\n");
+
 const importedGraphPublication = async (
   normalizedSource: string,
   documentVersion = 1,
   graphRevision = 1,
   savedDependency = importedDependency,
-  uri = importedRootUri
+  uri = importedRootUri,
+  assignedStatementIds?: ReadonlyMap<number, string>
 ) => {
   const root = {
     kind: "root-current" as const,
@@ -327,6 +354,7 @@ const importedGraphPublication = async (
   };
   const graph = await buildMultiDocumentImportGraph({
     root,
+    ...(assignedStatementIds ? { rootStatementIdByStatementIndex: assignedStatementIds } : {}),
     declarationContributors: [moduleDeclarationContributor],
     loader: {
       loadSavedDependency: async () => ({
@@ -382,6 +410,36 @@ const outputExportRequestMessages = () => vi.mocked(api.postMessage).mock.calls
     message.type === "outputPreviewExportRequest"
   );
 
+const outputPreviewPlanRequests = () => vi.mocked(api.postMessage).mock.calls
+  .map(([message]) => message)
+  .filter((message): message is Extract<VscodeToExtensionMessage, { type: "outputPreviewPlanRequest" }> =>
+    message.type === "outputPreviewPlanRequest"
+  );
+
+const planForImportedTwoPlaceRoot = async (rootSource: string) => {
+  const { compiled, publication } = await importedGraphPublication(rootSource);
+  if (!isLastGoodDslDocument(compiled)) throw new Error("missing current imported graph compile");
+  const actual = await vi.importActual<typeof import("../output/outputCore")>("../output/outputCore");
+  const plan = await actual.evaluateOutputPlan({
+    compiledDocument: compiled,
+    output: compiled.document.svgOutputs[0]!
+  });
+  return { compiled, publication, plan };
+};
+
+const geometryPathData = () => [...screen.getByLabelText("Output preview").querySelectorAll<SVGPathElement>(
+  '[data-output-preview-layer="geometry"]'
+)].map((path) => path.getAttribute("d"));
+
+const lineScreenPoints = (path: string | null) => {
+  const match = path?.match(/^M\s+(-?[\d.]+)\s+(-?[\d.]+)\s+L\s+(-?[\d.]+)\s+(-?[\d.]+)$/);
+  if (!match) throw new Error(`unexpected line path: ${path}`);
+  return [
+    { x: Number(match[1]), y: Number(match[2]) },
+    { x: Number(match[3]), y: Number(match[4]) }
+  ] as const;
+};
+
 const createControlledRustApi = () => {
   const requests: Array<{ id: number; input: unknown; responded: boolean }> = [];
   const postMessage = vi.fn((message: VscodeToExtensionMessage) => {
@@ -407,6 +465,273 @@ const createControlledRustApi = () => {
 };
 
 describe("Output Preview application", () => {
+  it("projects standalone placement while dragging without compiling or evaluating", async () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(viewportRect);
+    mocks.evaluateOutputPlan.mockImplementation(async ({ compiledDocument, output }: { compiledDocument: LastGoodDslDocument; output: TestOutput }) => {
+      const base = planFor(output as TestOutput);
+      const template = base.drawables[0];
+      const layout = compiledDocument.document.layouts.find((candidate) => candidate.id === output.layoutId);
+      if (!template || !layout) throw new Error("missing standalone output placement fixture");
+      const placements = layout.placements.map((placement) => {
+        const at = placement.at as { x: number; y: number };
+        const drawable = {
+          ...template,
+          start: { x: at.x, y: at.y },
+          end: { x: at.x + 10, y: at.y }
+        };
+        return {
+          id: placement.id,
+          groupId: placement.groupId,
+          origin: { x: 0, y: 0 },
+          at,
+          scale: 1,
+          angleDeg: 0,
+          mirror: false,
+          drawables: [drawable]
+        };
+      });
+      const drawables = placements.flatMap((placement) => placement.drawables);
+      return {
+        ...base,
+        placements,
+        drawables,
+        rustPayload: { ...base.rustPayload, drawables }
+      };
+    });
+    renderFixture(standaloneTwoPlaceOutputSource);
+    sendImportedSource(standaloneTwoPlaceOutputSource);
+    expect(await screen.findByLabelText("Output preview")).toBeInTheDocument();
+    const compileCount = vi.spyOn(documentCompiler, "compileCanonicalText").mock.calls.length;
+    const evaluationCount = mocks.evaluateOutputPlan.mock.calls.length;
+    const rustRequestCount = vi.mocked(api.postMessage).mock.calls.filter(([message]) => message.type === "rustEvaluationRequest").length;
+    const firstPlaceId = useCadDocumentStore.getState().layouts[0]!.placements[0]!.id;
+    const handle = [...document.querySelectorAll<HTMLButtonElement>("button[data-place-id]")]
+      .find((candidate) => candidate.dataset.placeId === firstPlaceId);
+    if (!handle) throw new Error("missing first standalone place handle");
+    const before = geometryPathData();
+    expect(before).toHaveLength(2);
+    const beforePoints = before.map(lineScreenPoints);
+    const beforeRatio = Math.hypot(
+      beforePoints[1]![0].x - beforePoints[0]![0].x,
+      beforePoints[1]![0].y - beforePoints[0]![0].y
+    ) / Math.hypot(beforePoints[0]![1].x - beforePoints[0]![0].x, beforePoints[0]![1].y - beforePoints[0]![0].y);
+
+    await act(async () => {
+      fireEvent.pointerDown(handle, { button: 0, buttons: 1, pointerId: 1745, clientX: 100, clientY: 100 });
+      fireEvent.pointerMove(handle, { buttons: 1, pointerId: 1745, clientX: 120, clientY: 100 });
+    });
+    const after = geometryPathData();
+    const afterPoints = after.map(lineScreenPoints);
+    const afterRatio = Math.hypot(
+      afterPoints[1]![0].x - afterPoints[0]![0].x,
+      afterPoints[1]![0].y - afterPoints[0]![0].y
+    ) / Math.hypot(afterPoints[0]![1].x - afterPoints[0]![0].x, afterPoints[0]![1].y - afterPoints[0]![0].y);
+    expect(afterRatio).not.toBeCloseTo(beforeRatio, 5);
+    expect(mocks.evaluateOutputPlan).toHaveBeenCalledTimes(evaluationCount);
+    expect(vi.mocked(documentCompiler.compileCanonicalText)).toHaveBeenCalledTimes(compileCount);
+    expect(vi.mocked(api.postMessage).mock.calls.filter(([message]) => message.type === "rustEvaluationRequest")).toHaveLength(rustRequestCount);
+    expect(vi.mocked(api.postMessage).mock.calls.some(([message]) => message.type === "outputPreviewPlaceCommit")).toBe(false);
+  });
+
+  it("projects imported place geometry under a held pointer while the second occurrence stays still", async () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(viewportRect);
+    const { compiled, publication, plan } = await planForImportedTwoPlaceRoot(importedTwoPlaceOutputRoot);
+    expect(compiled.diagnostics).toEqual([]);
+    expect(publication.graph.valid).toBe(true);
+    expect(plan.placements).toHaveLength(2);
+    expect(plan.placements[0]?.groupId).toBe(plan.placements[1]?.groupId);
+    expect(plan.placements[0]?.id).not.toBe(plan.placements[1]?.id);
+    expect(plan.placements.map((placement) => placement.drawables.length)).toEqual([1, 1]);
+
+    render(<OutputPreviewApp api={api} />);
+    sendImportedSource(importedTwoPlaceOutputRoot);
+    sendGraphPublication(publication);
+    await waitFor(() => expect(outputPreviewPlanRequests()).toHaveLength(1));
+    const request = outputPreviewPlanRequests()[0]!;
+    postWindowMessage({
+      type: "outputPreviewPlanResult",
+      requestId: request.requestId,
+      graphAuthority: request.graphAuthority,
+      plan
+    });
+    expect(await screen.findByLabelText("Output preview")).toBeInTheDocument();
+    const viewport = document.querySelector(".output-preview-viewport");
+    if (!(viewport instanceof HTMLElement)) throw new Error("missing output preview viewport");
+    fireEvent.pointerMove(viewport, { pointerId: 0, buttons: 0, clientX: 1, clientY: 1 });
+
+    const placeIds = compiled.document.layouts[0]!.placements.map((placement) => placement.id);
+    const handle = [...document.querySelectorAll<HTMLButtonElement>("button[data-place-id]")]
+      .find((candidate) => candidate.dataset.placeId === placeIds[0]);
+    if (!handle) throw new Error("missing first imported place handle");
+    const before = geometryPathData();
+    expect(before).toHaveLength(2);
+    const evaluationCount = mocks.evaluateOutputPlan.mock.calls.length;
+    const compileCount = vi.spyOn(documentCompiler, "compileCanonicalText").mock.calls.length;
+    const rustRequestCount = vi.mocked(api.postMessage).mock.calls.filter(([message]) => message.type === "rustEvaluationRequest").length;
+    await act(async () => {
+      fireEvent.pointerDown(handle, { button: 0, buttons: 1, pointerId: 1746, clientX: 100, clientY: 100 });
+      fireEvent.pointerMove(handle, { buttons: 1, pointerId: 1746, clientX: 120, clientY: 100 });
+    });
+    const firstProjection = geometryPathData();
+    await act(async () => {
+      fireEvent.pointerMove(handle, { buttons: 1, pointerId: 1746, clientX: 110, clientY: 100 });
+    });
+    const reversedProjection = geometryPathData();
+    await act(async () => {
+      fireEvent.pointerMove(handle, { buttons: 1, pointerId: 1746, clientX: 120, clientY: 100 });
+    });
+
+    const after = geometryPathData();
+    expect(firstProjection[0]).not.toBe(before[0]);
+    expect(reversedProjection[0]).not.toBe(firstProjection[0]);
+    expect(after[0]).not.toBe(before[0]);
+    expect(after[0]).toBe(firstProjection[0]);
+    expect(after[1]).toBe(before[1]);
+    expect(vi.mocked(documentCompiler.compileCanonicalText)).toHaveBeenCalledTimes(compileCount);
+    expect(outputPreviewPlanRequests()).toHaveLength(1);
+    expect(mocks.evaluateOutputPlan).toHaveBeenCalledTimes(evaluationCount);
+    expect(vi.mocked(api.postMessage).mock.calls.filter(([message]) => message.type === "rustEvaluationRequest")).toHaveLength(rustRequestCount);
+    expect(vi.mocked(api.postMessage).mock.calls.some(([message]) => message.type === "outputPreviewPlaceCommit")).toBe(false);
+  });
+
+  it("keeps the projected plane through a matching commit and promotes its accepted reevaluation", async () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(viewportRect);
+    const { compiled, publication, plan } = await planForImportedTwoPlaceRoot(importedTwoPlaceOutputRoot);
+    render(<OutputPreviewApp api={api} />);
+    sendImportedSource(importedTwoPlaceOutputRoot);
+    sendGraphPublication(publication);
+    await waitFor(() => expect(outputPreviewPlanRequests()).toHaveLength(1));
+    const request = outputPreviewPlanRequests()[0]!;
+    postWindowMessage({
+      type: "outputPreviewPlanResult",
+      requestId: request.requestId,
+      graphAuthority: request.graphAuthority,
+      plan
+    });
+    expect(await screen.findByLabelText("Output preview")).toBeInTheDocument();
+
+    const firstPlaceId = compiled.document.layouts[0]!.placements[0]!.id;
+    const handle = [...document.querySelectorAll<HTMLButtonElement>("button[data-place-id]")]
+      .find((candidate) => candidate.dataset.placeId === firstPlaceId);
+    if (!handle) throw new Error("missing first imported place handle");
+    await act(async () => {
+      fireEvent.pointerDown(handle, { button: 0, buttons: 1, pointerId: 1747, clientX: 100, clientY: 100 });
+      fireEvent.pointerMove(handle, { buttons: 1, pointerId: 1747, clientX: 120, clientY: 100 });
+      fireEvent.pointerUp(handle, { button: 0, buttons: 0, pointerId: 1747, clientX: 120, clientY: 100 });
+    });
+    const projectedPaths = geometryPathData();
+    expect(projectedPaths[0]).not.toEqual(projectedPaths[1]);
+
+    const commit = vi.mocked(api.postMessage).mock.calls
+      .map(([message]) => message)
+      .find((message): message is Extract<VscodeToExtensionMessage, { type: "outputPreviewPlaceCommit" }> =>
+        message.type === "outputPreviewPlaceCommit"
+      );
+    if (!commit) throw new Error("missing guarded place commit request");
+    let committedSource = importedTwoPlaceOutputRoot;
+    for (const patch of [...commit.patches].sort((left, right) => right.range.from - left.range.from)) {
+      committedSource = `${committedSource.slice(0, patch.range.from)}${patch.replacement}${committedSource.slice(patch.range.to)}`;
+    }
+    postWindowMessage({
+      type: "commitText",
+      sourceText: committedSource,
+      documentVersion: 2,
+      hostDocumentUri: importedRootUri,
+      reason: "edit"
+    });
+
+    expect(screen.getByText("Evaluating…")).toBeInTheDocument();
+    expect(screen.getByLabelText("Output preview")).toBeInTheDocument();
+    expect(geometryPathData()).toEqual(projectedPaths);
+    expect(outputPreviewPlanRequests()).toHaveLength(1);
+
+    sendGraphPublication({
+      type: "multiDocumentGraphPublication",
+      status: "building",
+      graph: null,
+      hostDocumentUri: importedRootUri,
+      documentVersion: 2,
+      outputPreview: { sequence: 2 }
+    });
+    expect(screen.getByLabelText("Output preview")).toBeInTheDocument();
+    expect(geometryPathData()).toEqual(projectedPaths);
+    expect(outputExportAvailabilityMessages().at(-1)?.outputKey).toBeNull();
+    postWindowMessage({ type: "outputPreviewExport" });
+    expect(outputExportRequestMessages()).toEqual([]);
+
+    const { compiled: acceptedCompiled, publication: acceptedPublication } = await importedGraphPublication(
+      committedSource,
+      2,
+      2,
+      importedDependency,
+      importedRootUri,
+      new Map([...(compiled.statementMap?.statementIdByStatementIndex ?? [])]
+        .filter(([statementIndex]) => [5, 6, 7, 9].includes(statementIndex)))
+    );
+    if (!isLastGoodDslDocument(acceptedCompiled)) throw new Error(`missing accepted imported commit compile: ${JSON.stringify(acceptedCompiled.diagnostics)}`);
+    const actual = await vi.importActual<typeof import("../output/outputCore")>("../output/outputCore");
+    const acceptedPlan = await actual.evaluateOutputPlan({
+      compiledDocument: acceptedCompiled,
+      output: acceptedCompiled.document.svgOutputs[0]!
+    });
+    const matchingPublication = {
+      ...acceptedPublication,
+      outputPreview: { ...acceptedPublication.outputPreview!, sequence: 3 }
+    };
+    sendGraphPublication(matchingPublication);
+    await waitFor(() => expect(outputPreviewPlanRequests()).toHaveLength(2));
+    expect(screen.getByLabelText("Output preview")).toBeInTheDocument();
+    expect(geometryPathData()).toEqual(projectedPaths);
+    expect(outputExportAvailabilityMessages().at(-1)?.outputKey).toBeNull();
+    const acceptedRequest = outputPreviewPlanRequests().at(-1)!;
+    postWindowMessage({
+      type: "outputPreviewPlanResult",
+      requestId: acceptedRequest.requestId,
+      graphAuthority: acceptedRequest.graphAuthority,
+      plan: acceptedPlan
+    });
+    await waitFor(() => expect(geometryPathData()).toEqual(projectedPaths));
+    await waitFor(() => expect(outputExportAvailabilityMessages().at(-1)?.outputKey).toBe(acceptedRequest.outputKey));
+    postWindowMessage({ type: "outputPreviewExport" });
+    expect(outputExportRequestMessages().at(-1)).toEqual(expect.objectContaining({ payload: acceptedPlan.rustPayload }));
+  });
+
+  it("restores the accepted plane when the guarded place commit is rejected and Host resyncs the same source", async () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(viewportRect);
+    const { compiled, publication, plan } = await planForImportedTwoPlaceRoot(importedTwoPlaceOutputRoot);
+    render(<OutputPreviewApp api={api} />);
+    sendImportedSource(importedTwoPlaceOutputRoot);
+    sendGraphPublication(publication);
+    await waitFor(() => expect(outputPreviewPlanRequests()).toHaveLength(1));
+    const request = outputPreviewPlanRequests()[0]!;
+    postWindowMessage({
+      type: "outputPreviewPlanResult",
+      requestId: request.requestId,
+      graphAuthority: request.graphAuthority,
+      plan
+    });
+    expect(await screen.findByLabelText("Output preview")).toBeInTheDocument();
+    const acceptedPaths = geometryPathData();
+    const firstPlaceId = compiled.document.layouts[0]!.placements[0]!.id;
+    const handle = [...document.querySelectorAll<HTMLButtonElement>("button[data-place-id]")]
+      .find((candidate) => candidate.dataset.placeId === firstPlaceId);
+    if (!handle) throw new Error("missing first imported place handle");
+    await act(async () => {
+      fireEvent.pointerDown(handle, { button: 0, buttons: 1, pointerId: 1748, clientX: 100, clientY: 100 });
+      fireEvent.pointerMove(handle, { buttons: 1, pointerId: 1748, clientX: 120, clientY: 100 });
+      fireEvent.pointerUp(handle, { button: 0, buttons: 0, pointerId: 1748, clientX: 120, clientY: 100 });
+    });
+    expect(geometryPathData()[0]).not.toBe(acceptedPaths[0]);
+    expect(vi.mocked(api.postMessage).mock.calls.some(([message]) => message.type === "outputPreviewPlaceCommit")).toBe(true);
+
+    sendImportedSource(importedTwoPlaceOutputRoot, 1, importedRootUri);
+    await waitFor(() => expect(geometryPathData()).toEqual(acceptedPaths));
+    await waitFor(() => expect(outputExportAvailabilityMessages().at(-1)?.outputKey).toBe(request.outputKey));
+    expect(screen.queryByText("Evaluating…")).toBeNull();
+    postWindowMessage({ type: "outputPreviewExport" });
+    expect(outputExportRequestMessages().at(-1)?.outputKey).toBe(request.outputKey);
+  });
+
   it("renders and exports the populated plan evaluated from the exact Host compiler and Rust input", async () => {
     const { compiled, publication } = await importedGraphPublication(importedOutputRoot);
     expect(compiled.diagnostics).toEqual([]);
@@ -596,8 +921,8 @@ describe("Output Preview application", () => {
   });
 
   it("clears the old standalone plan when an import edit's graph message precedes its Source", async () => {
-    mocks.evaluateOutputPlan.mockImplementation(async ({ output }: { output: TestOutput }) => planFor(output));
     render(<OutputPreviewApp api={api} />);
+    mocks.evaluateOutputPlan.mockImplementation(async ({ output }: { output: TestOutput }) => planFor(output));
     sendImportedSource(source);
     expect(await screen.findByLabelText("Output preview")).toBeInTheDocument();
     sendGraphPublication({
@@ -931,24 +1256,26 @@ describe("Output Preview application", () => {
 
   it("keeps Space ownership across the native handle focus boundary", async () => {
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(viewportRect);
-    mocks.evaluateOutputPlan.mockImplementation(async ({ output }: { output: TestOutput }) => {
-      const plan = planFor(output);
-      const layout = useCadDocumentStore.getState().layouts.find((candidate) => candidate.id === output.layoutId);
-      const placement = layout?.placements[0];
-      if (!placement) return plan;
-      return {
-        ...plan,
-        placements: [{
+    mocks.evaluateOutputPlan.mockImplementation(async ({ compiledDocument, output }: { compiledDocument: LastGoodDslDocument; output: TestOutput }) => {
+      const base = planFor(output);
+      const template = base.drawables[0];
+      const layout = compiledDocument.document.layouts.find((candidate) => candidate.id === output.layoutId);
+      if (!template || !layout) throw new Error("missing place preview plan fixture");
+      const placements = layout.placements.map((placement) => {
+        const at = placement.at as { x: number; y: number };
+        return {
           id: placement.id,
           groupId: placement.groupId,
           origin: { x: 0, y: 0 },
-          at: { x: 0, y: 0 },
+          at,
           scale: 1,
           angleDeg: 0,
           mirror: false,
-          drawables: []
-        }]
-      };
+          drawables: [{ ...template, start: { ...at }, end: { x: at.x + 10, y: at.y } }]
+        };
+      });
+      const drawables = placements.flatMap((placement) => placement.drawables);
+      return { ...base, placements, drawables, rustPayload: { ...base.rustPayload, drawables } };
     });
     const container = document.createElement("div");
     document.body.append(container);

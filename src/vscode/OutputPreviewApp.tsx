@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FocusEvent as ReactFocusEvent } from "react";
 import { CommandRibbonView } from "../components/CommandRibbonView";
 import { canvasThemeCssVariables, LEGACY_CANVAS_THEME } from "../components/canvasTheme";
-import { compileCanonicalText, type LastGoodDslDocument } from "@nuinuicad/nui-language/document";
+import type { LastGoodDslDocument } from "@nuinuicad/nui-language/document";
 import { evaluateElementsWithRust } from "../geometry/evaluationEngine";
 import { evaluateOutputPlan, type OutputDrawable, type OutputPlan, type OutputText } from "../output/outputCore";
+import { projectOutputPlanForPlaceTranslation } from "../output/outputPlaceDisplayProjection";
 import { panViewportByScreenDelta, VIEWPORT_ZOOM_STEP } from "../geometry/viewport";
 import { projectOutputPlaces } from "../output/outputPlaceProjection";
 import {
@@ -33,7 +34,6 @@ import { outputPreviewDiagnosticSourceRangeFor } from "./outputPreviewDiagnostic
 import {
   beginOutputPreviewPlaceDrag,
   outputPreviewPlaceCoordinatePatchesFor,
-  outputPreviewPlaceDragPlanIdentityFor,
   outputPreviewPlaceDragProofIsCurrent,
   outputPreviewPlacePreviewSourceFor,
   type OutputPreviewPlaceDragPlanIdentity,
@@ -96,6 +96,7 @@ type OutputPreviewEvaluationState = {
 type OutputPreviewGraphContext = {
   authority: VscodeOutputPreviewGraphAuthority;
   compiled: LastGoodDslDocument;
+  dependencyIdentity: string;
 };
 
 type OutputPreviewHostSource = {
@@ -113,8 +114,19 @@ const graphAwaitsSource = (
 
 type OutputPreviewPlaceDragPreviewState = {
   proof: OutputPreviewPlaceDragProof;
+  basePlan: OutputPlan;
+  plan: OutputPlan;
+  outputKey: string;
+  candidates: readonly OutputPreviewCandidate[];
   sourceText: string;
   compiledDocument: LastGoodDslDocument;
+  documentUri: string | undefined;
+  originalGraphAuthority: VscodeOutputPreviewGraphAuthority | null;
+  graphAuthority: VscodeOutputPreviewGraphAuthority | null;
+  graphDependencyIdentity: string | null;
+  phase: "dragging" | "commit-pending";
+  expectedSourceText?: string;
+  expectedDocumentVersion?: number;
 };
 
 type OutputPreviewRevealState =
@@ -172,6 +184,21 @@ const outputKindLabel = (
 
 const outputTextLines = (text: string): string[] => text.replace(/\r\n?/g, "\n").split("\n");
 const normalizedSourceForDrag = (text: string): string => text.replace(/\r\n/g, "\n");
+
+const graphDependencyIdentityFor = (graph: VscodeMultiDocumentGraphPublication["graph"]): string | null => {
+  if (!graph) return null;
+  return JSON.stringify({
+    valid: graph.valid,
+    nodes: graph.nodes.map((node) => ({ documentId: node.documentId, valid: node.valid }))
+      .sort((left, right) => left.documentId.localeCompare(right.documentId)),
+    edges: graph.edges.map(({ importerDocumentId, importPath, alias, targetDocumentId, status }) => ({
+      importerDocumentId, importPath, alias, targetDocumentId: targetDocumentId ?? null, status
+    })).sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right))),
+    dependencyFingerprints: [...graph.dependencyFingerprints]
+      .map(({ documentId, savedSourceFingerprint }) => ({ documentId, savedSourceFingerprint }))
+      .sort((left, right) => left.documentId.localeCompare(right.documentId))
+  });
+};
 const outputPreviewPointerBoundaryFallbackShouldRun = (event: PointerEvent): boolean => {
   const target = event.target;
   return !(target instanceof Element && target.closest(".output-preview-place-popover"));
@@ -320,17 +347,19 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
   const sourceIsCurrent = !awaitingSource && (graphBound ? graphContext !== null : sourceText === docText);
   const graphAuthority = graphContext?.authority;
   const [placeDragPreview, setPlaceDragPreview] = useState<OutputPreviewPlaceDragPreviewState | null>(null);
+  const placeDragPreviewRef = useRef<OutputPreviewPlaceDragPreviewState | null>(null);
+  const setPlaceDragPreviewCurrent = useCallback((next: OutputPreviewPlaceDragPreviewState | null) => {
+    placeDragPreviewRef.current = next;
+    setPlaceDragPreview(next);
+  }, []);
   const [authoritativeContextGeneration, setAuthoritativeContextGeneration] = useState(0);
   const effectiveSourceText = placeDragPreview?.sourceText ?? sourceText;
   const compiledDocument = placeDragPreview?.compiledDocument ?? canonicalCompiledDocument;
-  const candidates = useMemo(
-    () => sourceIsCurrent ? outputPreviewCandidatesFor(effectiveSourceText, compiledDocument) : [],
-    [compiledDocument, effectiveSourceText, sourceIsCurrent]
-  );
   const canonicalCandidates = useMemo(
     () => sourceIsCurrent ? outputPreviewCandidatesFor(sourceText, canonicalCompiledDocument) : [],
     [canonicalCompiledDocument, sourceIsCurrent, sourceText]
   );
+  const displayCandidates = placeDragPreview?.candidates ?? canonicalCandidates;
   const [selectedOutputKey, setSelectedOutputKey] = useState<string | null>(null);
   const [viewport, setViewport] = useState<OutputPreviewViewport>(DEFAULT_OUTPUT_PREVIEW_VIEWPORT);
   const [viewportSize, setViewportSize] = useState<OutputPreviewViewportSize>({ width: 0, height: 0 });
@@ -434,11 +463,17 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
 
   const updateSelectedOutputKey = useCallback((nextKey: string | null, preserveViewport = false) => {
     if (selectedOutputKeyRef.current === nextKey) return;
+    const pendingPlacement = placeDragPreviewRef.current;
+    if (pendingPlacement && pendingPlacement.outputKey !== nextKey) {
+      outputPreviewPlaceCommitPendingRef.current = null;
+      graphDragProofRef.current = null;
+      setPlaceDragPreviewCurrent(null);
+    }
     preserveViewportForSelectionRef.current = preserveViewport ? nextKey : null;
     selectedOutputKeyRef.current = nextKey;
     selectionGenerationRef.current += 1;
     setSelectedOutputKey(nextKey);
-  }, []);
+  }, [setPlaceDragPreviewCurrent]);
 
   const clearExplicitReveal = useCallback(() => {
     revealGenerationRef.current += 1;
@@ -454,30 +489,58 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     pendingGraphPlansRef.current.clear();
   }, []);
 
-  const invalidateAuthority = useCallback(() => {
+  const invalidateAuthority = useCallback((preservePlacementPreview = false) => {
     contextGenerationRef.current += 1;
-    outputPreviewPlaceCommitPendingRef.current = null;
+    if (!preservePlacementPreview) outputPreviewPlaceCommitPendingRef.current = null;
     graphDragProofRef.current = null;
     requestCurrentExportRef.current = () => false;
     latestPlanRef.current = null;
     rejectPendingGraphPlans();
     setEvaluationState({ outputKey: null, sourceRevision: null, plan: null, error: null, evaluating: false });
     setPendingExportRequestId(null);
-    setPlaceDragPreview(null);
+    if (!preservePlacementPreview) setPlaceDragPreviewCurrent(null);
     clearExplicitReveal();
     setAuthoritativeContextGeneration(contextGenerationRef.current);
-  }, [clearExplicitReveal, rejectPendingGraphPlans]);
+  }, [clearExplicitReveal, rejectPendingGraphPlans, setPlaceDragPreviewCurrent]);
 
   const receiveGraphPublication = useCallback((publication: VscodeMultiDocumentGraphPublication) => {
     const sequence = publication.outputPreview?.sequence;
     if (sequence === undefined || !Number.isSafeInteger(sequence) || sequence <= graphSequenceRef.current) return;
     const source = hostSourceRef.current;
     if (source && publication.hostDocumentUri !== source.uri) return;
+    const pendingPlacement = placeDragPreviewRef.current;
+    const pendingGraphBuild = pendingPlacement?.phase === "commit-pending" &&
+      publication.hostDocumentUri === pendingPlacement.documentUri &&
+      (publication.documentVersion === pendingPlacement.expectedDocumentVersion || publication.documentVersion === null) &&
+      (publication.status === "building" || publication.status === "invalidated");
+    if (pendingGraphBuild) {
+      graphSequenceRef.current = sequence;
+      graphContextRef.current = null;
+      setGraphContext(null);
+      setAwaitingSource(true);
+      setGraphError(null);
+      invalidateAuthority(true);
+      return;
+    }
     if (publication.status === "current" && (
       publication.graph.rootDocumentId !== publication.hostDocumentUri ||
       publication.graph.rootSource.documentId !== publication.hostDocumentUri
-    )) return;
+    )) {
+      if (pendingPlacement?.phase === "commit-pending" &&
+        publication.hostDocumentUri === pendingPlacement.documentUri &&
+        publication.documentVersion === pendingPlacement.expectedDocumentVersion) {
+        graphSequenceRef.current = sequence;
+        setGraphError("The Output Preview graph does not match the committed Source document.");
+        setAwaitingSource(false);
+        invalidateAuthority();
+      }
+      return;
+    }
     if (!source || graphAwaitsSource(source, publication)) {
+      const preservePendingPlacement = pendingPlacement?.phase === "commit-pending" &&
+        publication.hostDocumentUri === pendingPlacement.documentUri &&
+        publication.documentVersion === pendingPlacement.expectedDocumentVersion &&
+        publication.status !== "unavailable";
       const pending = pendingGraphRef.current;
       if (sequence > (pending?.outputPreview?.sequence ?? 0) &&
         (publication.documentVersion ?? 0) >= (pending?.documentVersion ?? 0)) {
@@ -488,10 +551,14 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
         graphContextRef.current = null;
         setGraphContext(null);
         setGraphError(null);
-        invalidateAuthority();
+        invalidateAuthority(preservePendingPlacement);
       }
       return;
     }
+    const expectedPendingRoot = pendingPlacement?.phase === "commit-pending" &&
+      source.uri === pendingPlacement.documentUri &&
+      source.version === pendingPlacement.expectedDocumentVersion &&
+      normalizedSourceForDrag(source.text) === pendingPlacement.expectedSourceText;
     if (!source.requiresGraph || !source.uri ||
       (pendingGraphRef.current?.documentVersion ?? 0) > source.version ||
       (publication.documentVersion !== null && publication.documentVersion !== source.version)) return;
@@ -499,22 +566,46 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     let error: string | null = null;
     if (publication.status === "current") {
       const authority = outputPreviewGraphAuthorityFor(publication, source.uri, source.version, normalizedSourceForDrag(source.text));
-      if (!authority) return;
+      if (!authority) {
+        if (expectedPendingRoot) {
+          graphSequenceRef.current = sequence;
+          setGraphError("The Output Preview graph does not match the committed Source document.");
+          setAwaitingSource(false);
+          invalidateAuthority();
+        }
+        return;
+      }
       const newest = graphRevisionsRef.current.get(source.uri) ?? 0;
       if (authority.graphRevision <= newest) return;
       graphRevisionsRef.current.set(source.uri, authority.graphRevision);
       const editing = outputPreviewSourceEditingFor(publication);
-      if (editing) next = { authority, compiled: editing.compiled };
+      if (editing) next = {
+        authority,
+        compiled: editing.compiled,
+        dependencyIdentity: graphDependencyIdentityFor(publication.graph) ?? ""
+      };
       else error = publication.outputPreview?.error ?? publication.graph.diagnostics[0]?.message ?? "";
     } else if (publication.status !== "building") {
       error = "";
     }
     graphSequenceRef.current = sequence;
+    const preservePendingPlacement = Boolean(
+      expectedPendingRoot && pendingPlacement && publication.status === "current" && next &&
+      pendingPlacement.graphDependencyIdentity !== null &&
+      next.dependencyIdentity === pendingPlacement.graphDependencyIdentity &&
+      outputPreviewCandidateForKey(
+        outputPreviewCandidatesFor(source.text, next.compiled), pendingPlacement.outputKey
+      )
+    );
+    if (preservePendingPlacement && pendingPlacement && next) {
+      setPlaceDragPreviewCurrent({ ...pendingPlacement, graphAuthority: next.authority });
+    }
     graphContextRef.current = next;
     setGraphContext(next);
     setGraphError(error);
-    invalidateAuthority();
-  }, [invalidateAuthority]);
+    setAwaitingSource(false);
+    invalidateAuthority(preservePendingPlacement);
+  }, [invalidateAuthority, setPlaceDragPreviewCurrent]);
 
   const evaluateOutputPlanSerially = useCallback((request: Parameters<typeof evaluateOutputPlan>[0]) => {
     const evaluation = outputPlanEvaluationTailRef.current.then(() => evaluateOutputPlan(request));
@@ -602,8 +693,10 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     updateSelectedOutputKey(fallbackKey);
   }, [canonicalCandidates, selectedOutputKey, sourceIsCurrent, updateSelectedOutputKey]);
 
-  const selectedCandidate = outputPreviewCandidateForKey(candidates, selectedOutputKey);
   const canonicalSelectedCandidate = outputPreviewCandidateForKey(canonicalCandidates, selectedOutputKey);
+  const selectedCandidate = placeDragPreview
+    ? outputPreviewCandidateForKey(displayCandidates, selectedOutputKey)
+    : canonicalSelectedCandidate;
 
   useEffect(() => {
     let cancelled = false;
@@ -611,20 +704,57 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     if (!sourceIsCurrent) {
       return () => { cancelled = true; };
     }
-    if (!selectedCandidate) {
+    if (!canonicalSelectedCandidate) {
+      const pending = placeDragPreviewRef.current;
+      if (pending?.phase === "commit-pending" && !hostSourceRef.current?.requiresGraph) {
+        outputPreviewPlaceCommitPendingRef.current = null;
+        setPlaceDragPreviewCurrent(null);
+      }
       return () => { cancelled = true; };
     }
-    void evaluateCandidate(compiledDocument, selectedCandidate, graphContext).then((plan) => {
-      if (!cancelled && generation === contextGenerationRef.current) setEvaluationState({
-        outputKey: selectedCandidate.key,
+    const candidate = canonicalSelectedCandidate;
+    void evaluateCandidate(canonicalCompiledDocument, candidate, graphContext).then((plan) => {
+      if (cancelled || generation !== contextGenerationRef.current) return;
+      const pending = placeDragPreviewRef.current;
+      if (
+        plan.kind !== candidate.kind ||
+        plan.outputId !== candidate.output.id ||
+        plan.layoutId !== candidate.output.layoutId ||
+        plan.rustPayload.kind !== candidate.kind
+      ) throw new Error("The Output Preview plan does not match the current output.");
+      const currentSource = hostSourceRef.current;
+      const exactPendingSource = pending?.phase === "commit-pending" &&
+        pending.outputKey === candidate.key &&
+        currentSource !== null &&
+        currentSource?.version === pending.expectedDocumentVersion &&
+        currentSource.uri === pending.documentUri &&
+        normalizedSourceForDrag(currentSource.text) === pending.expectedSourceText &&
+        latestHostDocumentVersionRef.current === pending.expectedDocumentVersion;
+      const exactPendingAuthority = exactPendingSource && (pending.graphAuthority === null
+        ? !graphContextRef.current
+        : Boolean(graphContextRef.current &&
+          sameOutputPreviewGraphAuthority(graphContextRef.current.authority, pending.graphAuthority) &&
+          graphContextRef.current.dependencyIdentity === pending.graphDependencyIdentity));
+      if (pending?.phase === "commit-pending") {
+        if (!exactPendingAuthority) fittedSelectionTokenRef.current = null;
+        outputPreviewPlaceCommitPendingRef.current = null;
+        setPlaceDragPreviewCurrent(null);
+      }
+      setEvaluationState({
+        outputKey: candidate.key,
         sourceRevision: currentSourceRevision,
         plan,
         evaluating: false,
         error: null
       });
     }).catch((error: unknown) => {
-      if (!cancelled && generation === contextGenerationRef.current) setEvaluationState({
-        outputKey: selectedCandidate.key,
+      if (cancelled || generation !== contextGenerationRef.current) return;
+      if (placeDragPreviewRef.current?.phase === "commit-pending") {
+        outputPreviewPlaceCommitPendingRef.current = null;
+        setPlaceDragPreviewCurrent(null);
+      }
+      setEvaluationState({
+        outputKey: candidate.key,
         sourceRevision: currentSourceRevision,
         plan: null,
         evaluating: false,
@@ -632,12 +762,12 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       });
     });
     return () => { cancelled = true; };
-  }, [bindingIssueDiagnostics, compiledDocument, currentSourceRevision, diagnostics, evaluateCandidate, graphContext, selectedCandidate, sourceIsCurrent]);
+  }, [bindingIssueDiagnostics, canonicalCompiledDocument, canonicalSelectedCandidate, currentSourceRevision, diagnostics, evaluateCandidate, graphContext, sourceIsCurrent, setPlaceDragPreviewCurrent]);
 
   const activePlan = sourceIsCurrent
     && evaluationState.sourceRevision === currentSourceRevision
-    && selectedCandidate
-    && evaluationState.outputKey === selectedCandidate.key
+    && canonicalSelectedCandidate
+    && evaluationState.outputKey === canonicalSelectedCandidate.key
     ? evaluationState.plan
     : null;
 
@@ -653,7 +783,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
 
   const requestCurrentExport = useCallback((): boolean => {
     const documentVersion = latestHostDocumentVersionRef.current;
-    if (!exportablePlan || !canonicalSelectedCandidate || documentVersion === null || pendingExportRequestId !== null) return false;
+    if (placeDragPreviewRef.current || !exportablePlan || !canonicalSelectedCandidate || documentVersion === null || pendingExportRequestId !== null) return false;
     const requestId = nextExportRequestIdRef.current;
     nextExportRequestIdRef.current += 1;
     setPendingExportRequestId(requestId);
@@ -978,15 +1108,25 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
         const previous = hostSourceRef.current;
         const uri = message.hostDocumentUri ?? (message.type === "commitText" ? previous?.uri : undefined);
         const sameRoot = previous?.uri === uri;
+        const pendingPlacement = placeDragPreviewRef.current;
         if (previous && message.type === "commitText" && !sameRoot) return;
         if (previous && sameRoot && message.documentVersion < previous.version) return;
         if (previous && sameRoot && previous.version === message.documentVersion) {
           if (previous.text === message.sourceText) {
+            if (pendingPlacement?.phase === "commit-pending") setPlaceDragPreviewCurrent(null);
             outputPreviewPlaceCommitPendingRef.current = null;
             api.postMessage({ type: "webviewAuthoritativeDocumentReady", documentVersion: message.documentVersion });
           }
           return;
         }
+        const matchingPlacementCommit = previous !== null && message.type === "commitText" && message.reason === "edit" &&
+          pendingPlacement?.phase === "commit-pending" &&
+          previous?.uri === pendingPlacement.documentUri &&
+          previous.version === pendingPlacement.proof.documentVersion &&
+          normalizedSourceForDrag(previous.text) === pendingPlacement.proof.normalizedSourceSnapshot &&
+          uri === pendingPlacement.documentUri &&
+          message.documentVersion === pendingPlacement.expectedDocumentVersion &&
+          normalizedSourceForDrag(message.sourceText) === pendingPlacement.expectedSourceText;
         const next = {
           uri, version: message.documentVersion, text: message.sourceText,
           requiresGraph: outputPreviewRequiresGraph(message.sourceText)
@@ -1003,7 +1143,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
         graphContextRef.current = null;
         setGraphContext(null);
         setGraphError(null);
-        invalidateAuthority();
+        invalidateAuthority(matchingPlacementCommit);
         if (!next.requiresGraph) {
           if (message.type === "replaceTextDocument" || previous?.requiresGraph) {
             useCadDocumentStore.getState().replaceTextDocument(message.sourceText, {
@@ -1028,7 +1168,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       rejectPendingGraphPlans();
       rustTransport.dispose();
     };
-  }, [api, applyOpenSelection, clearExplicitReveal, handleRevealRequest, invalidateAuthority, receiveGraphPublication, rejectPendingGraphPlans, rustTransport, updateSelectedOutputKey]);
+  }, [api, applyOpenSelection, clearExplicitReveal, handleRevealRequest, invalidateAuthority, receiveGraphPublication, rejectPendingGraphPlans, rustTransport, setPlaceDragPreviewCurrent, updateSelectedOutputKey]);
 
   const handleWheel = (event: React.WheelEvent<HTMLDivElement>) => {
     event.preventDefault();
@@ -1167,7 +1307,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
 
   const navigateToSourceRange = (range: { from: number; to: number } | null) => {
     const documentVersion = latestHostDocumentVersionRef.current;
-    if (!range || documentVersion === null) return;
+    if (!range || documentVersion === null || placeDragPreviewRef.current) return;
     api.postMessage({
       type: "outputPreviewSourceNavigation",
       documentVersion,
@@ -1178,7 +1318,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
 
   const navigateToSelectedOutput = () => navigateToSourceRange(canonicalSelectedCandidate?.sourceRange ?? null);
 
-  const plan = activePlan;
+  const plan = placeDragPreview?.plan ?? activePlan;
   const placeProjections = useMemo(
     () => plan ? projectOutputPlaces({ compiledDocument, plan }) : [],
     [compiledDocument, plan]
@@ -1218,7 +1358,9 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       outputPreviewPlaceCommitPendingRef.current !== null ||
       placeDragPreview ||
       !plan ||
-      !currentDragPlanIdentity
+      !currentDragPlanIdentity ||
+      !canonicalSelectedCandidate ||
+      plan.placements.filter((placement) => placement.id === projection.placeId).length !== 1
     ) return null;
     const proof = beginOutputPreviewPlaceDrag({
       projection,
@@ -1227,74 +1369,98 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       documentVersion: latestHostDocumentVersionRef.current,
       plan
     });
+    if (!proof) return null;
     if (graphContextRef.current) graphDragProofRef.current = proof;
+    const context = graphContextRef.current;
+    const source = hostSourceRef.current;
+    setPlaceDragPreviewCurrent({
+      proof,
+      basePlan: plan,
+      plan,
+      outputKey: canonicalSelectedCandidate.key,
+      candidates: canonicalCandidates,
+      sourceText,
+      compiledDocument: canonicalCompiledDocument,
+      documentUri: source?.uri,
+      originalGraphAuthority: context?.authority ?? null,
+      graphAuthority: context?.authority ?? null,
+      graphDependencyIdentity: context?.dependencyIdentity ?? null,
+      phase: "dragging"
+    });
     return proof;
-  }, [currentDragPlanIdentity, currentSourceRevision, placeDragPreview, plan, sourceText]);
+  }, [canonicalCandidates, canonicalCompiledDocument, canonicalSelectedCandidate, currentDragPlanIdentity, currentSourceRevision, placeDragPreview, plan, setPlaceDragPreviewCurrent, sourceText]);
 
   const previewPlaceDrag = useCallback((
     proof: OutputPreviewPlaceDragProof,
     coordinates: { x: number; y: number }
   ): boolean => {
-    if (!dragProofIsCurrent(proof)) {
-      setPlaceDragPreview(null);
+    const current = placeDragPreviewRef.current;
+    if (!current || current.proof !== proof || current.phase !== "dragging" || !dragProofIsCurrent(proof)) {
+      if (current?.proof === proof && current.phase === "dragging") setPlaceDragPreviewCurrent(null);
       return false;
     }
-    const transientSource = outputPreviewPlacePreviewSourceFor(proof, coordinates);
-    if (transientSource === null) {
-      setPlaceDragPreview(null);
+    const plan = projectOutputPlanForPlaceTranslation({
+      acceptedPlan: current.basePlan,
+      placeId: proof.placeId,
+      delta: { x: coordinates.x - proof.x.literal, y: coordinates.y - proof.y.literal }
+    });
+    if (!plan) {
+      setPlaceDragPreviewCurrent(null);
       return false;
     }
-    // Imported plans update from the corresponding Host publication after commit.
-    if (graphContextRef.current) return true;
-    const state = useCadDocumentStore.getState();
-    const compiled = compileCanonicalText(state, transientSource);
-    if (compiled.status === "fatal" || compiled.docText !== compiled.sourceText) {
-      setPlaceDragPreview(null);
-      return false;
-    }
-    const transientCandidates = outputPreviewCandidatesFor(transientSource, compiled.doc);
-    const transientCandidate = outputPreviewCandidateForKey(transientCandidates, selectedOutputKeyRef.current);
-    const transientIdentity = dragPlanIdentityForCandidate(transientCandidate);
-    if (!transientIdentity || outputPreviewPlaceDragPlanIdentityFor(transientIdentity) !== proof.planIdentity) {
-      setPlaceDragPreview(null);
-      return false;
-    }
-    setPlaceDragPreview({ proof, sourceText: transientSource, compiledDocument: compiled.doc });
+    setPlaceDragPreviewCurrent({ ...current, plan });
     return true;
-  }, [dragProofIsCurrent]);
+  }, [dragProofIsCurrent, setPlaceDragPreviewCurrent]);
 
   const cancelPlaceDrag = useCallback((proof: OutputPreviewPlaceDragProof) => {
     if (graphDragProofRef.current === proof) graphDragProofRef.current = null;
-    setPlaceDragPreview((current) => current?.proof === proof ? null : current);
-  }, []);
+    const current = placeDragPreviewRef.current;
+    if (current?.proof === proof && current.phase === "dragging") setPlaceDragPreviewCurrent(null);
+  }, [setPlaceDragPreviewCurrent]);
 
   const commitPlaceDrag = useCallback((
     proof: OutputPreviewPlaceDragProof,
     coordinates: { x: number; y: number }
   ): boolean => {
-    if (outputPreviewPlaceCommitPendingRef.current !== null || !dragProofIsCurrent(proof)) {
-      setPlaceDragPreview(null);
+    const current = placeDragPreviewRef.current;
+    if (outputPreviewPlaceCommitPendingRef.current !== null || !current || current.proof !== proof ||
+      current.phase !== "dragging" || !dragProofIsCurrent(proof)) {
+      if (current?.proof === proof && current.phase === "dragging") setPlaceDragPreviewCurrent(null);
       return false;
     }
     const patches = outputPreviewPlaceCoordinatePatchesFor(proof, coordinates);
     if (patches === null) {
-      setPlaceDragPreview(null);
+      setPlaceDragPreviewCurrent(null);
       return false;
     }
-    setPlaceDragPreview(null);
     if (graphDragProofRef.current === proof) graphDragProofRef.current = null;
-    if (patches.length === 0) return true;
+    if (patches.length === 0) {
+      setPlaceDragPreviewCurrent(null);
+      return true;
+    }
+    const expectedSourceText = outputPreviewPlacePreviewSourceFor(proof, coordinates);
+    const expectedDocumentVersion = proof.documentVersion + 1;
+    if (expectedSourceText === null || !Number.isSafeInteger(expectedDocumentVersion)) {
+      setPlaceDragPreviewCurrent(null);
+      return false;
+    }
+    setPlaceDragPreviewCurrent({
+      ...current,
+      phase: "commit-pending",
+      expectedSourceText,
+      expectedDocumentVersion
+    });
     outputPreviewPlaceCommitPendingRef.current = proof.documentVersion;
     api.postMessage({
       type: "outputPreviewPlaceCommit",
       documentVersion: proof.documentVersion,
-      ...(graphContextRef.current ? { graphAuthority: graphContextRef.current.authority } : {}),
+      ...(current.originalGraphAuthority ? { graphAuthority: current.originalGraphAuthority } : {}),
       normalizedSourceSnapshot: proof.normalizedSourceSnapshot,
       statementRange: proof.statementRange,
       patches
     });
     return true;
-  }, [api, dragProofIsCurrent]);
+  }, [api, dragProofIsCurrent, setPlaceDragPreviewCurrent]);
 
   const currentDiagnostic = graphBound ? undefined :
     [...diagnostics, ...bindingIssueDiagnostics].find((diagnostic) => diagnostic.severity === "error") ?? diagnostics[0] ?? bindingIssueDiagnostics[0];
@@ -1331,12 +1497,12 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
               clearExplicitReveal();
               updateSelectedOutputKey(event.target.value || null);
             }}
-            disabled={canonicalCandidates.length === 0}
+          disabled={canonicalCandidates.length === 0 || placeDragPreview !== null}
           >
-            {canonicalCandidates.length === 0 ? (
+          {displayCandidates.length === 0 ? (
               <option value="">{webviewPresentationTextFor(webviewPresentation, "output.selector.noOutputs", "No outputs")}</option>
             ) : null}
-            {canonicalCandidates.map((candidate) => (
+          {displayCandidates.map((candidate) => (
               <option key={candidate.key} value={candidate.key}>
                 {outputKindLabel(candidate, webviewPresentation)} · {candidate.output.name}
               </option>
@@ -1363,8 +1529,8 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
                   label: webviewPresentationTextFor(webviewPresentation, "output.ribbon.goToSource", "Go to Source"),
                   description: "",
                   showLabel: false,
-                  available: Boolean(canonicalSelectedCandidate),
-                  nativeDisabled: !canonicalSelectedCandidate
+                  available: Boolean(canonicalSelectedCandidate) && !placeDragPreview,
+                  nativeDisabled: !canonicalSelectedCandidate || placeDragPreview !== null
                 }
               ]
             }}
@@ -1540,7 +1706,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
           }}
           iconResolver={resolveVscodeLucideIcon}
         />
-        {evaluationState.evaluating ? (
+        {evaluationState.evaluating || placeDragPreview?.phase === "commit-pending" ? (
           <span className="output-preview-status">
             {webviewPresentationTextFor(webviewPresentation, "output.evaluating", "Evaluating…")}
           </span>
@@ -1572,7 +1738,8 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
               </button>
             ) : null}
           </div>
-        ) : !sourceIsCurrent ? (
+        ) : (!sourceIsCurrent && placeDragPreview?.phase !== "commit-pending") ||
+          (sourceIsCurrent && Boolean(selectedCandidate) && !plan) ? (
           <div className="output-preview-state" role="status">
             <strong>{webviewPresentationTextFor(webviewPresentation, "output.evaluating", "Evaluating…")}</strong>
           </div>
