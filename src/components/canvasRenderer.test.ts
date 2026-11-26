@@ -94,6 +94,83 @@ const strokeContext = () => {
   return { ctx, snapshots };
 };
 
+const mirrorPreviewStrokeContext = () => {
+  type State = { strokeStyle: string; lineWidth: number; lineDash: number[]; globalAlpha: number };
+  let state: State = { strokeStyle: "initial", lineWidth: 7, lineDash: [], globalAlpha: 1 };
+  const stack: State[] = [];
+  const strokes: State[] = [];
+  const ctx = {
+    arc: vi.fn(),
+    beginPath: vi.fn(),
+    bezierCurveTo: vi.fn(),
+    clearRect: vi.fn(),
+    fill: vi.fn(),
+    fillRect: vi.fn(),
+    lineTo: vi.fn(),
+    moveTo: vi.fn(),
+    restore: vi.fn(() => { state = stack.pop() ?? state; }),
+    save: vi.fn(() => { stack.push({ ...state, lineDash: [...state.lineDash] }); }),
+    setLineDash: vi.fn((lineDash: number[]) => { state.lineDash = [...lineDash]; }),
+    stroke: vi.fn(() => { strokes.push({ ...state, lineDash: [...state.lineDash] }); }),
+    set fillStyle(_value: string) {},
+    set lineCap(_value: CanvasLineCap) {},
+    set lineJoin(_value: CanvasLineJoin) {},
+    set lineWidth(lineWidth: number) { state.lineWidth = lineWidth; },
+    set strokeStyle(strokeStyle: string) { state.strokeStyle = strokeStyle; },
+    set globalAlpha(globalAlpha: number) { state.globalAlpha = globalAlpha; }
+  } as unknown as CanvasRenderingContext2D;
+  return { ctx, strokes, currentState: () => state };
+};
+
+const previewLine = (sourceElementId = "source") => ({
+  groups: [{
+    sourceElementId,
+    segments: [{ kind: "line" as const, start: { x: 2, y: 3 }, end: { x: 8, y: 3 }, length: 6 }]
+  }]
+});
+
+const renderMirrorPreviews = ({
+  previews,
+  visibleElementIds,
+  strokes = new Map(),
+  canvasTheme = LEGACY_CANVAS_THEME,
+  selectedElementIds = [],
+  selectedElementId = null,
+  isPointPickActive = false,
+  isNumericReferencePickActive = false,
+  isLinePickActive = false
+}: {
+  previews: ReadonlyMap<string, MirrorCopyPreview>;
+  visibleElementIds: Set<string>;
+  strokes?: ReadonlyMap<string, DrawingModifierStroke>;
+  canvasTheme?: CanvasTheme;
+  selectedElementIds?: string[];
+  selectedElementId?: string | null;
+  isPointPickActive?: boolean;
+  isNumericReferencePickActive?: boolean;
+  isLinePickActive?: boolean;
+}) => {
+  const context = mirrorPreviewStrokeContext();
+  renderCanvasGeometry({
+    ctx: context.ctx,
+    size: { width: 500, height: 400 },
+    viewport: { panX: 0, panY: 0, zoom: 1 },
+    lines: [], arcs: [], curves: [], offsetLines: [], joinedPaths: [], polylines: [], points: [],
+    mirrorCopyPreviews: previews,
+    visibleElementIds,
+    selectedElementIdSet: new Set(selectedElementIds),
+    selectedElementId,
+    effectiveDrawingModifierStrokes: strokes,
+    canvasTheme,
+    canvasGridSettings: { enabled: false, spacingMm: 10, majorEvery: 5, snapEnabled: false },
+    showCanvasPoints: false,
+    isPointPickActive,
+    isNumericReferencePickActive,
+    isLinePickActive
+  });
+  return context;
+};
+
 const renderWithStroke = ({
   stroke,
   lines = [],
@@ -366,10 +443,72 @@ describe("renderCanvasGeometry", () => {
 
     const hiddenSource = render(new Set(["preview-owner"]));
     expect(hiddenSource.bezierCurveTo).not.toHaveBeenCalled();
+    const hiddenOwner = render(new Set(["hidden-source"]));
+    expect(hiddenOwner.bezierCurveTo).not.toHaveBeenCalled();
 
     const visibleSource = render(new Set(["preview-owner", "hidden-source"]));
     expect(visibleSource.bezierCurveTo).toHaveBeenCalledTimes(1);
-    expect(visibleSource.setLineDash).toHaveBeenCalledWith([6, 4]);
+    expect(visibleSource.setLineDash).toHaveBeenCalledWith([]);
+  });
+
+  it("uses foreground solid defaults and isolates each preview owner's normal effective Style", () => {
+    const theme: CanvasTheme = { ...LEGACY_CANVAS_THEME, foreground: "#135724", info: "#2468ac" };
+    const defaultPreview = renderMirrorPreviews({
+      previews: new Map([["default-owner", previewLine()]]),
+      visibleElementIds: new Set(["default-owner", "source"]),
+      canvasTheme: theme
+    });
+    expect(defaultPreview.strokes).toEqual([{
+      strokeStyle: "#135724", lineWidth: 1, lineDash: [], globalAlpha: 1
+    }]);
+    expect(defaultPreview.ctx.fill).not.toHaveBeenCalled();
+
+    const styles = new Map<string, DrawingModifierStroke>([
+      ["solid-owner", { widthPx: 2, style: "solid", color: { kind: "fixed", hex: "#112233" } }],
+      ["dashed-owner", { widthPx: 3, style: "dashed", color: { kind: "themeRole", role: "info" } }],
+      ["dotted-owner", { widthPx: 4, style: "dotted", color: { kind: "fixed", hex: "#a1b2c3" } }]
+    ]);
+    const styled = renderMirrorPreviews({
+      previews: new Map([
+        ["solid-owner", previewLine()],
+        ["dashed-owner", previewLine()],
+        ["dotted-owner", previewLine()]
+      ]),
+      visibleElementIds: new Set(["solid-owner", "dashed-owner", "dotted-owner", "source"]),
+      strokes: styles,
+      canvasTheme: theme
+    });
+    expect(styled.strokes).toEqual([
+      { strokeStyle: "#112233", lineWidth: 2, lineDash: [], globalAlpha: 1 },
+      { strokeStyle: "#2468ac", lineWidth: 3, lineDash: [6, 4], globalAlpha: 1 },
+      { strokeStyle: "#a1b2c3", lineWidth: 4, lineDash: [1, 3], globalAlpha: 1 }
+    ]);
+    expect(styled.ctx.fill).not.toHaveBeenCalled();
+  });
+
+  it("does not apply selection or Pick emphasis to preview strokes and restores context state", () => {
+    const theme: CanvasTheme = { ...LEGACY_CANVAS_THEME, foreground: "#135724", pickCandidate: "#ff00ff" };
+    const stroke = renderMirrorPreviews({
+      previews: new Map([["owner", previewLine()]]),
+      visibleElementIds: new Set(["owner", "source"]),
+      strokes: new Map([["owner", { widthPx: 1, style: "solid", color: { kind: "themeRole", role: "foreground" } }]]),
+      canvasTheme: theme,
+      selectedElementIds: ["owner"],
+      selectedElementId: "owner",
+      isPointPickActive: true,
+      isNumericReferencePickActive: true,
+      isLinePickActive: true
+    });
+
+    expect(stroke.strokes).toEqual([
+      { strokeStyle: "#135724", lineWidth: 1, lineDash: [], globalAlpha: 1 }
+    ]);
+    expect(stroke.ctx.fill).not.toHaveBeenCalled();
+    expect(stroke.ctx.save).toHaveBeenCalledTimes(1);
+    expect(stroke.ctx.restore).toHaveBeenCalledTimes(1);
+    expect(stroke.currentState()).toEqual({
+      strokeStyle: "initial", lineWidth: 7, lineDash: [], globalAlpha: 1
+    });
   });
 
   it("keeps display-only mirrorCopy previews outside Canvas selection and hit candidates", () => {

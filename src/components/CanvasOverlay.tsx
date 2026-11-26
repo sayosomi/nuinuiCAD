@@ -44,6 +44,7 @@ type CanvasOverlayProps = {
   overlayPoints: CanvasOverlayPoint[];
   overlayTexts: CanvasOverlayText[];
   overlayIdentityCandidates?: CanvasIdentityCandidate[];
+  mirrorCopyPreviewLabels?: readonly MirrorCopyPreviewLabel[];
   selectedBezierEditingHelper: BezierEditingHelperOverlay | null;
   selectedExtractEditingHelper?: { points: ScreenPoint[] } | null;
   selectedBezierHandles: BezierHandleOverlay[];
@@ -69,6 +70,12 @@ type CanvasOverlayProps = {
   hoverRepresentativeElementId: ElementId | null;
 };
 
+export type MirrorCopyPreviewLabel = {
+  ownerId: ElementId;
+  name: string;
+  anchor: ScreenPoint;
+};
+
 const drawingModifierColor = (stroke: DrawingModifierStroke, canvasTheme: CanvasTheme) =>
   stroke.color.kind === "fixed"
     ? stroke.color.hex
@@ -87,6 +94,7 @@ export const CanvasOverlay = ({
   overlayPoints,
   overlayTexts,
   overlayIdentityCandidates = [],
+  mirrorCopyPreviewLabels = [],
   selectedBezierEditingHelper,
   selectedExtractEditingHelper,
   selectedBezierHandles,
@@ -438,6 +446,18 @@ export const CanvasOverlay = ({
         {candidate.name}
       </text>
     ))}
+    {geometryNamesEnabled ? mirrorCopyPreviewLabels.map((label) => (
+      <text
+        key={`mirror-copy-preview-label-${label.ownerId}`}
+        data-mirror-copy-preview-label={label.ownerId}
+        x={label.anchor.x + 8}
+        y={label.anchor.y - 8}
+        fill="var(--canvas-foreground)"
+        style={{ fontSize: 12, pointerEvents: "none" }}
+      >
+        {label.name}
+      </text>
+    )) : null}
     {isPointPickActive
       ? overlayPointPickCandidates.map((candidate, index) => (
           <circle

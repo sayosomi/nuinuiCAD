@@ -495,6 +495,64 @@ describe("Canvas identity labels", () => {
     );
     expect(container.querySelector("[data-element-identity='secondary']")).toBeNull();
   });
+
+  it("renders display-only mirrorCopy labels only with Geometry Names using identity-label presentation", () => {
+    const previewLabel = {
+      ownerId: "mirror-owner",
+      name: "Mirrored",
+      anchor: { x: 20, y: 30 }
+    };
+    const { container, rerender } = renderOverlay([], {
+      mirrorCopyPreviewLabels: [previewLabel],
+      canvasTheme: { ...LEGACY_CANVAS_THEME, foreground: "#345678" },
+      selectedElementId: "mirror-owner",
+      selectedElementIdSet: new Set(["mirror-owner"]),
+      hoveredElementIds: new Set(["mirror-owner"]),
+      hoverRepresentativeElementId: "mirror-owner",
+      showCanvasGeometryNames: false
+    });
+
+    expect(container.querySelector("[data-mirror-copy-preview-label]")).toBeNull();
+    expect(container.querySelector("[data-element-identity='mirror-owner']")).toBeNull();
+
+    rerender(
+      <CanvasOverlay
+        viewportSize={{ width: 500, height: 400 }}
+        overlayLines={[]}
+        overlayArcs={[]}
+        overlayCurves={[]}
+        overlayOffsetLines={[]}
+        overlayPoints={[]}
+        overlayTexts={[]}
+        mirrorCopyPreviewLabels={[previewLabel]}
+        selectedBezierEditingHelper={null}
+        selectedBezierHandles={[]}
+        overlayPointPickCandidates={[]}
+        selectedElementIdSet={new Set(["mirror-owner"])}
+        draftLinePickElementIds={new Set()}
+        pickCandidateLineIds={new Set()}
+        selectedElementId="mirror-owner"
+        canvasTheme={{ ...LEGACY_CANVAS_THEME, foreground: "#345678" }}
+        showCanvasPointNames={false}
+        showCanvasGeometryNames={true}
+        showCanvasPoints={false}
+        isPointPickActive={false}
+        isNumericReferencePickActive={false}
+        isLinePickActive={false}
+        hoveredElementIds={new Set(["mirror-owner"])}
+        hoverRepresentativeElementId="mirror-owner"
+      />
+    );
+
+    const label = container.querySelector("[data-mirror-copy-preview-label]");
+    expect(label).toHaveTextContent("Mirrored");
+    expect(label).toHaveAttribute("x", "28");
+    expect(label).toHaveAttribute("y", "22");
+    expect(label).toHaveAttribute("fill", "var(--canvas-foreground)");
+    expect(label).toHaveStyle({ fontSize: "12px", pointerEvents: "none" });
+    expect(label).not.toHaveClass("overlay-element-identity-primary-selected", "overlay-element-identity-hovered");
+    expect(container.querySelector("[data-element-identity='mirror-owner']")).toBeNull();
+  });
 });
 
 
