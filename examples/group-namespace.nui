@@ -1,0 +1,11 @@
+nui 1
+
+// Group namespace reference. Change the grouped Edge endpoint; its hidden source still evaluates.
+// Expected: Copy materializes Front::Edge as one visible 60 mm line.
+// Group内の要素を外から参照する
+group Front {
+  point A = coordinate(x: 0, y: 0)
+  line Edge = segment(start: @A, end: (60, 0), visible: false)
+}
+line Copy = from(source: @Front::Edge)
+text = label(text: "Group Edge", anchor: (0, 20), size: 6)

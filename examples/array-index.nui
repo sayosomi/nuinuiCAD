@@ -1,0 +1,10 @@
+nui 1
+
+// Array indexing. Use index 0, 1 or 2; indexes are zero-based.
+// Expected: Index 1 selects 20 mm from [10,20,30].
+// 数値配列をインデックスで選択する
+const widths: number[] = [10, 20, 30]
+const index: number = 1
+const selected: number = @widths[@index]
+line Selected = segment(start: (0, 0), end: (@selected, 0))
+text = label(text: "width = ${@selected} mm", anchor: (0, 20), size: 6)

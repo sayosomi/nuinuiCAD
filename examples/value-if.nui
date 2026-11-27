@@ -1,0 +1,13 @@
+nui 1
+
+// If expression. Set wide=false to choose 40 mm.
+// Expected: wide=true selects width 80 mm.
+// if式を使って図形の寸法を切り替える
+const wide: boolean = true
+const width: number = if (@wide) {
+  80
+} else {
+  40
+}
+line Result = segment(start: (0, 0), end: (@width, 0))
+text = label(text: "width = ${@width} mm", anchor: (0, 20), size: 6)

@@ -1,0 +1,10 @@
+nui 1
+
+// Immutable carry / next. Change values to [1,2,3,4] to obtain total=10.
+// Expected: The unnamed label reads total = 6.
+// forでcarryを累積更新して合計を求める
+const values: number[] = [1, 2, 3]
+for item in @values carry total: number = 0 {
+  next total = @total + @item
+}
+text = label(text: "total = ${@total}", anchor: (0, 0), size: 6)

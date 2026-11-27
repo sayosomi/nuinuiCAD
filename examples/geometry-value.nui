@@ -1,0 +1,10 @@
+nui 1
+
+// Pure geometry value. Change B.x to update Source and its materialized Copy.
+// Expected: Const geometry is not drawn; only Copy is a 60 mm line.
+// 非描画のgeometry値を描画するlineへ渡す
+const A: point = coordinate(x: 0, y: 0)
+const B: point = coordinate(x: 60, y: 0)
+const Source: line = segment(start: @A, end: @B)
+line Copy = from(source: @Source)
+text = label(text: "pure geometry value", anchor: (0, 20), size: 6)

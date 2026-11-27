@@ -1,0 +1,12 @@
+nui 1
+
+// Sine in degrees. Change direction or radius; direction is in degrees.
+// Expected: 40 * sin(30 deg) gives Height = 20 mm.
+// sin: change the input values to see the result update
+const direction: number = 30
+const radius: number = 40
+const height: number = @radius * sin(@direction)
+line Horizontal = segment(start: (0, 0), end: (@radius, 0))
+line Height = segment(start: (@radius, 0), end: (@radius, @height))
+line Diagonal = segment(start: (0, 0), end: (@radius, @height))
+text = label(text: "radius * sin = ${round(@height, 2)} mm", anchor: (0, 45), size: 6)

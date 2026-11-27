@@ -1,0 +1,12 @@
+nui 1
+
+// Minimum of two lengths. Change length_a or length_b; length_b=80 makes the minimum 60.
+// Expected: The three lines are 60, 40 and 40 mm; min = 40 mm.
+// min: change the input values to see the result update
+const length_a: number = 60
+const length_b: number = 40
+const shorter_length: number = min(@length_a, @length_b)
+line A = segment(start: (0, 0), end: (@length_a, 0))
+line B = segment(start: (0, 20), end: (@length_b, 20))
+line Shorter = segment(start: (0, 40), end: (@shorter_length, 40))
+text = label(text: "min = ${@shorter_length} mm", anchor: (0, 65), size: 6)

@@ -6,7 +6,7 @@ The later Human decision stopped per-sample Human verification. [The current Iss
 
 ## Recorded verdicts
 
-**PASS** below means historical Human dogfood PASS of the linked candidate. It never asserts that the current source was Human-tested. The five reused PNGs and 39 new PNGs are implementation artifacts, not evidence that the Human performed a new test.
+**PASS** below means historical Human dogfood PASS of the linked candidate. It never asserts that the current source was Human-tested. The first slice's five reused PNGs and 39 new PNGs, and this slice's 14 reused PNGs and 29 new PNGs, are implementation artifacts, not evidence that the Human performed a new test.
 
 | No. | Current source | Recorded Human result | Authoritative feedback |
 | --- | --- | --- | --- |
@@ -66,7 +66,7 @@ The later Human decision stopped per-sample Human verification. [The current Iss
 - **029:** The [Human-selected final source](https://github.com/sayosomi/nuinuiCAD/issues/1596#issuecomment-6876572288) uses endAngle=90/endLength=30 and B=(100,30); the earlier proposed end handle is not used.
 - **032:** The [old source passed but was visually unclear](https://github.com/sayosomi/nuinuiCAD/issues/1596#issuecomment-6876684729); its PASS was not transferred to the pending revision. The [revised source received its own PASS](https://github.com/sayosomi/nuinuiCAD/issues/1596#issuecomment-6876704824): Copy references the visible Reference line's endpoint. That revision is retained.
 - **040:** The [Human-provided unnamed text revision](https://github.com/sayosomi/nuinuiCAD/issues/1596#issuecomment-6876911486) is retained. The superseding Issue-body rule also removes helper text names from 026, 027 and 034–039. Those normalization edits are agent-verified; no new Human PASS is inferred.
-- **045:** The [draft inventory checkpoint](https://github.com/sayosomi/nuinuiCAD/issues/1596#issuecomment-6877203996) explicitly records no Human verdict for min(). All 045–088 sources remain author drafts outside this slice.
+- **045:** The [draft inventory checkpoint](https://github.com/sayosomi/nuinuiCAD/issues/1596#issuecomment-6877203996) explicitly records no Human verdict for min(). 045–088 were author drafts at that checkpoint. Their later restoration and verification are recorded below; no Human verdict is inferred.
 
 ## Current authoring differences
 
@@ -75,3 +75,19 @@ Sample **009** retains the closed-polyline theme but moves C from `(@width, @hei
 Sample **014** retains the Human-approved code. Its current production shape has portions above and below the endpoint chord; the old prose “upward arch” is not used as the current expected observation. Every source now includes a concise expected-observation comment; these comments do not constitute new Human judgments.
 
 The current [index](README.md) reports current compilation, production Rust evaluation and PNG inspection separately from this history.
+
+## Samples 045–088 recovery and current verification
+
+The source proposals are [045–056](https://github.com/sayosomi/nuinuiCAD/issues/1596#issuecomment-6877118664), [057–068](https://github.com/sayosomi/nuinuiCAD/issues/1596#issuecomment-6877144104), [069–076](https://github.com/sayosomi/nuinuiCAD/issues/1596#issuecomment-6877171498) and [077–088](https://github.com/sayosomi/nuinuiCAD/issues/1596#issuecomment-6877193481). Their earlier `AUTHOR_DRAFT / NOT_RUN` and screenshot-deferral statuses are historical; the current index reports actual verification and missing images. **None of 045–088 has an individual Human PASS.**
+
+The [pause checkpoint](https://github.com/sayosomi/nuinuiCAD/issues/1596#issuecomment-6889275261) preserved 44 candidate sources, two libraries and 15 captures without a commit/push. Its reported optional path length of 0 was a product defect. The [#1606-resolution checkpoint](https://github.com/sayosomi/nuinuiCAD/issues/1596#issuecomment-6891903980) records the separate fix merged through PR #1607 at `44c5bc028967b3ad776765198deaa5478966562d`.
+
+The newly admitted restoration slice began at that exact Base. The 46 `.nui` files came from the Human-verified extracted recovery directory, not duplicate/historical archive entries; copy hashes were checked and no 001–044 source or PNG was overwritten. All text declarations remain anonymous. The restored files already included expected-observation/editing comments and several prior authoring refinements (including 065's Mark at x=28, 066's 50 mm baseline, and 077's hidden source Edge).
+
+Current authoring correction: 066 explicitly sets `showGenerated: true`; otherwise the real Canvas hid the generated marks. The resulting actual capture shows five six-millimetre marks at x=0,10,20,30,40. No product behavior was changed.
+
+All 88 numbered sources and two support libraries have compiler/Rust verification at this Base. 058's actual evaluated label and Canvas now both read `length = 70 mm`. The preserved 15 JPEGs were found and inspected: **14** valid captures for 045–057 and 059 were imported as pixel-identical PNG encodings. The fifteenth was the incorrect pre-fix 058 capture; it remains preserved externally and was not accepted. **29** new authentic captures were accepted, including replacement 058. The exact original capture bytes were preserved outside the repository.
+
+088's imported record compiles through the multi-document boundary and evaluates through Rust to a 5 mm line plus `seam width = 5`. Its actual VS Code Canvas remained blank after reopening saved source and reloading the isolated host. No successful PNG or Human PASS is claimed. This unresolved GUI observation is documented in the [index](README.md); the blank capture is retained externally as blocker evidence.
+
+The existing lint owner reports 067's collection `values` unused despite its loop use. That warning is recorded separately from successful evaluation (total=6); product lint semantics were not changed. Independent pushed-HEAD review, PR CI and any required formal Human Manual E2E remain separate gates. The isolated authoring host was closed after capture work; the Human E2E checkout and infrastructure were not used.

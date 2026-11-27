@@ -1,0 +1,11 @@
+nui 1
+
+// Optional match. Set maybe_name=none to display name = (none).
+// Expected: The label reads name = front from the some branch.
+// optional値をnone/someで分岐する
+const maybe_name: string? = "front"
+const shown_name: string = match @maybe_name {
+  none => "(none)"
+  some value => @value
+}
+text = label(text: "name = ${@shown_name}", anchor: (0, 0), size: 6)

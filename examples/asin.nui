@@ -1,0 +1,10 @@
+nui 1
+
+// Inverse sine. Keep ratio in [-1,1]; ratio=1 gives 90 degrees.
+// Expected: asin(0.5) = 30 deg, shown by the arc.
+// asin: change the input values to see the result update
+const ratio: number = 0.5
+const direction: number = asin(@ratio)
+const radius: number = 40
+arc Sector = arc(center: (0, 0), radius: @radius, start: 0, end: @direction)
+text = label(text: "asin = ${round(@direction, 2)} deg", anchor: (0, -15), size: 6)

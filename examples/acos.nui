@@ -1,0 +1,10 @@
+nui 1
+
+// Inverse cosine. Keep ratio in [-1,1]; ratio=0 gives 90 degrees.
+// Expected: acos(0.5) = 60 deg, shown by the arc.
+// acos: change the input values to see the result update
+const ratio: number = 0.5
+const direction: number = acos(@ratio)
+const radius: number = 40
+arc Sector = arc(center: (0, 0), radius: @radius, start: 0, end: @direction)
+text = label(text: "acos = ${round(@direction, 2)} deg", anchor: (0, -15), size: 6)

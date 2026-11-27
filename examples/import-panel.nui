@@ -1,0 +1,7 @@
+nui 1
+
+// Relative Module import. Keep import-panel-lib.nui beside this file; change Front.width.
+// Expected: Front instantiates the saved library's 60 mm Edge.
+// 別ファイルで公開されたModuleを読み込む
+import "./import-panel-lib.nui" as lib
+instance Front = lib::Panel(width: 60)

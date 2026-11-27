@@ -1,0 +1,8 @@
+nui 1
+
+// Module re-export. Keep import-panel-lib.nui beside this file; change Front.width.
+// Expected: The facade re-exports lib::Panel and instantiates a 60 mm Front::Edge.
+// 読み込んだ公開Moduleを再exportする
+import "./import-panel-lib.nui" as lib
+export @lib::Panel
+instance Front = lib::Panel(width: 60)

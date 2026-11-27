@@ -1,0 +1,17 @@
+nui 1
+
+// Named extracted intervals. Move Cut along L or change the upper-part translation.
+// Expected: L stays at y=0; E::lower covers 0..40; E::upper covers 40..100 at y=20.
+// 直線を名前付き区間に切り出して片側を移動する
+layer draft
+layer finished
+line L in @draft = segment(start: (0, 0), end: (100, 0))
+point Cut = coordinate(x: 40, y: 0)
+extract E in @finished(
+  source: @L,
+  parts: [
+    lower: start..@Cut,
+    upper: @Cut..end,
+  ],
+)
+move @E::upper(from: (0, 0), to: (0, 20))

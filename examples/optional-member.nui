@@ -1,0 +1,13 @@
+nui 1
+
+// Optional geometry member. Set maybe_path=none to use the coalescing fallback of 0.
+// Expected: The non-drawable polyline has length 70 mm; the label shows 70.
+// optional pathのlengthを安全に参照する
+const source_path: path = polyline(
+  points: [(0, 0), (30, 0), (30, 40)],
+  closed: false,
+)
+const maybe_path: path? = @source_path
+const maybe_length: number? = @maybe_path?.length
+const total_length: number = @maybe_length ?? 0
+text = label(text: "length = ${@total_length} mm", anchor: (0, 55), size: 6)

@@ -1,0 +1,12 @@
+nui 1
+
+// Numeric operators. Change width to explore multiplication, remainder, powers and addition.
+// Expected: 20*2 + (20%3) + 2^3 = 50; Result is 50 mm.
+// 四則演算、剰余、累乗を使う
+const width: number = 20
+const doubled: number = @width * 2
+const remainder: number = @width % 3
+const power: number = 2 ^ 3
+const result: number = @doubled + @remainder + @power
+line Value = segment(start: (0, 0), end: (@result, 0))
+text = label(text: "value = ${@result}", anchor: (0, 20), size: 6)

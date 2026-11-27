@@ -1,0 +1,13 @@
+nui 1
+
+// Statement range-for. Change spacing to 8 to use x=0,8,16,24,32; max is inclusive.
+// Expected: Five marks occur at x=0,10,20,30,40 along a 50 mm baseline.
+// 範囲forで一定間隔の印を並べる
+const spacing: number = 10
+line Baseline = segment(start: (0, 0), end: (50, 0))
+for i in range(min: 0, max: 4, step: 1, showGenerated: true) {
+  line Mark = segment(
+    start: (@i * @spacing, -3),
+    end: (@i * @spacing, 3),
+  )
+}
