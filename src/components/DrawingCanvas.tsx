@@ -124,6 +124,8 @@ type DrawingCanvasProps = {
     isCurrentDraw: boolean;
     isProjectedDraw: boolean;
   }) => void;
+  /** Lightweight signal for a successful, current, non-projected Canvas frame. */
+  onCanvasFrameDrawn?: () => void;
   canvasFocusRef: RefObject<HTMLDivElement | null>;
   hostAdapter: CanvasHostAdapter;
   nativePointerBoundaryFallback?: boolean;
@@ -463,6 +465,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
   evaluation,
   evaluationState,
   onProductionDrawCompleted,
+  onCanvasFrameDrawn,
   canvasFocusRef,
   hostAdapter,
   nativePointerBoundaryFallback = false,
@@ -1171,6 +1174,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
             isProjectedDraw: Boolean(projectedDrawing)
           });
         }
+        if (isCurrent && !projectedDrawing) onCanvasFrameDrawn?.();
         return result;
       }
     );
@@ -1188,6 +1192,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     evaluation,
     evaluationState,
     onProductionDrawCompleted,
+    onCanvasFrameDrawn,
     imageRenderVersion,
     offsetLines,
     joinedPaths,

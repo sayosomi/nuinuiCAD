@@ -70,6 +70,8 @@ const drawingCanvasProps = vi.hoisted(() => ({
   evaluateReferencePickCandidate: null as ((compiled: unknown) => Promise<EvaluationResult>) | null,
   onFinishCoordinatePointCreation: null as (() => void) | null,
   onProductionDrawCompleted: null as ((draw: { drawablePrimitiveCount: number; isCurrentDraw: boolean; isProjectedDraw: boolean }) => void) | null,
+  canvasUpdateProgress: null as { documentVersion: number; generation: number } | null,
+  canvasUpdateTerminal: null as "failed" | "unavailable" | null,
   fitDrawingOperation: vi.fn(),
   currentReferencePickAuthorityFor: null as VscodeReferencePickAuthorityFor | null,
   bakeSandboxTargetIds: null as string[] | null,
@@ -175,6 +177,8 @@ vi.mock("./VSCodeDrawingCanvas", async () => {
     evaluateReferencePickCandidate: (compiled: unknown) => Promise<EvaluationResult>;
     onFinishCoordinatePointCreation?: () => void;
     onProductionDrawCompleted?: (draw: { drawablePrimitiveCount: number; isCurrentDraw: boolean; isProjectedDraw: boolean }) => void;
+    canvasUpdateProgress?: { documentVersion: number; generation: number } | null;
+    canvasUpdateTerminal?: "failed" | "unavailable" | null;
   };
   return {
   VSCodeDrawingCanvas: React.forwardRef<TestCanvasHandle, TestCanvasProps>(({
@@ -194,7 +198,9 @@ vi.mock("./VSCodeDrawingCanvas", async () => {
     postCoordinatePointCreationClick,
     evaluateReferencePickCandidate,
     onFinishCoordinatePointCreation,
-    onProductionDrawCompleted
+    onProductionDrawCompleted,
+    canvasUpdateProgress,
+    canvasUpdateTerminal
   }, ref) => {
     React.useImperativeHandle(ref, () => ({
       clearPendingCanvasPointerIntent: () => undefined,
@@ -219,6 +225,8 @@ vi.mock("./VSCodeDrawingCanvas", async () => {
     drawingCanvasProps.evaluateReferencePickCandidate = evaluateReferencePickCandidate;
     drawingCanvasProps.onFinishCoordinatePointCreation = onFinishCoordinatePointCreation ?? null;
     drawingCanvasProps.onProductionDrawCompleted = onProductionDrawCompleted ?? null;
+    drawingCanvasProps.canvasUpdateProgress = canvasUpdateProgress ?? null;
+    drawingCanvasProps.canvasUpdateTerminal = canvasUpdateTerminal ?? null;
     return <div ref={canvasFocusRef} data-testid="canvas" tabIndex={-1} />;
   })
   };
@@ -516,6 +524,9 @@ describe("VSCodeApp Canvas history coordinator", () => {
     drawingCanvasProps.onConfigureCanvasGrid = null;
     drawingCanvasProps.onToggleCanvasGridSnap = null;
     drawingCanvasProps.onFinishCoordinatePointCreation = null;
+    drawingCanvasProps.onProductionDrawCompleted = null;
+    drawingCanvasProps.canvasUpdateProgress = null;
+    drawingCanvasProps.canvasUpdateTerminal = null;
     drawingCanvasProps.evaluateReferencePickCandidate = null;
     drawingCanvasProps.fitDrawingOperation.mockReset();
     drawingCanvasProps.evaluation = { computedGeometry: new Map(), errors: [], warnings: [] };
@@ -527,6 +538,23 @@ describe("VSCodeApp Canvas history coordinator", () => {
   });
 
   afterEach(() => vi.restoreAllMocks());
+
+  it("accepts the latest Host Canvas update progress and ignores stale generations", async () => {
+    render(<VSCodeAppForTest api={{ postMessage: vi.fn() }} />);
+    const publish = async (message: unknown) => {
+      await act(async () => { window.dispatchEvent(new MessageEvent("message", { data: message })); });
+    };
+
+    await publish({ type: "canvasUpdateProgress", documentVersion: 4, generation: 7 });
+    expect(drawingCanvasProps.canvasUpdateProgress).toEqual({ documentVersion: 4, generation: 7 });
+
+    await publish({ type: "canvasUpdateProgress", documentVersion: 5, generation: 6 });
+    await publish({ type: "canvasUpdateProgress", documentVersion: 3, generation: 7 });
+    expect(drawingCanvasProps.canvasUpdateProgress).toEqual({ documentVersion: 4, generation: 7 });
+
+    await publish({ type: "canvasUpdateProgress", documentVersion: 5, generation: 8 });
+    expect(drawingCanvasProps.canvasUpdateProgress).toEqual({ documentVersion: 5, generation: 8 });
+  });
 
   it("delivers host image resources to Canvas with their accepted source revision", async () => {
     render(<VSCodeAppForTest api={{ postMessage: vi.fn() }} />);

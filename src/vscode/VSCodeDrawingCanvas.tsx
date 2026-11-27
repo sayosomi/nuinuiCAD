@@ -1,7 +1,7 @@
 import { canvasImageSourceUrl } from "./canvasImageResources";
 import type { VscodeCanvasGraphCommitAuthority, VscodeCanvasImageResources } from "./protocol";
 import type { RefObject } from "react";
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef } from "react";
 import { dispatchCommand } from "../commands/commands";
 import type { CommandContext, CommandId } from "../commands/commandTypes";
 import { commitCanvasRectangleSelection } from "../commands/canvasRectangleSelectionCommands";
@@ -37,7 +37,7 @@ import type {
 } from "../components/canvasHostAdapter";
 import { webviewCanvasPresentationFor } from "./webviewCanvasPresentation";
 import { webviewPresentationTextFor, type VscodeWebviewPresentation } from "./webviewPresentation";
-import type { VscodeCanvasFeedbackGraphIdentity } from "./surfaceFeedbackProtocol";
+import type { VscodeCanvasFeedbackGraphIdentity, VscodeCanvasFrameIdentity } from "./surfaceFeedbackProtocol";
 import { useRevisionCoherentCanvasPresentation } from "../components/canvasRevisionPresentation";
 import { buildModuleModelPatch, type LastGoodDslDocument } from "@nuinuicad/nui-language/document";
 import { projectIncompleteReferencePickCandidate, projectIndependentReferencePickBrowseCandidate } from "./referencePickCandidateProjection";
@@ -102,6 +102,8 @@ type VSCodeDrawingCanvasProps = {
     isCurrentDraw: boolean;
     isProjectedDraw: boolean;
   }) => void;
+  canvasUpdateProgress?: { generation: number; documentVersion: number } | null;
+  canvasUpdateTerminal?: "failed" | "unavailable" | null;
   canvasFocusRef: RefObject<HTMLDivElement | null>;
   postCanonicalSourceText: (
     sourceText: string,
@@ -164,6 +166,8 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
     evaluation,
     evaluationState,
     onProductionDrawCompleted,
+    canvasUpdateProgress = null,
+    canvasUpdateTerminal = null,
     canvasFocusRef,
     postCanonicalSourceText,
     postCanvasCommit,
@@ -536,7 +540,78 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       scopeKey: hostRootDocumentId ? JSON.stringify([hostRootDocumentId, hostDocumentEpoch]) : undefined,
       awaitingGraph: awaitingHostGraph
     });
-    useEffect(() => {
+    const frameEvaluationState = canvasPresentation.renderEvaluationState;
+    const frameSourceRevision = canvasPresentation.compiledDocument?.spans.sourceMap.sourceRevision;
+    const hasFeedbackGraphIdentity = feedbackGraphIdentity !== null;
+    const feedbackGraphHostDocumentUri = feedbackGraphIdentity?.hostDocumentUri;
+    const feedbackGraphRevision = feedbackGraphIdentity?.graphRevision;
+    const feedbackGraphSourceRevision = feedbackGraphIdentity?.sourceRevision;
+    const hasRuntimePresentationForRoot = Boolean(runtimePresentationForRoot);
+    const runtimeGraphRootDocumentId = runtimePresentationForRoot?.rootDocumentId;
+    const runtimeGraphRevision = runtimePresentationForRoot?.graphRevision;
+    const runtimeGraphSourceRevision = runtimePresentationForRoot?.rootSourceRevision;
+    const frameGraphIdentity = useMemo(() => {
+      if (!hasFeedbackGraphIdentity || frameSourceRevision !== feedbackGraphSourceRevision ||
+          (hostRootDocumentId && feedbackGraphHostDocumentUri !== hostRootDocumentId) ||
+          (hasRuntimePresentationForRoot && (
+            runtimeGraphRootDocumentId !== feedbackGraphHostDocumentUri ||
+            runtimeGraphRevision !== feedbackGraphRevision ||
+            runtimeGraphSourceRevision !== feedbackGraphSourceRevision
+          ))) return undefined;
+      return {
+        hostDocumentUri: feedbackGraphHostDocumentUri!,
+        graphRevision: feedbackGraphRevision!,
+        sourceRevision: feedbackGraphSourceRevision!
+      };
+    }, [
+      feedbackGraphHostDocumentUri,
+      feedbackGraphRevision,
+      feedbackGraphSourceRevision,
+      frameSourceRevision,
+      hasFeedbackGraphIdentity,
+      hasRuntimePresentationForRoot,
+      hostRootDocumentId,
+      runtimeGraphRevision,
+      runtimeGraphRootDocumentId,
+      runtimeGraphSourceRevision
+    ]);
+    const hasStaleCanvasPresentation = staleCanvasPresentation !== null;
+    const sourceHasCurrentErrors = holdLastStableCanvasPresentation && !sourceMatchesLastGoodDocument &&
+      !graphSourceEditingIsCurrent;
+    const frameIdentity = useMemo<VscodeCanvasFrameIdentity | null>(() => {
+      if (!canvasUpdateProgress || documentVersion !== canvasUpdateProgress.documentVersion ||
+          frameSourceRevision === undefined || frameEvaluationState?.status !== "ready" ||
+          frameEvaluationState.isStale || frameEvaluationState.evaluationRevision !== presentationCompiledDocumentRevision ||
+          !evaluationStateIsCurrentFor(frameEvaluationState, presentationCompiledDocumentRevision) ||
+          frameEvaluationState.evaluation.errors.length > 0 || canvasUpdateTerminal !== null || sourceHasCurrentErrors ||
+          canvasPresentation.isPinned || hasStaleCanvasPresentation || awaitingHostGraph) return null;
+      return {
+        documentVersion: canvasUpdateProgress.documentVersion,
+        updateGeneration: canvasUpdateProgress.generation,
+        sourceRevision: frameSourceRevision,
+        ...(frameGraphIdentity ? { graphIdentity: frameGraphIdentity } : {}),
+        evaluationRevision: frameEvaluationState.evaluationRevision,
+        evaluationRequestRevision: frameEvaluationState.evaluationRequestRevision
+      };
+    }, [
+      awaitingHostGraph,
+      canvasPresentation.isPinned,
+      canvasUpdateProgress,
+      canvasUpdateTerminal,
+      documentVersion,
+      frameEvaluationState,
+      frameGraphIdentity,
+      frameSourceRevision,
+      hasStaleCanvasPresentation,
+      presentationCompiledDocumentRevision,
+      sourceHasCurrentErrors
+    ]);
+    const onCanvasFrameDrawn = useCallback(() => {
+      const api = vscodeWebviewApi();
+      if (!api || !frameIdentity) return;
+      api.postMessage({ type: "canvasFrameDrawn", ...frameIdentity });
+    }, [frameIdentity]);
+    useLayoutEffect(() => {
       const api = vscodeWebviewApi();
       if (!api || documentVersion === null) return;
 
@@ -546,8 +621,10 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
         message: string;
         elementId?: string;
       }> = [];
+      let terminal = canvasUpdateTerminal !== null || sourceHasCurrentErrors;
       if (staleCanvasPresentation) {
         const status = staleCanvasPresentation.status;
+        terminal ||= status === "ready" || status === "failed";
         diagnostics.push({
           id: "canvas-stale-geometry",
           severity: status === "failed" ? "error" : "warning",
@@ -567,6 +644,19 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
             }
           )
         });
+      } else if (sourceHasCurrentErrors) {
+        const retainedFrame = canvasPresentation.isPinned && canvasPresentation.hasCoherentSnapshot;
+        diagnostics.push({
+          id: retainedFrame ? "canvas-update-stale" : "canvas-update-unavailable",
+          severity: retainedFrame ? "warning" : "error",
+          message: webviewPresentationTextFor(
+            webviewPresentation,
+            retainedFrame ? "canvas.updateStale" : "canvas.updateUnavailable",
+            retainedFrame
+              ? "Canvas is showing the last valid frame while the current Source or dependency graph is unavailable."
+              : "Current Canvas geometry is unavailable."
+          )
+        });
       } else {
         const expectedRevision = presentationCompiledDocumentRevision;
         const displayedState = canvasPresentation.renderEvaluationState;
@@ -583,6 +673,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
               elementId: error.elementId
             });
           });
+          if (canvasPresentation.renderEvaluation.errors.length > 0) terminal = true;
           canvasPresentation.renderEvaluation.warnings.forEach((warning, index) => {
             diagnostics.push({
               id: `canvas-evaluation-warning:${warning.elementId}:${index}`,
@@ -604,7 +695,22 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
             severity: "error",
             message: `Canvas evaluation failed: ${detail}`
           });
+          terminal = true;
         }
+      }
+      if (canvasUpdateTerminal === "unavailable" && !staleCanvasPresentation && !sourceHasCurrentErrors) {
+        const retainedFrame = canvasPresentation.isPinned && canvasPresentation.hasCoherentSnapshot;
+        diagnostics.push({
+          id: retainedFrame ? "canvas-update-stale" : "canvas-update-unavailable",
+          severity: retainedFrame ? "warning" : "error",
+          message: webviewPresentationTextFor(
+            webviewPresentation,
+            retainedFrame ? "canvas.updateStale" : "canvas.updateUnavailable",
+            retainedFrame
+              ? "Canvas is showing the last valid frame while the current Source or dependency graph is unavailable."
+              : "Current Canvas geometry is unavailable."
+          )
+        });
       }
 
       api.postMessage({
@@ -613,16 +719,30 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
         documentVersion,
         presentationId: ++surfaceFeedbackPresentationIdRef.current,
         ...(feedbackGraphIdentity ? { graphIdentity: feedbackGraphIdentity } : {}),
+        ...(canvasUpdateProgress ? {
+          canvasUpdate: terminal
+            ? { generation: canvasUpdateProgress.generation, outcome: "terminal" as const }
+            : {
+                generation: canvasUpdateProgress.generation,
+                ...(frameIdentity ? { frameIdentity } : {})
+              }
+        } : {}),
         diagnostics
       });
     }, [
       canvasPresentation.renderEvaluation,
       canvasPresentation.renderEvaluationState,
+      canvasPresentation.hasCoherentSnapshot,
+      canvasPresentation.isPinned,
       documentVersion,
+      canvasUpdateProgress,
+      canvasUpdateTerminal,
       evaluationState,
       feedbackGraphIdentity,
+      sourceHasCurrentErrors,
       presentationCompiledDocumentRevision,
       staleCanvasPresentation,
+      frameIdentity,
       webviewPresentation
     ]);
     const graphFramePinned = canvasPresentation.isPinned && Boolean(canvasPresentation.graphRootDocumentId);
@@ -1502,6 +1622,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
           evaluation={canvasPresentation.renderEvaluation}
           evaluationState={canvasPresentation.renderEvaluationState}
           onProductionDrawCompleted={onProductionDrawCompleted}
+          onCanvasFrameDrawn={frameIdentity ? onCanvasFrameDrawn : undefined}
           canvasFocusRef={canvasFocusRef}
           hostAdapter={hostAdapter}
           retainedImageSourceUrl={graphFramePinned ? canvasPresentation.resolveImageSourceUrl : undefined}
