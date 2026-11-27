@@ -31,6 +31,8 @@ import type {
   VscodeDocumentChangeReason,
   VscodeToExtensionMessage
 } from "../../src/vscode/protocol";
+import { isVscodeSurfaceDiagnosticsPublication } from "../../src/vscode/surfaceFeedbackProtocol";
+import { SurfaceFeedbackDiagnostics, type SurfaceFeedbackSession } from "./surfaceFeedbackDiagnostics";
 import type {
   VscodeOutputPreviewExportAvailability,
   VscodeOutputPreviewExportRequest,
@@ -64,6 +66,7 @@ export type OutputPreviewSession = VscodeWebviewSessionBase & {
   documentUri: string;
   document: vscode.TextDocument;
   panel: vscode.WebviewPanel;
+  surfaceFeedbackSession?: SurfaceFeedbackSession;
   disposables: vscode.Disposable[];
   webviewReady: boolean;
   authoritativeDocumentVersion: number | null;
@@ -126,6 +129,7 @@ export type OutputPreviewFeatureHost = {
   isOutputPreviewTabActive: () => boolean;
   attachWebviewEditableFocus?: (webview: WebviewEditableFocusWebview) => WebviewEditableFocusAttachment;
   displayLanguageFor?: () => string;
+  surfaceFeedbackDiagnostics?: SurfaceFeedbackDiagnostics;
 };
 
 export type OutputPreviewFeature = vscode.Disposable & {
@@ -564,6 +568,7 @@ export const registerOutputPreviewFeature = (host: OutputPreviewFeatureHost): Ou
 
   const disposeSession = (session: OutputPreviewSession): void => {
     if (host.registry.get(session.documentUri) !== session) return;
+    if (session.surfaceFeedbackSession) host.surfaceFeedbackDiagnostics?.disposeSession(session.surfaceFeedbackSession);
     if (lastActiveSession === session) lastActiveSession = null;
     session.pendingOpen = null;
     invalidateReveal(session);
@@ -602,6 +607,9 @@ export const registerOutputPreviewFeature = (host: OutputPreviewFeatureHost): Ou
       surfaceKind: "outputPreview",
       document,
       panel,
+      ...(host.surfaceFeedbackDiagnostics
+        ? { surfaceFeedbackSession: host.surfaceFeedbackDiagnostics.createSession("outputPreview", documentUri) }
+        : {}),
       disposables: [],
       webviewReady: false,
       authoritativeDocumentVersion: null,
@@ -631,6 +639,26 @@ export const registerOutputPreviewFeature = (host: OutputPreviewFeatureHost): Ou
       host.postDocumentText(panel, event.document.getText(), event.document.version, host.documentChangeReasonFor(event.reason));
     }));
     session.disposables.push(panel.webview.onDidReceiveMessage(async (message: VscodeToExtensionMessage) => {
+      if (isVscodeSurfaceDiagnosticsPublication(message)) {
+        if (
+          message.surface !== "outputPreview" ||
+          host.registry.get(session.documentUri) !== session ||
+          !host.isOpenDocument(session.document) ||
+          session.authoritativeDocumentVersion !== message.documentVersion ||
+          session.document.version !== message.documentVersion ||
+          (message.graphAuthority && message.graphAuthority.documentVersion !== message.documentVersion)
+        ) return;
+        if (message.graphAuthority) {
+          if (!actionAuthorityIsCurrent(session, message.graphAuthority)) return;
+        } else if (!session.graphRequired) {
+          if (!actionAuthorityIsCurrent(session, undefined)) return;
+        } else if (graphContextFor(session) !== null ||
+          message.diagnostics.some((diagnostic) => diagnostic.id !== "output-preview-unavailable")) {
+          return;
+        }
+        if (session.surfaceFeedbackSession) host.surfaceFeedbackDiagnostics?.accept(session.surfaceFeedbackSession, message);
+        return;
+      }
       if (message.type === "webviewReady") {
         session.webviewReady = true;
         session.authoritativeDocumentVersion = null;

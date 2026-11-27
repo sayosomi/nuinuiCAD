@@ -27,6 +27,8 @@ import {
   type Viewport
 } from "../geometry/viewport";
 
+let nextCommandErrorEventId = 1;
+
 export type MeasurementInsertMode = "distance" | "angle" | "lineDistance";
 export type MeasurementPointSlot = "point1" | "point2";
 export type MeasurementPickSlot = MeasurementPointSlot | "line";
@@ -283,6 +285,7 @@ export type CadUiState = CadElementSelection & {
   renameTypedBindingPromptTargetId: BindingId | null;
   renameModuleSemanticPromptTarget: ModuleSemanticTarget | null;
   commandErrorMessage: string | null;
+  commandErrorEvent: { id: number; message: string; alreadyReportedByHost: boolean } | null;
   pendingImageImport: PendingImageImport | null;
   imageImportError: string | null;
   shortcutSettings: ShortcutSettings;
@@ -335,7 +338,10 @@ export type CadUiState = CadElementSelection & {
   setRenameElementPromptTargetId: (renameElementPromptTargetId: ElementId | null) => void;
   setRenameTypedBindingPromptTargetId: (renameTypedBindingPromptTargetId: BindingId | null) => void;
   setRenameModuleSemanticPromptTarget: (target: ModuleSemanticTarget | null) => void;
-  setCommandErrorMessage: (commandErrorMessage: string | null) => void;
+  setCommandErrorMessage: (
+    commandErrorMessage: string | null,
+    options?: { alreadyReportedByHost?: boolean }
+  ) => void;
   setPendingImageImport: (pendingImageImport: PendingImageImport | null) => void;
   setImageImportError: (imageImportError: string | null) => void;
   setShortcutSettings: (shortcutSettings: ShortcutSettings) => void;
@@ -475,6 +481,7 @@ export const initialCadUiState = (): Omit<
   renameTypedBindingPromptTargetId: null,
   renameModuleSemanticPromptTarget: null,
   commandErrorMessage: null,
+  commandErrorEvent: null,
   pendingImageImport: null,
   imageImportError: null,
   shortcutSettings: { version: 1, overrides: [] },
@@ -627,7 +634,16 @@ export const useCadUiStore = create<CadUiState>((set, get) => ({
   setRenameElementPromptTargetId: (renameElementPromptTargetId) => set({ renameElementPromptTargetId }),
   setRenameTypedBindingPromptTargetId: (renameTypedBindingPromptTargetId) => set({ renameTypedBindingPromptTargetId }),
   setRenameModuleSemanticPromptTarget: (renameModuleSemanticPromptTarget) => set({ renameModuleSemanticPromptTarget }),
-  setCommandErrorMessage: (commandErrorMessage) => set({ commandErrorMessage }),
+  setCommandErrorMessage: (commandErrorMessage, options) => set({
+    commandErrorMessage,
+    commandErrorEvent: commandErrorMessage === null
+      ? null
+      : {
+          id: nextCommandErrorEventId++,
+          message: commandErrorMessage,
+          alreadyReportedByHost: options?.alreadyReportedByHost === true
+        }
+  }),
   setPendingImageImport: (pendingImageImport) => set({ pendingImageImport }),
   setImageImportError: (imageImportError) => set({ imageImportError }),
   setShortcutSettings: (shortcutSettings) => set({ shortcutSettings }),

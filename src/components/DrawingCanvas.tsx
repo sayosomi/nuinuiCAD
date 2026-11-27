@@ -127,6 +127,7 @@ type DrawingCanvasProps = {
   canvasFocusRef: RefObject<HTMLDivElement | null>;
   hostAdapter: CanvasHostAdapter;
   nativePointerBoundaryFallback?: boolean;
+  suppressEvaluationCountOverlay?: boolean;
   renderDragProjection?: boolean;
   cancelHostDragPreview?: () => void;
   retainedImageSourceUrl?: CanvasHostAdapter["resolveImageSourceUrl"];
@@ -465,6 +466,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
   canvasFocusRef,
   hostAdapter,
   nativePointerBoundaryFallback = false,
+  suppressEvaluationCountOverlay = false,
   renderDragProjection = false,
   cancelHostDragPreview,
   retainedImageSourceUrl
@@ -3061,7 +3063,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
             </button>
           </div>
         ) : null}
-        {renderFixedCanvasChrome && evaluation.errors.length + evaluation.warnings.length > 0 ? (
+        {renderFixedCanvasChrome && !suppressEvaluationCountOverlay && evaluation.errors.length + evaluation.warnings.length > 0 ? (
           <div className="canvas-warning" style={{ top: Math.max(12, canvasModeChromeHeight + 12) }}>
             {hostAdapter.presentation?.text(
               "canvas.warning",

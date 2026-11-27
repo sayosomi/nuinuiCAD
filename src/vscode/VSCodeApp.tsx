@@ -268,7 +268,8 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
   const observationSelectionSubject = useCadUiStore((state) => state.selectionSubject);
   const observationSelectedElementIds = useCadUiStore((state) => state.selectedElementIds);
   const canvasSelectionEligibleElementIds = useCadUiStore((state) => state.canvasSelectionEligibleElementIds);
-  const commandErrorMessage = useCadUiStore((state) => state.commandErrorMessage);
+  const commandErrorEvent = useCadUiStore((state) => state.commandErrorEvent);
+  const lastPublishedCommandErrorEventIdRef = useRef<number | null>(null);
   const [benchmarkConfig, setBenchmarkConfig] = useState<VscodeBenchmarkConfig | null>(null);
   const [canvasOpenCaptureConfig, setCanvasOpenCaptureConfig] = useState<CanvasOpenPanelConfig | null>(null);
   const canvasOpenCaptureConfigRef = useRef<CanvasOpenPanelConfig | null>(null);
@@ -421,6 +422,19 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
   useEffect(() => {
     api.postMessage({ type: "webviewReady" });
   }, [api]);
+  useEffect(() => {
+    const event = commandErrorEvent;
+    const documentVersion = latestHostDocumentVersion;
+    if (!event || documentVersion === null || lastPublishedCommandErrorEventIdRef.current === event.id) return;
+    lastPublishedCommandErrorEventIdRef.current = event.id;
+    if (event.alreadyReportedByHost) return;
+    api.postMessage({
+      type: "surfaceOperationFailure",
+      eventId: event.id,
+      documentVersion,
+      message: event.message
+    });
+  }, [api, commandErrorEvent, latestHostDocumentVersion]);
   const evaluationOptions = useMemo(
     () => buildEvaluationOptions({ compiledDocument: evaluationDocument, evaluationLimitIndex }),
     [evaluationDocument, evaluationLimitIndex]
@@ -1234,7 +1248,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         : hostSource && !localDocument && !graphDocument
           ? canvasAuthorityRejectionErrorFor(documentVersion)
           : staleSourceAnchorError;
-      useCadUiStore.getState().setCommandErrorMessage(errorMessage);
+      useCadUiStore.getState().setCommandErrorMessage(errorMessage, { alreadyReportedByHost: true });
       api.postMessage({
         type: "canvasCoordinatePointCreationStartResult",
         requestId,
@@ -2066,34 +2080,32 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
     const runCanvasFreePointAtPointer = (
       message: Extract<ExtensionToVscodeMessage, { type: "canvasFreePointAtPointer" }>
     ): void => {
-      const reject = (): void => {
+      const reject = (rejectionReason: string): void => {
+        useCadUiStore.getState().setCommandErrorMessage(rejectionReason, { alreadyReportedByHost: true });
         api.postMessage({
           type: "canvasFreePointAtPointerResult",
           requestId: message.requestId,
           status: "rejected",
-          documentVersion: latestHostDocumentVersionRef.current ?? message.documentVersion
+          documentVersion: latestHostDocumentVersionRef.current ?? message.documentVersion,
+          rejectionReason
         });
       };
       if (pendingCanvasFreePointCommitRef.current !== null) {
-        useCadUiStore.getState().setCommandErrorMessage(staleSourceAnchorError);
-        reject();
+        reject(staleSourceAnchorError);
         return;
       }
       if (!Number.isFinite(message.pointer.x) || !Number.isFinite(message.pointer.y)) {
-        useCadUiStore.getState().setCommandErrorMessage(canvasPointerError);
-        reject();
+        reject(canvasPointerError);
         return;
       }
       if (!Number.isFinite(message.documentVersion) || !Number.isInteger(message.documentVersion)) {
-        useCadUiStore.getState().setCommandErrorMessage(sourceCreationInsertionUnsafeError);
-        reject();
+        reject(sourceCreationInsertionUnsafeError);
         return;
       }
 
       const current = currentAuthoritativeCanvasSourceDocument(message.documentVersion);
       if (!current) {
-        useCadUiStore.getState().setCommandErrorMessage(canvasAuthorityRejectionErrorFor(message.documentVersion));
-        reject();
+        reject(canvasAuthorityRejectionErrorFor(message.documentVersion));
         return;
       }
       const graphAuthority = current.graphAuthority;
@@ -2116,8 +2128,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           )
         : current.state.sourceText.length;
       if (sourceInsertionOffset === null) {
-        useCadUiStore.getState().setCommandErrorMessage(sourceCreationInsertionUnsafeError);
-        reject();
+        reject(sourceCreationInsertionUnsafeError);
         return;
       }
 
@@ -2128,8 +2139,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
       );
       const recipe = creationRecipeForType("freePoint");
       if (!recipe) {
-        useCadUiStore.getState().setCommandErrorMessage(sourceCreationInsertionUnsafeError);
-        reject();
+        reject(sourceCreationInsertionUnsafeError);
         return;
       }
       const element = applyCreationPlacement(
@@ -2151,8 +2161,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         revalidated.state.sourceText !== current.state.sourceText ||
         revalidated.sourceEditing?.sourceText !== current.sourceEditing?.sourceText
       ) {
-        useCadUiStore.getState().setCommandErrorMessage(canvasAuthorityRejectionErrorFor(message.documentVersion));
-        reject();
+        reject(canvasAuthorityRejectionErrorFor(message.documentVersion));
         return;
       }
 
@@ -2170,8 +2179,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         declarationText
       });
       if (!textInsertion) {
-        useCadUiStore.getState().setCommandErrorMessage(sourceInsertionError);
-        reject();
+        reject(sourceInsertionError);
         return;
       }
       const sourceCommitResult = useCadDocumentStore.getState().commitAuthoritativeSourceInsertion(
@@ -2189,12 +2197,11 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
       const selectedSourceStatementIndex = [...compiled.sourceElementsByStatementIndex.entries()]
         .find(([, sourceElement]) => sourceElement.id === element.id)?.[0];
       if (sourceCommitResult.status !== "applied") {
-        useCadUiStore.getState().setCommandErrorMessage(
+        reject(
           sourceCommitResult.status === "rejected"
             ? canvasAuthorityRejectionErrorFor(message.documentVersion)
             : sourceInsertionError
         );
-        reject();
         return;
       }
 
@@ -2425,12 +2432,14 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
             selection: pending.previousSelection
           };
           tryApplyPendingCanvasSelectionRestore();
-          useCadUiStore.getState().setCommandErrorMessage(staleSourceAnchorError);
+          const rejectionReason = staleSourceAnchorError;
+          useCadUiStore.getState().setCommandErrorMessage(rejectionReason, { alreadyReportedByHost: true });
           api.postMessage({
             type: "canvasFreePointAtPointerResult",
             requestId: pending.requestId,
             status: "rejected",
-            documentVersion: message.documentVersion
+            documentVersion: message.documentVersion,
+            rejectionReason
           });
           return;
         }
@@ -3103,24 +3112,6 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
 
   return (
     <main className="canvas-workspace" style={surfaceStyle}>
-      {commandErrorMessage ? (
-        <p
-          className="command-error-message"
-          role="alert"
-          style={{
-            position: "absolute",
-            zIndex: 40,
-            top: 12,
-            right: 12,
-            left: 12,
-            maxWidth: 720,
-            marginInline: "auto",
-            pointerEvents: "none"
-          }}
-        >
-          {commandErrorMessage}
-        </p>
-      ) : null}
       <VSCodeDrawingCanvas
         ref={drawingCanvasRef}
         onProductionDrawCompleted={canvasOpenCaptureConfig ? notifyCanvasOpenDraw : undefined}
@@ -3133,6 +3124,15 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           : evaluationState}
         multiDocumentRuntimePresentation={multiDocumentRuntimePresentation ?? staleMultiDocumentRuntimePresentation}
         staleCanvasPresentation={staleCanvasPresentation}
+        documentVersion={latestHostDocumentVersion}
+        feedbackGraphIdentity={multiDocumentGraphPublication?.status === "current" &&
+          multiDocumentGraphPublication.hostDocumentUri
+          ? {
+              hostDocumentUri: multiDocumentGraphPublication.hostDocumentUri,
+              graphRevision: multiDocumentGraphPublication.graph.revision,
+              sourceRevision: multiDocumentGraphPublication.graph.rootSource.sourceRevision
+            }
+          : null}
         hostRootDocumentId={
           multiDocumentGraphPublication?.status === "unavailable" ||
           (multiDocumentGraphPublication &&

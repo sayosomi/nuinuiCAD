@@ -528,6 +528,106 @@ describe("Canvas free point at pointer feature", () => {
     feature.dispose();
   });
 
+  it("reports a rejected single free point with its full reason and ignores duplicate or unmatched results", () => {
+    const document = documentFor();
+    const editor = editorFor(document, 3, 4);
+    const token = {};
+    const postFreePointAtPointer = vi.fn();
+    const feature = registerVscodeCanvasFreePointAtPointerFeature({
+      activeCanvasEndpoint: () => ({
+        sessionToken: token,
+        document,
+        isCurrent: () => true,
+        isAuthoritativeReady: () => true,
+        lastCanvasPointer: () => ({ x: 12, y: -8 }),
+        postFreePointAtPointer
+      })
+    });
+    mocks.selectionListeners[0]?.({ textEditor: editor, kind: 1 });
+    clickAt(feature, document, { x: 12, y: -8 });
+    const requestId = postFreePointAtPointer.mock.calls[0]![0].requestId as number;
+    const result = {
+      type: "canvasFreePointAtPointerResult" as const,
+      requestId,
+      status: "rejected" as const,
+      documentVersion: document.version,
+      rejectionReason: "The current Host Source changed after free point validation."
+    };
+
+    feature.handleResult(token, document, result);
+    expect(mocks.showErrorMessage.mock.calls).toEqual([[result.rejectionReason]]);
+    feature.handleResult(token, document, result);
+    feature.handleResult(token, document, { ...result, requestId: requestId + 100 });
+    expect(mocks.showErrorMessage.mock.calls).toEqual([[result.rejectionReason]]);
+    expect(postFreePointAtPointer).toHaveBeenCalledTimes(1);
+    feature.dispose();
+  });
+
+  it("uses the localized stale Source fallback when a rejected result has no valid reason", () => {
+    const document = documentFor();
+    const editor = editorFor(document, 3, 4);
+    const token = {};
+    const postFreePointAtPointer = vi.fn();
+    const feature = registerVscodeCanvasFreePointAtPointerFeature({
+      activeCanvasEndpoint: () => ({
+        sessionToken: token,
+        document,
+        isCurrent: () => true,
+        isAuthoritativeReady: () => true,
+        lastCanvasPointer: () => ({ x: 12, y: -8 }),
+        postFreePointAtPointer
+      })
+    });
+    mocks.selectionListeners[0]?.({ textEditor: editor, kind: 1 });
+    clickAt(feature, document, { x: 12, y: -8 });
+    const requestId = postFreePointAtPointer.mock.calls[0]![0].requestId as number;
+
+    feature.handleResult(token, document, {
+      type: "canvasFreePointAtPointerResult",
+      requestId,
+      status: "rejected",
+      documentVersion: document.version,
+      rejectionReason: "  "
+    });
+
+    expect(mocks.showErrorMessage).toHaveBeenCalledTimes(1);
+    expect(mocks.showErrorMessage).toHaveBeenCalledWith(expect.stringContaining("Source insertion position is stale"));
+    feature.dispose();
+  });
+
+  it("does not notify for a rejected result delivered after its session was disposed", () => {
+    const document = documentFor();
+    const editor = editorFor(document, 3, 4);
+    const token = {};
+    const postFreePointAtPointer = vi.fn();
+    const feature = registerVscodeCanvasFreePointAtPointerFeature({
+      activeCanvasEndpoint: () => ({
+        sessionToken: token,
+        document,
+        isCurrent: () => true,
+        isAuthoritativeReady: () => true,
+        lastCanvasPointer: () => ({ x: 12, y: -8 }),
+        postFreePointAtPointer
+      })
+    });
+    mocks.selectionListeners[0]?.({ textEditor: editor, kind: 1 });
+    clickAt(feature, document, { x: 12, y: -8 });
+    const requestId = postFreePointAtPointer.mock.calls[0]![0].requestId as number;
+
+    feature.disposeSession(token, document);
+    feature.handleResult(token, document, {
+      type: "canvasFreePointAtPointerResult",
+      requestId,
+      status: "rejected",
+      documentVersion: document.version,
+      rejectionReason: "Late rejection after disposal."
+    });
+
+    expect(mocks.showErrorMessage).not.toHaveBeenCalled();
+    expect(postFreePointAtPointer).toHaveBeenCalledTimes(1);
+    feature.dispose();
+  });
+
   it("clears queued and in-flight clicks after a rejected Source patch", () => {
     const document = documentFor();
     const editor = editorFor(document, 3, 4);
@@ -550,16 +650,20 @@ describe("Canvas free point at pointer feature", () => {
     observeCommandOwnedEdit(feature, document, requestId, 2);
     clickAt(feature, document, { x: 91, y: -37 });
 
-    feature.handleResult(token, document, {
+    const rejectionReason = "The full Source rejection reason with actionable detail.";
+    const rejectedResult = {
       type: "canvasFreePointAtPointerResult",
       requestId,
       status: "rejected",
-      documentVersion: 2
-    });
+      documentVersion: 2,
+      rejectionReason
+    } as const;
+    feature.handleResult(token, document, rejectedResult);
+    feature.handleResult(token, document, rejectedResult);
     feature.handleAuthoritativeDocumentReady(token, document, 2);
 
     expect(postFreePointAtPointer).toHaveBeenCalledTimes(1);
-    expect(mocks.showErrorMessage).toHaveBeenCalledWith(expect.stringContaining("Source insertion position is stale"));
+    expect(mocks.showErrorMessage.mock.calls).toEqual([[rejectionReason]]);
     feature.dispose();
   });
 

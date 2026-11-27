@@ -25,6 +25,7 @@ import * as vscode from "vscode";
 import { createVscodeModuleMultiDocumentHost } from "../vscode-extension/src/moduleMultiDocumentHost";
 import { observeVscodeMultiDocumentGraphPhases } from "../vscode-extension/src/multiDocumentHost";
 import { VscodeWebviewSessionRegistry } from "../src/vscode/vscodeWebviewSession";
+import { setVscodeWebviewApi } from "../src/vscode/vscodeWebviewApiContext";
 import type { CanvasHostAdapter } from "../src/components/canvasHostAdapter";
 import { compileModulePreviewRoot } from "../src/dsl/modulePreviewRoot";
 import { queryModulePreviewTarget } from "../src/dsl/modulePreviewTarget";
@@ -220,6 +221,7 @@ describe("Issue #1541 VS Code dependency forwarding into production Rust", () =>
   afterAll(() => { rust?.dispose(); });
   afterEach(() => {
     cleanup();
+    setVscodeWebviewApi({ postMessage: () => undefined });
     vi.unstubAllEnvs();
     vscodeHost.documents = [];
     vscodeHost.files.clear();
@@ -301,6 +303,10 @@ describe("Issue #1541 VS Code dependency forwarding into production Rust", () =>
         })))
       );
     }) };
+    setVscodeWebviewApi(api);
+    const canvasDiagnosticPublications = () => api.postMessage.mock.calls
+      .map(([message]) => message)
+      .filter(message => message.type === "surfaceDiagnosticsPublication" && message.surface === "canvas");
     const app = render(<VSCodeApp api={api} />);
     const host = createVscodeModuleMultiDocumentHost();
     try {
@@ -426,8 +432,12 @@ describe("Issue #1541 VS Code dependency forwarding into production Rust", () =>
         evaluationIsStale: true
       });
       expect(reopenedSurface?.hostAdapter.elements.some(element => element.name === "Visible")).toBe(true);
-      expect(reopenedCanvas.getByTestId("stale-canvas-status").textContent).toContain("display only");
-      expect(reopenedCanvas.getByTestId("stale-canvas-status").textContent).toContain("Review Source diagnostics");
+      expect(reopenedCanvas.queryByTestId("stale-canvas-status")).toBeNull();
+      expect(canvasDiagnosticPublications().at(-1)).toMatchObject({
+        surface: "canvas",
+        documentVersion: 2,
+        diagnostics: [expect.objectContaining({ id: "canvas-stale-geometry", severity: "warning" })]
+      });
       const staleVisible = reopenedSurface?.hostAdapter.elements.find(element => element.name === "Visible");
       expect(staleVisible).toBeDefined();
       if (staleVisible) {
@@ -480,9 +490,12 @@ describe("Issue #1541 VS Code dependency forwarding into production Rust", () =>
       const freshSurface = drawingSurface.props;
       expect(freshSurface?.hostAdapter.elements.map(element => element.name)).toEqual(expect.arrayContaining(["Visible", "Probe"]));
       expect(freshSurface?.evaluationState?.isStale).toBe(true);
-      expect(freshlyReopenedCanvas.getByTestId("stale-canvas-status").textContent).toContain(
-        `Current graph revision ${freshPublication.graph.revision}`
-      );
+      expect(freshlyReopenedCanvas.queryByTestId("stale-canvas-status")).toBeNull();
+      expect(canvasDiagnosticPublications().at(-1)).toMatchObject({
+        surface: "canvas",
+        documentVersion: 2,
+        diagnostics: [expect.objectContaining({ id: "canvas-stale-geometry", severity: "warning" })]
+      });
       freshlyReopenedCanvas.unmount();
 
       sourceText = validSource;
@@ -513,6 +526,7 @@ describe("Issue #1541 VS Code dependency forwarding into production Rust", () =>
       expect(drawingSurface.props?.hostAdapter.elements.map(element => element.name)).toEqual(expect.arrayContaining(["Visible", "Probe"]));
       expect(drawingSurface.props?.evaluationState?.isStale).not.toBe(true);
       expect(recoveredCanvas.queryByTestId("stale-canvas-status")).toBeNull();
+      expect(canvasDiagnosticPublications().at(-1)).toMatchObject({ surface: "canvas", diagnostics: [] });
       recoveredCanvas.unmount();
       const reopenedRecoveredCanvas = render(<realCanvasModule.VSCodeDrawingCanvas {...canvas.props as never} />);
       expect(drawingSurface.props?.hostAdapter.elements.map(element => element.name)).toEqual(expect.arrayContaining(["Visible", "Probe"]));
@@ -551,6 +565,7 @@ describe("Issue #1541 VS Code dependency forwarding into production Rust", () =>
       const stage9Canvas = render(<realCanvasModule.VSCodeDrawingCanvas {...canvas.props as never} />);
       expect(drawingSurface.props?.hostAdapter.elements.map(element => element.name)).toEqual(expect.arrayContaining(["Visible", "Probe"]));
       expect(stage9Canvas.queryByTestId("stale-canvas-status")).toBeNull();
+      expect(canvasDiagnosticPublications().at(-1)).toMatchObject({ surface: "canvas", diagnostics: [] });
       stage9Canvas.unmount();
 
       const noImportSource = [

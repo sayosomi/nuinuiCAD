@@ -28,6 +28,18 @@ export const webviewPresentationTranslationCatalog = {
   "canvas.display.points": { en: "Points", ja: "点" },
   "canvas.display.directionArrows": { en: "Direction", ja: "方向" },
   "canvas.warning": { en: "⚠ {count} errors or warnings", ja: "⚠ エラー/警告 {count} 件" },
+  "canvas.staleFeedback.ready": {
+    en: "Canvas is showing stale geometry from graph revision {lastGraphRevision} and Source revision {lastSourceRevision}; current graph revision {currentGraphRevision} and Source revision {currentSourceRevision} have unresolved geometry. The frame is display only and edits are disabled.",
+    ja: "Canvasにはグラフ revision {lastGraphRevision}、Source revision {lastSourceRevision} の古い図形が表示されています。現在のグラフ revision {currentGraphRevision}、Source revision {currentSourceRevision} の図形は未解決です。この表示は確認用で、編集できません。"
+  },
+  "canvas.staleFeedback.loading": {
+    en: "Current Canvas geometry is unavailable while the last valid frame from graph revision {lastGraphRevision} and Source revision {lastSourceRevision} loads for graph revision {currentGraphRevision} and Source revision {currentSourceRevision}.",
+    ja: "現在のCanvas図形は利用できません。グラフ revision {currentGraphRevision}、Source revision {currentSourceRevision} 用に、グラフ revision {lastGraphRevision}、Source revision {lastSourceRevision} の有効な表示を読み込んでいます。"
+  },
+  "canvas.staleFeedback.failed": {
+    en: "Current Canvas geometry is unavailable. The last valid frame from graph revision {lastGraphRevision} and Source revision {lastSourceRevision} could not be evaluated for graph revision {currentGraphRevision} and Source revision {currentSourceRevision}.",
+    ja: "現在のCanvas図形は利用できません。グラフ revision {currentGraphRevision}、Source revision {currentSourceRevision} 用の評価に失敗し、グラフ revision {lastGraphRevision}、Source revision {lastSourceRevision} の有効な表示を復元できませんでした。"
+  },
   "canvas.scale": { en: "Scale {scale}px/mm", ja: "縮尺 {scale}px/mm" },
   "canvas.ribbon.viewport": { en: "Viewport", ja: "表示範囲" },
   "canvas.ribbon.display": { en: "Display", ja: "表示" },
@@ -192,6 +204,10 @@ export const webviewPresentationTranslationCatalog = {
   "output.print.negativeBoundsWarning": {
     en: "Geometry extends beyond the usable print origin. Portions outside the physical paper may be omitted from PDF output.",
     ja: "図形が有効印刷範囲の原点より負方向に広がっています。物理用紙の外側にある部分はPDF出力から欠落する場合があります。"
+  },
+  "output.surface.unavailable": {
+    en: "Output Preview is unavailable: {error}",
+    ja: "Output Previewを利用できません: {error}"
   },
   "output.addDeclaration": { en: "Add a print or svg declaration in the Source Editor.", ja: "Source Editorにprintまたはsvg宣言を追加してください。" },
   "output.insertTemplate": { en: "Insert Template…", ja: "テンプレートを挿入…" },

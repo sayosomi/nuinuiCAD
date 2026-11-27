@@ -4716,22 +4716,6 @@ textarea {
   font-size: 12px;
 }
 
-.output-preview-warning {
-  position: absolute;
-  z-index: 2;
-  top: 12px;
-  left: 12px;
-  max-width: min(560px, calc(100% - 48px));
-  border: 1px solid color-mix(in srgb, var(--canvas-warning) 55%, var(--canvas-background));
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--canvas-warning) 10%, var(--canvas-background));
-  color: var(--canvas-warning);
-  padding: 8px 10px;
-  font-size: 12px;
-  line-height: 1.4;
-  pointer-events: none;
-}
-
 .output-preview-viewport {
   position: relative;
   flex: 1 1 auto;

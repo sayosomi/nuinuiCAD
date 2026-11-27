@@ -198,6 +198,7 @@ const mocks = vi.hoisted(() => ({
   executeCommand: vi.fn(),
   createWebviewPanel: vi.fn(),
   createDiagnosticCollection: vi.fn(),
+  registerTextDocumentContentProvider: vi.fn(),
   registerCompletionItemProvider: vi.fn(),
   registerSignatureHelpProvider: vi.fn(),
   registerDefinitionProvider: vi.fn(),
@@ -343,6 +344,11 @@ vi.mock("vscode", () => {
       public readonly kind?: unknown
     ) {}
   }
+  class EventEmitter {
+    event = vi.fn();
+    fire = vi.fn(() => undefined);
+    dispose = vi.fn();
+  }
   return {
     env: {
       get language() {
@@ -397,6 +403,7 @@ vi.mock("vscode", () => {
       onDidChangeTextDocument: mocks.onDidChangeTextDocument,
       onDidCloseTextDocument: mocks.onDidCloseTextDocument,
       onDidSaveTextDocument: () => disposable(),
+      registerTextDocumentContentProvider: mocks.registerTextDocumentContentProvider,
       createFileSystemWatcher: () => {
         const listeners: (typeof mocks.savedFileWatchers)[number] = {};
         mocks.savedFileWatchers.push(listeners);
@@ -421,6 +428,7 @@ vi.mock("vscode", () => {
         }
       })
     },
+    EventEmitter,
     languages: {
       createDiagnosticCollection: mocks.createDiagnosticCollection,
       registerCompletionItemProvider: mocks.registerCompletionItemProvider,
@@ -444,7 +452,7 @@ vi.mock("vscode", () => {
     },
     ViewColumn: { Beside: 2 },
     FileSystemError: class extends Error {},
-    DiagnosticSeverity: { Error: 0, Warning: 1 },
+    DiagnosticSeverity: { Error: 0, Warning: 1, Information: 2 },
     SymbolKind: {
       Module: 1,
       Object: 2,
@@ -900,6 +908,7 @@ const setup = (
     mocks.diagnosticCollections.push(collection);
     return collection;
   });
+  mocks.registerTextDocumentContentProvider.mockImplementation(() => disposable());
   mocks.registerCompletionItemProvider.mockImplementation((selector: unknown, provider: unknown, ...triggerCharacters: string[]) => {
     const registration = disposable();
     mocks.completionRegistrations.push({ selector, provider, triggerCharacters, disposable: registration });
@@ -1214,6 +1223,7 @@ afterEach(() => {
   mocks.executeCommand.mockReset();
   mocks.createWebviewPanel.mockReset();
   mocks.createDiagnosticCollection.mockReset();
+  mocks.registerTextDocumentContentProvider.mockReset();
   mocks.registerCompletionItemProvider.mockReset();
   mocks.registerSignatureHelpProvider.mockReset();
   mocks.registerDefinitionProvider.mockReset();
@@ -1901,6 +1911,144 @@ describe("VS Code production document lifecycle", () => {
     const panel = openOutputPreviewPanelFor();
     expect(mocks.createWebviewPanel.mock.calls[0]?.[0]).toBe("nuinuiCAD.outputPreview");
     expect(panel.webview.html).toContain('<html lang="en" data-nuinui-surface="outputPreview">');
+  });
+
+  it("publishes one native Canvas operation failure per event and replaces session Problems", async () => {
+    const editor = editorFor();
+    setup(false, editor, [editor.document]);
+    const panel = openPanelFor(editor);
+    const handle = messageHandlerFor(panel);
+    await handle({ type: "webviewReady" });
+    await handle({ type: "webviewAuthoritativeDocumentReady", documentVersion: editor.document.version });
+    const feedbackCollection = mocks.diagnosticCollections.find(({ name }) => name === "nuinuiCAD surface feedback")!;
+    const sourceCollection = mocks.diagnosticCollections.find(({ name }) => name === "nuinuiCAD")!;
+    const sourceWriteCount = sourceCollection.set.mock.calls.length;
+    mocks.showErrorMessage.mockClear();
+
+    const failure = {
+      type: "surfaceOperationFailure",
+      eventId: 40,
+      documentVersion: editor.document.version,
+      message: "complete rejection reason"
+    };
+    await handle(failure);
+    await handle(failure);
+    await handle({ ...failure, eventId: 41 });
+    await handle({ ...failure, eventId: 42, documentVersion: editor.document.version - 1 });
+    expect(mocks.showErrorMessage.mock.calls).toEqual([
+      ["complete rejection reason"],
+      ["complete rejection reason"]
+    ]);
+
+    const publication = {
+      type: "surfaceDiagnosticsPublication",
+      surface: "canvas",
+      documentVersion: editor.document.version,
+      presentationId: 1,
+      diagnostics: [{ id: "stale", severity: "warning", message: "stale Canvas geometry" }]
+    };
+    await handle(publication);
+    const [uri, diagnostics] = feedbackCollection.set.mock.calls.at(-1)!;
+    expect((uri as { scheme?: string }).scheme).toBe("nuinui-surface-feedback");
+    expect(diagnostics).toEqual([expect.objectContaining({
+      source: "nuinuiCAD / Canvas",
+      message: "stale Canvas geometry"
+    })]);
+    await handle({
+      ...publication,
+      presentationId: 2,
+      graphIdentity: {
+        hostDocumentUri: "file:///old-document.nui",
+        graphRevision: 3,
+        sourceRevision: 2
+      },
+      diagnostics: []
+    });
+    expect(feedbackCollection.delete).not.toHaveBeenCalledWith(uri);
+    await handle({ ...publication, presentationId: 2, diagnostics: [] });
+    expect(feedbackCollection.delete).toHaveBeenCalledWith(uri);
+    expect(sourceCollection.set.mock.calls).toHaveLength(sourceWriteCount);
+  });
+
+  it("keeps Output Preview diagnostics in its own current virtual resource", async () => {
+    const editor = editorFor();
+    setup(false, editor, [editor.document]);
+    const panel = openOutputPreviewPanelFor(editor);
+    const handle = messageHandlerFor(panel);
+    await handle({ type: "webviewReady" });
+    await handle({ type: "webviewAuthoritativeDocumentReady", documentVersion: editor.document.version });
+    const feedbackCollection = mocks.diagnosticCollections.find(({ name }) => name === "nuinuiCAD surface feedback")!;
+    const publication = {
+      type: "surfaceDiagnosticsPublication",
+      surface: "outputPreview",
+      documentVersion: editor.document.version,
+      presentationId: 1,
+      outputIdentity: { outputKey: "print:A", kind: "print", outputId: "A", layoutId: "L" },
+      diagnostics: [{ id: "bounds", severity: "warning", message: "negative rendered bounds" }]
+    };
+    await handle(publication);
+    const [uri, diagnostics] = feedbackCollection.set.mock.calls.at(-1)!;
+    expect(diagnostics).toEqual([expect.objectContaining({
+      source: "nuinuiCAD / Output Preview",
+      message: "negative rendered bounds"
+    })]);
+    await handle({ ...publication, documentVersion: editor.document.version - 1, presentationId: 2, diagnostics: [] });
+    expect(feedbackCollection.delete).not.toHaveBeenCalledWith(uri);
+    await handle({
+      ...publication,
+      presentationId: 2,
+      graphAuthority: {
+        hostDocumentUri: editor.document.uri.toString(),
+        documentVersion: editor.document.version - 1,
+        graphRevision: 5,
+        rootSourceRevision: 2
+      },
+      diagnostics: []
+    });
+    expect(feedbackCollection.delete).not.toHaveBeenCalledWith(uri);
+    await handle({ ...publication, presentationId: 2, diagnostics: [] });
+    expect(feedbackCollection.delete).toHaveBeenCalledWith(uri);
+  });
+
+  it("does not copy a current Source diagnostic into Canvas Problems", async () => {
+    const source = "nui 1\nconst x: number = 1\n";
+    const editor = editorFor(documentFor("/tmp/surface-source-dedup.nui", "file:///tmp/surface-source-dedup.nui", source));
+    setup(false, editor, [editor.document]);
+    const panel = openPanelFor(editor);
+    const handle = messageHandlerFor(panel);
+    await handle({ type: "webviewReady" });
+    await handle({ type: "webviewAuthoritativeDocumentReady", documentVersion: editor.document.version });
+    const feedbackCollection = mocks.diagnosticCollections.find(({ name }) => name === "nuinuiCAD surface feedback")!;
+    const runtimeDiagnostic = {
+      ...runtimeDiagnosticFor("shared-surface-runtime"),
+      elementId: "runtime-owner",
+      message: "shared current Source runtime diagnostic"
+    };
+    await handle({
+      type: "runtimeDiagnosticsPublication",
+      documentVersion: editor.document.version,
+      diagnostics: [runtimeDiagnostic]
+    });
+
+    await handle({
+      type: "surfaceDiagnosticsPublication",
+      surface: "canvas",
+      documentVersion: editor.document.version,
+      presentationId: 1,
+      diagnostics: [{
+        id: "evaluation:runtime-owner",
+        elementId: "runtime-owner",
+        severity: runtimeDiagnostic.severity,
+        message: runtimeDiagnostic.message
+      }]
+    });
+
+    expect(feedbackCollection.set).not.toHaveBeenCalled();
+    expect(feedbackCollection.delete).toHaveBeenCalled();
+    expect(mocks.diagnosticCollections.find(({ name }) => name === "nuinuiCAD")!.set).toHaveBeenCalledWith(
+      editor.document.uri,
+      expect.arrayContaining([expect.objectContaining({ message: runtimeDiagnostic.message })])
+    );
   });
 
   it("uses the Extension Host locale for Canvas and Output Preview HTML and ready publication", async () => {
@@ -7205,7 +7353,10 @@ describe("VS Code compiler diagnostics lifecycle", () => {
     );
     setup(false, null, [document]);
 
-    expect(mocks.createDiagnosticCollection).toHaveBeenCalledTimes(1);
+    expect(mocks.createDiagnosticCollection.mock.calls.map(([name]) => name)).toEqual([
+      "nuinuiCAD",
+      "nuinuiCAD surface feedback"
+    ]);
     expect(collectionFor().set).toHaveBeenCalledWith(document.uri, expect.arrayContaining([
       expect.objectContaining({ code: "unused-typed-declaration", severity: 1 }),
       expect.objectContaining({ code: "unused-drawing-style", severity: 1 })

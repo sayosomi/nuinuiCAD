@@ -36,7 +36,8 @@ import type {
   CanvasPointPickAction
 } from "../components/canvasHostAdapter";
 import { webviewCanvasPresentationFor } from "./webviewCanvasPresentation";
-import type { VscodeWebviewPresentation } from "./webviewPresentation";
+import { webviewPresentationTextFor, type VscodeWebviewPresentation } from "./webviewPresentation";
+import type { VscodeCanvasFeedbackGraphIdentity } from "./surfaceFeedbackProtocol";
 import { useRevisionCoherentCanvasPresentation } from "../components/canvasRevisionPresentation";
 import { buildModuleModelPatch, type LastGoodDslDocument } from "@nuinuicad/nui-language/document";
 import { projectIncompleteReferencePickCandidate, projectIndependentReferencePickBrowseCandidate } from "./referencePickCandidateProjection";
@@ -125,6 +126,8 @@ type VSCodeDrawingCanvasProps = {
     lastGoodGraphRevision: number;
     lastGoodSourceRevision: number;
   } | null;
+  documentVersion?: number | null;
+  feedbackGraphIdentity?: VscodeCanvasFeedbackGraphIdentity | null;
   hostRootDocumentId?: string | null;
   hostDocumentEpoch?: number;
   awaitingHostGraph?: boolean;
@@ -175,6 +178,8 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
     measureCanvasTextWidth,
     multiDocumentRuntimePresentation: runtimePresentation = null,
     staleCanvasPresentation = null,
+    documentVersion = null,
+    feedbackGraphIdentity = null,
     hostRootDocumentId = runtimePresentation?.rootDocumentId,
     hostDocumentEpoch = 0,
     awaitingHostGraph = false,
@@ -227,6 +232,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
     const showCanvasPoints = useCadUiStore((state) => state.showCanvasPoints);
     const showCanvasDirectionArrows = useCadUiStore((state) => state.showCanvasDirectionArrows);
     const hiddenCanvasLayerIds = useCadUiStore((state) => state.hiddenCanvasLayerIds);
+    const surfaceFeedbackPresentationIdRef = useRef(0);
     const activePointPickTarget = useCadUiStore((state) => state.activePointPickTarget);
     const activeNumericReferencePickTarget = useCadUiStore((state) => state.activeNumericReferencePickTarget);
     const activeLinePickTarget = useCadUiStore((state) => state.activeLinePickTarget);
@@ -530,6 +536,95 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       scopeKey: hostRootDocumentId ? JSON.stringify([hostRootDocumentId, hostDocumentEpoch]) : undefined,
       awaitingGraph: awaitingHostGraph
     });
+    useEffect(() => {
+      const api = vscodeWebviewApi();
+      if (!api || documentVersion === null) return;
+
+      const diagnostics: Array<{
+        id: string;
+        severity: "error" | "warning";
+        message: string;
+        elementId?: string;
+      }> = [];
+      if (staleCanvasPresentation) {
+        const status = staleCanvasPresentation.status;
+        diagnostics.push({
+          id: "canvas-stale-geometry",
+          severity: status === "failed" ? "error" : "warning",
+          message: webviewPresentationTextFor(
+            webviewPresentation,
+            `canvas.staleFeedback.${status}`,
+            status === "failed"
+              ? "Current Canvas geometry is unavailable. The last valid frame from graph revision {lastGraphRevision} and Source revision {lastSourceRevision} could not be evaluated for graph revision {currentGraphRevision} and Source revision {currentSourceRevision}."
+              : status === "ready"
+                ? "Canvas is showing stale geometry from graph revision {lastGraphRevision} and Source revision {lastSourceRevision}; current graph revision {currentGraphRevision} and Source revision {currentSourceRevision} have unresolved geometry. The frame is display only and edits are disabled."
+                : "Current Canvas geometry is unavailable while the last valid frame from graph revision {lastGraphRevision} and Source revision {lastSourceRevision} loads for graph revision {currentGraphRevision} and Source revision {currentSourceRevision}.",
+            {
+              lastGraphRevision: staleCanvasPresentation.lastGoodGraphRevision,
+              lastSourceRevision: staleCanvasPresentation.lastGoodSourceRevision,
+              currentGraphRevision: staleCanvasPresentation.currentGraphRevision,
+              currentSourceRevision: staleCanvasPresentation.currentSourceRevision
+            }
+          )
+        });
+      } else {
+        const expectedRevision = presentationCompiledDocumentRevision;
+        const displayedState = canvasPresentation.renderEvaluationState;
+        const displayedStateIsCurrent = displayedState?.status === "ready" &&
+          !displayedState.isStale &&
+          displayedState.evaluationRevision === expectedRevision &&
+          evaluationStateIsCurrentFor(displayedState, expectedRevision);
+        if (displayedStateIsCurrent) {
+          canvasPresentation.renderEvaluation.errors.forEach((error, index) => {
+            diagnostics.push({
+              id: `canvas-evaluation-error:${error.elementId}:${error.missingDependencyId}:${index}`,
+              severity: "error",
+              message: error.message,
+              elementId: error.elementId
+            });
+          });
+          canvasPresentation.renderEvaluation.warnings.forEach((warning, index) => {
+            diagnostics.push({
+              id: `canvas-evaluation-warning:${warning.elementId}:${index}`,
+              severity: "warning",
+              message: warning.message,
+              elementId: warning.elementId
+            });
+          });
+        } else if (
+          evaluationState?.status === "failed" &&
+          !evaluationState.isStale &&
+          evaluationState.evaluationRevision === expectedRevision
+        ) {
+          const detail = evaluationState.error instanceof Error
+            ? evaluationState.error.message
+            : evaluationState.error === null ? "unknown error" : String(evaluationState.error);
+          diagnostics.push({
+            id: "canvas-evaluation-failed",
+            severity: "error",
+            message: `Canvas evaluation failed: ${detail}`
+          });
+        }
+      }
+
+      api.postMessage({
+        type: "surfaceDiagnosticsPublication",
+        surface: "canvas",
+        documentVersion,
+        presentationId: ++surfaceFeedbackPresentationIdRef.current,
+        ...(feedbackGraphIdentity ? { graphIdentity: feedbackGraphIdentity } : {}),
+        diagnostics
+      });
+    }, [
+      canvasPresentation.renderEvaluation,
+      canvasPresentation.renderEvaluationState,
+      documentVersion,
+      evaluationState,
+      feedbackGraphIdentity,
+      presentationCompiledDocumentRevision,
+      staleCanvasPresentation,
+      webviewPresentation
+    ]);
     const graphFramePinned = canvasPresentation.isPinned && Boolean(canvasPresentation.graphRootDocumentId);
     const commandEvaluation = graphFramePinned ? EMPTY_CANVAS_EVALUATION : canvasPresentation.renderEvaluation;
     const canvasLayerPresentation = useMemo(() => projectCanvasLayerPresentation({
@@ -1400,38 +1495,8 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
 
     // An imported graph's ephemeral edit preview stays in the shared edit
     // boundary. The graph evaluator and canonical frame read the Host snapshot.
-    const staleCanvasMessage = staleCanvasPresentation
-      ? staleCanvasPresentation.status === "ready"
-        ? `Showing stale Canvas geometry from graph revision ${staleCanvasPresentation.lastGoodGraphRevision} and Source revision ${staleCanvasPresentation.lastGoodSourceRevision}. Current graph revision ${staleCanvasPresentation.currentGraphRevision} and Source revision ${staleCanvasPresentation.currentSourceRevision} have unresolved geometry. This frame is display only; hit testing and edits are disabled. Review Source diagnostics.`
-        : staleCanvasPresentation.status === "loading"
-          ? `Current Canvas geometry is unavailable. Loading the last valid frame from graph revision ${staleCanvasPresentation.lastGoodGraphRevision} and Source revision ${staleCanvasPresentation.lastGoodSourceRevision} for current graph revision ${staleCanvasPresentation.currentGraphRevision} and Source revision ${staleCanvasPresentation.currentSourceRevision}. Review Source diagnostics.`
-          : `Current Canvas geometry is unavailable, and the last valid frame from graph revision ${staleCanvasPresentation.lastGoodGraphRevision} and Source revision ${staleCanvasPresentation.lastGoodSourceRevision} could not be evaluated. Current graph revision ${staleCanvasPresentation.currentGraphRevision} and Source revision ${staleCanvasPresentation.currentSourceRevision} remain invalid. Review Source diagnostics.`
-      : null;
-
     return (
       <>
-        {staleCanvasMessage ? (
-          <div
-            role="status"
-            aria-live="polite"
-            data-testid="stale-canvas-status"
-            style={{
-              position: "absolute",
-              zIndex: 10,
-              top: 8,
-              left: 8,
-              right: 8,
-              padding: "8px 12px",
-              background: "var(--vscode-editorWarning-background, #4b3b16)",
-              color: "var(--vscode-editorWarning-foreground, #fff)",
-              border: "1px solid var(--vscode-editorWarning-border, #9a7d2e)",
-              borderRadius: 4,
-              pointerEvents: "none"
-            }}
-          >
-            {staleCanvasMessage}
-          </div>
-        ) : null}
         <DrawingCanvas
           ref={drawingCanvasRef}
           evaluation={canvasPresentation.renderEvaluation}
@@ -1443,6 +1508,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
           renderDragProjection
           cancelHostDragPreview={multiDocumentRuntimePresentation ? cancelHostDragPreview : undefined}
           nativePointerBoundaryFallback
+          suppressEvaluationCountOverlay
         />
       </>
     );

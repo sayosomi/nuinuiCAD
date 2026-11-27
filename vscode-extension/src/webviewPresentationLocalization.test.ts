@@ -3,6 +3,7 @@ import {
   webviewPresentationFor,
   webviewPresentationTranslationCatalog
 } from "./webviewPresentationLocalization";
+import { webviewPresentationTextFor } from "../../src/vscode/webviewPresentation";
 
 describe("Webview presentation localization", () => {
   it("resolves Japanese presentation and keeps the payload clone-safe", () => {
@@ -12,6 +13,13 @@ describe("Webview presentation localization", () => {
     expect(presentation.strings["canvas.ariaLabel"]).toBe("CAD作図キャンバス");
     expect(presentation.strings["canvas.commandError.staleSourceAnchor"]).toBe("現在のSource位置が古くなっています。現在のSourceでキャレットを再確定してから再試行してください。");
     expect(presentation.strings["canvas.commandError.pointer"]).toBe("Canvas上にポインターを置いてから実行してください。");
+    expect(webviewPresentationTextFor(
+      presentation,
+      "canvas.staleFeedback.ready",
+      "",
+      { lastGraphRevision: 1, lastSourceRevision: 2, currentGraphRevision: 3, currentSourceRevision: 4 }
+    )).toContain("古い図形");
+    expect(presentation.strings["output.surface.unavailable"]).toContain("利用できません");
     expect(presentation.strings["canvas.referencePick.done"]).toBe("決定");
     expect(presentation.strings["canvas.referencePick.menu.otherCandidates"]).toBe("その他の候補／詳細");
     expect(presentation.strings["canvas.referencePick.option.individualOccurrence"]).toBe("この生成図形（個別）");
@@ -105,6 +113,13 @@ describe("Webview presentation localization", () => {
     expect(english.strings["output.emptySelection"]).toBe("There are no output targets.");
     expect(english.strings["output.print.negativeBoundsWarning"])
       .toBe("Geometry extends beyond the usable print origin. Portions outside the physical paper may be omitted from PDF output.");
+    expect(webviewPresentationTextFor(
+      english,
+      "canvas.staleFeedback.ready",
+      "",
+      { lastGraphRevision: 1, lastSourceRevision: 2, currentGraphRevision: 3, currentSourceRevision: 4 }
+    )).toContain("graph revision 3");
+    expect(english.strings["output.surface.unavailable"]).toBe("Output Preview is unavailable: {error}");
     expect(english.strings["output.viewportStatus.description"]).toBe("Current Output Preview pointer position.");
     expect(english.strings["modulePreview.cannotEvaluate"]).toBe("Module Preview is unavailable.");
     expect(english.strings["modulePreview.action.previewValues"]).toBe("Preview Values...");
