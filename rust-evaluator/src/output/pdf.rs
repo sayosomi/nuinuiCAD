@@ -955,6 +955,47 @@ mod tests {
     }
 
     #[test]
+    fn preserves_stroke_and_clips_stroke_only_overflow_without_adding_a_pdf_page() {
+        let mut stroke_overflow = payload();
+        stroke_overflow.bounds = OutputBounds {
+            min_x: -13.229_166_666_666_666,
+            min_y: 6.770_833_333_333_334,
+            max_x: 223.229_166_666_666_66,
+            max_y: 33.229_166_666_666_664,
+            width: 236.458_333_333_333_31,
+            height: 26.458_333_333_333_33,
+        };
+        stroke_overflow.drawables = vec![OutputDrawable::Line {
+            element_id: "wide-stroke".to_owned(),
+            name: "wide-stroke".to_owned(),
+            start: OutputPoint { x: 0.0, y: 20.0 },
+            end: OutputPoint { x: 210.0, y: 20.0 },
+            stroke: OutputStroke {
+                width_mm: 26.458_333_333_333_332,
+                style: "solid".to_owned(),
+                color_hex: "#31322f".to_owned(),
+            },
+            fill: None,
+        }];
+        stroke_overflow.pages.truncate(1);
+        for guide in &mut stroke_overflow.pages[0].guides {
+            guide.label = None;
+        }
+
+        let pdf = encode_pdf(&stroke_overflow).expect("stroke-only overflow remains exportable");
+        let text = String::from_utf8_lossy(&pdf);
+        assert!(text.contains("/Count 1"));
+        assert!(text.contains("75 w [] 0 d"));
+        let physical_clip = text
+            .find("0 0 595.276 841.89 re W n")
+            .expect("the drawing stream must clip to the physical page rectangle");
+        let full_stroked_path = text
+            .find("28.346 85.039 m 623.622 85.039 l\nS")
+            .expect("the full stroke path remains present for clipping at the sheet edge");
+        assert!(physical_clip < full_stroked_path);
+    }
+
+    #[test]
     fn rejects_invalid_overlap() {
         let mut invalid = payload();
         invalid.overlap_mm = 200.0;

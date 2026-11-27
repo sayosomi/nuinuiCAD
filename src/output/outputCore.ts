@@ -191,7 +191,7 @@ export type OutputPrintPage = {
   guides: OutputGuide[];
 };
 
-export type OutputPrintWarning = { kind: "negative-rendered-bounds" };
+export type OutputPrintWarning = { kind: "physical-paper-overflow" };
 
 export type RustOutputPayloadBase = {
   version: 1;
@@ -572,13 +572,21 @@ const segmentBounds = (segment: OutputPathSegment): OutputBounds => {
   })));
 };
 
-const drawableBounds = (drawable: OutputDrawable): OutputBounds => {
-  if (drawable.kind === "text") return textBounds(drawable);
+const drawableBoundsParts = (drawable: OutputDrawable): { geometryBounds: OutputBounds; renderedBounds: OutputBounds } => {
+  if (drawable.kind === "text") {
+    const bounds = textBounds(drawable);
+    return { geometryBounds: bounds, renderedBounds: bounds };
+  }
   const paths = drawable.kind === "offsetLine" || drawable.kind === "joinedPath" || drawable.kind === "polyline" ? drawable.segments : [drawable];
-  let bounds = emptyBounds();
-  for (const path of paths) bounds = mergeBounds(bounds, segmentBounds(path));
-  return expandBounds(bounds, drawable.stroke.widthMm / 2);
+  let geometryBounds = emptyBounds();
+  for (const path of paths) geometryBounds = mergeBounds(geometryBounds, segmentBounds(path));
+  return {
+    geometryBounds,
+    renderedBounds: expandBounds(geometryBounds, drawable.stroke.widthMm / 2)
+  };
 };
+
+const drawableBounds = (drawable: OutputDrawable): OutputBounds => drawableBoundsParts(drawable).renderedBounds;
 
 export const outputDrawableBounds = drawableBounds;
 
@@ -1132,6 +1140,16 @@ const labelLayout = ({
   };
 };
 
+/**
+ * Geometry is assembled with a small number of IEEE-754 operations (including
+ * transforms and extrema evaluation). Ignore at most 64 scaled ULPs when a
+ * computed edge lands on a page boundary. At the largest tested 554 mm edge
+ * this is under 8e-12 mm, over 100 million times smaller than a real 0.001 mm
+ * crossing.
+ */
+const roundingToleranceMm = (...coordinatesMm: number[]) =>
+  64 * Number.EPSILON * Math.max(1, ...coordinatesMm.map(Math.abs));
+
 const printPages = ({
   bounds,
   paperWidthMm,
@@ -1153,8 +1171,12 @@ const printPages = ({
   const strideXmm = usableWidthMm;
   const strideYmm = usableHeightMm;
   if (empty) return { strideXmm, strideYmm, columns: 0, rows: 0, pages: [] as OutputPrintPage[] };
-  const columns = Math.max(1, Math.ceil(bounds.maxX / strideXmm));
-  const rows = Math.max(1, Math.ceil(bounds.maxY / strideYmm));
+  const columns = Math.max(1, Math.ceil(
+    (bounds.maxX - roundingToleranceMm(bounds.maxX, strideXmm)) / strideXmm
+  ));
+  const rows = Math.max(1, Math.ceil(
+    (bounds.maxY - roundingToleranceMm(bounds.maxY, strideYmm)) / strideYmm
+  ));
   const pages: OutputPrintPage[] = [];
   const verticalBoundaryCount = Math.max(0, columns - 1);
   const verticalLabelFor = (row: number, boundary: number) => String(row * verticalBoundaryCount + boundary + 1);
@@ -1246,7 +1268,14 @@ const outputPlanFromResolvedPlacements = (
   let renderedBounds = empty
     ? { minX: 0, minY: 0, maxX: 0, maxY: 0, width: 0, height: 0 }
     : emptyBounds();
-  for (const drawable of drawables) renderedBounds = mergeBounds(renderedBounds, drawableBounds(drawable));
+  let geometryBounds = empty
+    ? { minX: 0, minY: 0, maxX: 0, maxY: 0, width: 0, height: 0 }
+    : emptyBounds();
+  for (const drawable of drawables) {
+    const bounds = drawableBoundsParts(drawable);
+    renderedBounds = mergeBounds(renderedBounds, bounds.renderedBounds);
+    geometryBounds = mergeBounds(geometryBounds, bounds.geometryBounds);
+  }
   if (!Number.isFinite(renderedBounds.minX) || !Number.isFinite(renderedBounds.minY)) {
     throw new OutputPlanError("Output has invalid rendered bounds.");
   }
@@ -1280,7 +1309,7 @@ const outputPlanFromResolvedPlacements = (
   }
 
   const tiling = printPages({
-    bounds: renderedBounds,
+    bounds: geometryBounds,
     paperWidthMm: metadata.paperWidthMm,
     paperHeightMm: metadata.paperHeightMm,
     overlapMm: metadata.overlapMm,
@@ -1296,6 +1325,18 @@ const outputPlanFromResolvedPlacements = (
     stride: { x: tiling.strideXmm, y: tiling.strideYmm },
     pages: tiling.pages
   };
+  const physicalPaperBounds = {
+    minX: -metadata.overlapMm,
+    minY: -metadata.overlapMm,
+    maxX: tiling.columns * tiling.strideXmm + metadata.overlapMm,
+    maxY: tiling.rows * tiling.strideYmm + metadata.overlapMm
+  };
+  const exceedsPhysicalPaper = !empty && (
+    renderedBounds.minX < physicalPaperBounds.minX - roundingToleranceMm(renderedBounds.minX, physicalPaperBounds.minX) ||
+    renderedBounds.minY < physicalPaperBounds.minY - roundingToleranceMm(renderedBounds.minY, physicalPaperBounds.minY) ||
+    renderedBounds.maxX > physicalPaperBounds.maxX + roundingToleranceMm(renderedBounds.maxX, physicalPaperBounds.maxX) ||
+    renderedBounds.maxY > physicalPaperBounds.maxY + roundingToleranceMm(renderedBounds.maxY, physicalPaperBounds.maxY)
+  );
   return {
     ...metadata,
     placements: [...placements],
@@ -1311,9 +1352,7 @@ const outputPlanFromResolvedPlacements = (
       paperHeightMm: metadata.paperHeightMm,
       overlapMm: metadata.overlapMm,
       ...tiling,
-      warning: !empty && (renderedBounds.minX < 0 || renderedBounds.minY < 0)
-        ? { kind: "negative-rendered-bounds" }
-        : null
+      warning: exceedsPhysicalPaper ? { kind: "physical-paper-overflow" } : null
     }
   };
 };

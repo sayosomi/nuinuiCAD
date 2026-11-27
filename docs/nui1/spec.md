@@ -1901,16 +1901,25 @@ When a valid layer selector matches no drawable, output bounds are zero and
 print produces no pages; no fallback layer or geometry is added.
 
 Both usable dimensions must be positive. For nonempty print output, positive
-rendered coordinates determine the page count; `bounds.minX` and `bounds.minY`
-never translate the page grid:
+coordinates of the selected, placed output geometry determine the page count.
+The page-count extent excludes path stroke expansion and uses the existing
+exact line, Bezier, arc, and composite-path extrema; text keeps its existing
+text bounds. Stroke-inclusive `renderedBounds` remain unchanged for rendering,
+SVG bounds, and physical-paper containment. `geometryBounds.minX` and
+`geometryBounds.minY` never translate the page grid:
 
 ```text
-columns = max(1, ceil(bounds.maxX / strideX))
-rows    = max(1, ceil(bounds.maxY / strideY))
+tol(a, b) = 64 * 2^-52 * max(1, abs(a), abs(b)) mm
+columns = max(1, ceil((geometryBounds.maxX - tol(geometryBounds.maxX, strideX)) / strideX))
+rows    = max(1, ceil((geometryBounds.maxY - tol(geometryBounds.maxY, strideY)) / strideY))
 
 pageOriginX = column * strideX - overlap
 pageOriginY = row * strideY - overlap
 ```
+
+`tol` absorbs only floating-point rounding scale at a computed boundary. At
+554 mm it is less than `8e-12 mm`, over 100 million times smaller than a real
+`0.001 mm` crossing.
 
 Pages use zero-based column and row indices and remain ordered left-to-right,
 then bottom-to-top. The first usable-area origin is always global `(0, 0)`; its
@@ -1921,16 +1930,23 @@ second column starts at `(180, -10)`. Negative coordinates never add pages in
 the negative direction. A nonempty output has at least one page on each axis,
 even when all geometry is negative. Empty output still has zero pages.
 
-For nonempty print output, Output Preview warns when the stroke-inclusive
-rendered minimum X or Y is below zero. This is a non-blocking placement warning:
-it does not create a Source diagnostic or evaluation failure and does not
-disable PDF export. Geometry is not clipped at the usable-area origin or the
-advisory inset guides. Negative geometry within a physical sheet, including its
-overlap strip, remains printable. The PDF encoder clips each page to the
-physical paper rectangle; geometry outside that rectangle may be omitted from
-PDF output. Output Preview continues to show off-paper geometry for placement
-correction. The warning clears when the selected output's rendered bounds no
-longer extend into negative X or Y.
+For nonempty print output, Output Preview warns only when the
+stroke-inclusive `renderedBounds` exceed the physical union of the finalized
+page grid beyond `tol`:
+
+```text
+paperMinX = paperMinY = -overlap
+paperMaxX = columns * strideX + overlap
+paperMaxY = rows * strideY + overlap
+```
+
+The warning applies to all four edges. Physical-edge contact and geometry
+inside an overlap strip do not warn. It is non-blocking: it does not create a
+Source diagnostic or evaluation failure and does not disable PDF export. The
+PDF encoder clips each page to its physical paper rectangle; geometry outside
+that rectangle may be omitted from PDF output. Output Preview continues to show
+off-paper geometry for placement correction. The warning clears when the
+selected output's rendered bounds return inside the physical paper union.
 
 Adjacent physical sheet rectangles therefore overlap by `2 * overlap` mm;
 after one side is trimmed, the retained glue allowance is `overlap` mm.

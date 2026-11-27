@@ -1907,17 +1907,27 @@ describe("Output Preview application", () => {
     expect(outputExportRequestMessages().at(-1)?.outputKey).toBe(request.outputKey);
   });
 
-  it("tracks the print warning through drag, cancellation, pending commit, and canonical rejoin", async () => {
+  it.each([
+    ["en", "Geometry extends beyond the physical paper. Portions outside the paper may be omitted from PDF output."],
+    ["ja", "図形が物理用紙からはみ出しています。用紙の外側にある部分はPDF出力から欠落する場合があります。"]
+  ] as const)("tracks the localized print warning through drag, cancellation, pending commit, and canonical rejoin (%s)", async (language, warningText) => {
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(viewportRect);
     const warningSource = importedTwoPlacePrintOutputRoot.replace(
       "place G(at: (0, 0))",
-      "place G(at: (-5, 0))"
+      "place G(at: (-20, 0))"
     );
     const { compiled, publication, plan } = await planForImportedTwoPlaceRoot(warningSource, "print");
-    const warningText = "Geometry extends beyond the usable print origin. Portions outside the physical paper may be omitted from PDF output.";
-    expect(plan.print?.warning).toEqual({ kind: "negative-rendered-bounds" });
+    expect(plan.print?.warning).toEqual({ kind: "physical-paper-overflow" });
 
     render(<OutputPreviewApp api={api} />);
+    postWindowMessage({
+      type: "webviewPresentation",
+      presentation: {
+        locale: language,
+        strings: { "output.print.physicalPaperOverflowWarning": warningText },
+        diagnosticTemplates: {}
+      }
+    });
     sendImportedSource(warningSource);
     sendGraphPublication(publication);
     await waitFor(() => expect(outputPreviewPlanRequests()).toHaveLength(1));
@@ -1933,7 +1943,11 @@ describe("Output Preview application", () => {
       .filter((message) => message.type === "surfaceDiagnosticsPublication" && message.surface === "outputPreview")
       .at(-1);
     await waitFor(() => expect(currentSurfaceDiagnostics()).toMatchObject({
-      diagnostics: [expect.objectContaining({ severity: "warning", message: warningText })]
+      diagnostics: [expect.objectContaining({
+        id: `physical-paper-overflow:${plan.outputId}:${plan.layoutId}`,
+        severity: "warning",
+        message: warningText
+      })]
     }));
     expect(screen.queryByText(warningText)).toBeNull();
 

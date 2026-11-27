@@ -255,7 +255,7 @@ describe("Output Preview place display projection", () => {
       { x: -10, y: -10 },
       { x: 180, y: -10 }
     ]);
-    expect(print.print.warning).toEqual({ kind: "negative-rendered-bounds" });
+    expect(print.print.warning).toBeNull();
     expect(print.print.pages[0]!.guides.find((guide) => guide.axis === "vertical" && guide.positionMm === 200)?.label)
       .toMatchObject({ text: "1", center: { x: 205, y: 148.5 } });
     expect(print.print.pages[1]!.guides.find((guide) => guide.axis === "vertical" && guide.positionMm === 10)?.label)
@@ -278,13 +278,13 @@ describe("Output Preview place display projection", () => {
       "  line AB = segment(start: (0, 0), end: (10, 0))",
       "}",
       "layout L {",
-      "  place G(at: (0, 0))",
+      "  place G(at: (-20, 0))",
       "  place G(at: (20, 5))",
       "}",
       "print Sheet(layout: L, layers: [default], paper: a4, overlap: 10)",
       "svg Preview(layout: L, layers: [default], margin: 3)"
     ].join("\n");
-    const movedSource = source.replace("place G(at: (0, 0))", "place G(at: (7, 1))");
+    const movedSource = source.replace("place G(at: (-20, 0))", "place G(at: (0, 0))");
     const original = compileFreshCanonicalText(source);
     if (original.status === "fatal") throw new Error("invalid projection fixture");
     const moved = compileDslDocument(movedSource, {
@@ -298,14 +298,15 @@ describe("Output Preview place display projection", () => {
     const canonicalSvg = await evaluateOutputPlan({ compiledDocument: moved, output: moved.document.svgOutputs[0]! });
     const firstPlaceId = original.doc.document.layouts[0]!.placements[0]!.id;
 
+    expect(print.print?.warning).toEqual({ kind: "physical-paper-overflow" });
     const projectedPrint = projectOutputPlanForPlaceTranslation({
       acceptedPlan: print,
       placeId: firstPlaceId,
-      delta: { x: 7, y: 1 }
+      delta: { x: 20, y: 0 }
     });
     expect(projectedPrint).toEqual(canonicalPrint);
     expect(projectedPrint?.print?.warning).toBeNull();
-    expect(projectOutputPlanForPlaceTranslation({ acceptedPlan: svg, placeId: firstPlaceId, delta: { x: 7, y: 1 } }))
+    expect(projectOutputPlanForPlaceTranslation({ acceptedPlan: svg, placeId: firstPlaceId, delta: { x: 20, y: 0 } }))
       .toEqual(canonicalSvg);
   });
 

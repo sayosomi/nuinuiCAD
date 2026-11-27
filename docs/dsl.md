@@ -233,6 +233,22 @@ geometry or a path value, selected, edited, or used by Reference Pick or
 geometry completion. `const x: path = mirrorCopy(...)` is rejected.
 `corner` and other deferred constructors remain unsupported.
 
+## Print layout and physical overflow
+
+For print page counts, selected and placed geometry uses exact path extrema
+without stroke expansion; text retains its existing bounds. The fixed-origin
+page grid adds a page only when geometry crosses a usable stride beyond
+rounding tolerance `64 * 2^-52 * max(1, abs(value), abs(stride)) mm`. This is
+less than `8e-12 mm` at 554 mm, so a real `0.001 mm` crossing still adds a page.
+Stroke-inclusive rendered bounds remain unchanged for Output Preview, SVG, and
+physical-paper checks.
+
+Output Preview warns when those rendered bounds extend beyond the physical
+union of the finalized page grid: `[-overlap, columns * strideX + overlap]` by
+`[-overlap, rows * strideY + overlap]`, allowing only rounding-scale tolerance.
+Physical-edge contact and geometry within overlap strips do not warn. The PDF
+encoder continues to clip each page to its physical paper rectangle.
+
 The reference covers the current implemented language:
 
 - syntax and statement spellings

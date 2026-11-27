@@ -57,8 +57,8 @@ describe("Webview presentation localization", () => {
     expect(presentation.strings["output.noValidPlan"]).toBe("現在のSourceから有効な出力プランを作成できません。");
     expect(presentation.strings["output.noOutputs"]).toBe("印刷またはSVGの出力がありません");
     expect(presentation.strings["output.emptySelection"]).toBe("出力対象がありません");
-    expect(presentation.strings["output.print.negativeBoundsWarning"])
-      .toBe("図形が有効印刷範囲の原点より負方向に広がっています。物理用紙の外側にある部分はPDF出力から欠落する場合があります。");
+    expect(presentation.strings["output.print.physicalPaperOverflowWarning"])
+      .toBe("図形が物理用紙からはみ出しています。用紙の外側にある部分はPDF出力から欠落する場合があります。");
     expect(presentation.strings["output.ribbon.reset"]).toBe("出力プレビューの移動とズームをリセット");
     expect(presentation.strings["output.viewportStatus.description"]).toBe("現在の出力プレビューのポインター位置です。");
     expect(presentation.strings["modulePreview.cannotEvaluate"]).toBe("Module Previewを表示できません。");
@@ -116,8 +116,8 @@ describe("Webview presentation localization", () => {
     expect(english.strings["output.place.dragReason.axes"]).toBe("Cannot drag: {axes} in at must be direct finite numeric literals.");
     expect(english.strings["output.ribbon.reset"]).toBe("Reset Output Preview Pan and Zoom");
     expect(english.strings["output.emptySelection"]).toBe("There are no output targets.");
-    expect(english.strings["output.print.negativeBoundsWarning"])
-      .toBe("Geometry extends beyond the usable print origin. Portions outside the physical paper may be omitted from PDF output.");
+    expect(english.strings["output.print.physicalPaperOverflowWarning"])
+      .toBe("Geometry extends beyond the physical paper. Portions outside the paper may be omitted from PDF output.");
     expect(webviewPresentationTextFor(
       english,
       "canvas.staleFeedback.ready",
