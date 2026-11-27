@@ -214,12 +214,13 @@ const dragPlanIdentityForCandidate = (
 const outputTextSvg = (
   drawable: OutputText,
   size: OutputPreviewViewportSize,
-  viewport: OutputPreviewViewport
+  viewport: OutputPreviewViewport,
+  occurrenceIndex: number
 ) => {
   const lines = outputTextLines(drawable.text);
   return (
     <text
-      key={`${drawable.elementId}-${drawable.anchor.x}-${drawable.anchor.y}`}
+      key={`geometry-${occurrenceIndex}-${drawable.elementId}-text`}
       transform={outputPreviewTextTransformFor(drawable, size, viewport)}
       data-output-preview-layer="geometry"
       fill={drawable.colorHex}
@@ -245,14 +246,15 @@ const outputTextSvg = (
 const drawableSvg = (
   drawable: OutputDrawable,
   size: OutputPreviewViewportSize,
-  viewport: OutputPreviewViewport
+  viewport: OutputPreviewViewport,
+  occurrenceIndex: number
 ) => {
-  if (drawable.kind === "text") return outputTextSvg(drawable, size, viewport);
+  if (drawable.kind === "text") return outputTextSvg(drawable, size, viewport, occurrenceIndex);
   const path = outputPreviewPathDataFor(drawable, size, viewport);
   if (!path) return null;
   return (
     <path
-      key={`${drawable.elementId}-${drawable.kind}-${path}`}
+      key={`geometry-${occurrenceIndex}-${drawable.elementId}-${drawable.kind}`}
       d={path}
       data-output-preview-layer="geometry"
       fill={drawable.fill?.colorHex ?? "none"}
@@ -277,7 +279,7 @@ const highlightedDrawableSvg = (
     const lines = outputTextLines(drawable.text);
     return (
       <text
-        key={`highlight-${layer}-${occurrenceIndex}-${drawable.elementId}-${drawable.anchor.x}-${drawable.anchor.y}`}
+        key={`highlight-${layer}-${occurrenceIndex}-${drawable.elementId}-text`}
         transform={outputPreviewTextTransformFor(drawable, size, viewport)}
         data-output-preview-layer={layer}
         fill="var(--canvas-selection)"
@@ -305,7 +307,7 @@ const highlightedDrawableSvg = (
   if (!path) return null;
   return (
     <path
-      key={`highlight-${layer}-${occurrenceIndex}-${drawable.elementId}-${drawable.kind}-${path}`}
+      key={`highlight-${layer}-${occurrenceIndex}-${drawable.elementId}-${drawable.kind}`}
       d={path}
       data-output-preview-layer={layer}
       fill="none"
@@ -1879,7 +1881,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
             >
               {paperRect ? <rect {...paperRect} data-output-preview-layer="output-fill" fill="#ffffff" /> : null}
               {pageRects.map((page, index) => <rect key={`page-fill-${index}`} {...page} data-output-preview-layer="page-fill" fill="#ffffff" />)}
-              {plan.drawables.map((drawable) => drawableSvg(drawable, viewportSize, viewport))}
+              {plan.drawables.map((drawable, index) => drawableSvg(drawable, viewportSize, viewport, index))}
               {highlightedRevealDrawables.map((drawable, index) => highlightedDrawableSvg(drawable, viewportSize, viewport, "reveal-highlight", index))}
               {highlightedPlace?.drawables.map((drawable, index) => highlightedDrawableSvg(drawable, viewportSize, viewport, "place-highlight", index))}
               {pageRects.map((page, index) => <rect key={`page-boundary-${index}`} {...page} data-output-preview-layer="page-boundary" fill="none" stroke="#9aa0a6" strokeWidth={1} />)}
