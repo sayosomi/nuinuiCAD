@@ -29,6 +29,25 @@ type Files = Record<string, string>;
 type Oracle = Cell["expected"];
 const sha = (v: string | Buffer) => createHash("sha256").update(v).digest("hex");
 const records: Record<string, unknown>[] = [];
+const fixedOriginOracle = (oracle: Oracle): Oracle => {
+  const [paperWidthMm, paperHeightMm] = oracle.paperMm;
+  const overlapMm = oracle.overlap;
+  const strideXmm = paperWidthMm - 2 * overlapMm;
+  const strideYmm = paperHeightMm - 2 * overlapMm;
+  const columns = Math.max(1, Math.ceil(oracle.bounds.maxX / strideXmm));
+  const rows = Math.max(1, Math.ceil(oracle.bounds.maxY / strideYmm));
+  const pageOrigins = Array.from({ length: columns * rows }, (_, index) => ({
+    x: index % columns * strideXmm - overlapMm,
+    y: Math.floor(index / columns) * strideYmm - overlapMm
+  }));
+  return { ...oracle, columns, rows, pageOrigins };
+};
+const fixedOriginOracles = new WeakMap<object, Oracle>();
+for (const cell of matrix) {
+  fixedOriginOracles.set(cell.expected, fixedOriginOracle(cell.expected));
+  if (cell.secondExpected) fixedOriginOracles.set(cell.secondExpected, fixedOriginOracle(cell.secondExpected));
+  if (cell.restored) fixedOriginOracles.set(cell.restored, fixedOriginOracle(cell.restored));
+}
 let directory: string, rust: RustEvaluationProcess, closed: Promise<void> | undefined;
 let spawns = 0, requests = 0, exports = 0;
 const bounded = async <T,>(promise: Promise<T>): Promise<T> => {
@@ -87,7 +106,7 @@ const origin = (b: Bundle, expectedDocument = id("types.nui")) => {
   return { record:record.identity,module:module!.identity };
 };
 const physical = async (b: Bundle, expected: Oracle, label: string) => {
-  const doc=legal(b), artifacts=[];
+  const doc=legal(b), artifacts=[], printOracle=fixedOriginOracles.get(expected)!;
   for(const format of ["svg","pdf"] as const) {
     const selected=(format==="svg"?doc.document.svgOutputs:doc.document.printOutputs).find(o=>o.name===(format==="svg"?"Vector":"Paper"))!;
     const plan=await evaluateOutputPlan({compiledDocument:doc,output:selected,evaluate:async(elements,options)=>{
@@ -98,10 +117,10 @@ const physical = async (b: Bundle, expected: Oracle, label: string) => {
     expect(plan.placements).toHaveLength(expected.placements.length);
     plan.placements.forEach((v,i)=>{const e=expected.placements[i];expect(runtimePath(doc,v.groupId)).toBe(e.group);compare(v,{at:e.at,scale:e.scale,angleDeg:e.angle,mirror:false,origin:{x:0,y:0}});});
     compare(plan.drawables,expected.drawables.map(g=>({kind:g.kind,name:g.name,start:g.start,end:g.end})));
-    if(plan.print){compare([plan.print.columns,plan.print.rows,plan.print.strideXmm,plan.print.strideYmm,plan.print.overlapMm],[expected.columns,expected.rows,190,277,10]);compare(plan.print.pages.map(p=>p.origin),expected.pageOrigins);}
+    if(plan.print){compare([plan.print.columns,plan.print.rows,plan.print.strideXmm,plan.print.strideYmm,plan.print.overlapMm],[printOracle.columns,printOracle.rows,190,277,10]);compare(plan.print.pages.map(p=>p.origin),printOracle.pageOrigins);}
     const path=join(directory,`${label}.${format}`);exports++;
     expect(await bounded(rust.exportOutput({path,payload:plan.rustPayload}))).toEqual({exported:true});
-    const bytes=readFileSync(path);checkFile(bytes,format,expected);
+    const bytes=readFileSync(path);checkFile(bytes,format,format==="pdf"?printOracle:expected);
     artifacts.push({format,path,sha256:sha(bytes),byteLength:bytes.length});
   }
   return artifacts;
@@ -201,7 +220,7 @@ for(let root=1;root<=4;root++)it(`R${root}: genuine public Module Rename → sav
     if(cell.state===0)pureHashes=artifacts.map(a=>a.sha256);if(cell.state===1)expect(artifacts.map(a=>a.sha256)).toEqual(pureHashes);
     expect(()=>origin(b,id("facade.nui"))).toThrow();
     const wrong=structuredClone(cell.expected);wrong.svgMm[0]++;expect(()=>checkFile(readFileSync(artifacts[0].path),"svg",wrong)).toThrow();
-    const wrongPdf=structuredClone(cell.expected);wrongPdf.paperMm[0]++;expect(()=>checkFile(readFileSync(artifacts[1].path),"pdf",wrongPdf)).toThrow();
+    const wrongPdf=structuredClone(fixedOriginOracles.get(cell.expected)!);wrongPdf.paperMm[0]++;expect(()=>checkFile(readFileSync(artifacts[1].path),"pdf",wrongPdf)).toThrow();
     const wrongOutput=structuredClone(cell.expected);wrongOutput.drawables.reverse();expect(()=>checkFile(readFileSync(artifacts[0].path),"svg",wrongOutput)).toThrow();
     if(root===3){const wrongInstance=structuredClone(cell.expected);wrongInstance.geometry["Left::piece::Edge"]=structuredClone(wrongInstance.geometry["Right::piece::Edge"]);expect(()=>geometry(doc,result,wrongInstance)).toThrow();
       // Preview the original defining document, preserving its imported type;

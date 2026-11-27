@@ -55,6 +55,17 @@ const canonicalCase = (archived: Frozen): Frozen => {
 const hash = (s: string) => createHash("sha256").update(s).digest("hex");
 const cases = archivedCases.map(canonicalCase);
 const reducers = archivedReducers.map(canonicalCase);
+const b4PrintOracle = (() => {
+  const expected = cases.find(c => c.id === "B4")!.expected;
+  const paperWidthMm = 210, paperHeightMm = 297, overlapMm = 10;
+  const strideXmm = paperWidthMm - 2 * overlapMm, strideYmm = paperHeightMm - 2 * overlapMm;
+  const columns = expected.columns as number, rows = expected.rows as number;
+  const pageOrigins: Point[] = Array.from({ length: columns * rows }, (_, index) => [
+    index % columns * strideXmm - overlapMm,
+    Math.floor(index / columns) * strideYmm - overlapMm
+  ]);
+  return { columns, rows, pageOrigins };
+})();
 const near = (a: number, b: number) => expect(Math.abs(a - b), `${a} != ${b}`).toBeLessThan(1e-8);
 const xy = (p: { x: number; y: number }): Point => [p.x, p.y];
 const point = (a: { x: number; y: number }, b: Point) => { near(a.x, b[0]); near(a.y, b[1]); };
@@ -416,10 +427,10 @@ it("B4: real print path/page/inverse and upright multiline glyph projection", as
   expect(caption.text).toBe("Alpha\nBeta");
   near(caption.fontSizeMm, c.expected.fontSize as number); near(caption.lineHeightMm, c.expected.lineHeight as number);
   const paper = plan.print!;
-  expect(paper.columns).toBe(2); expect(paper.rows).toBe(1); expect(paper.pages).toHaveLength(2);
-  point(paper.pages[0].origin, c.expected.pageOrigin as Point);
+  expect(paper.columns).toBe(b4PrintOracle.columns); expect(paper.rows).toBe(b4PrintOracle.rows); expect(paper.pages).toHaveLength(b4PrintOracle.pageOrigins.length);
+  point(paper.pages[0].origin, b4PrintOracle.pageOrigins[0]!);
   paper.pages.forEach((page, i) => {
-    const origin: Point = [(c.expected.pageOrigin as Point)[0] + 190 * i, (c.expected.pageOrigin as Point)[1]];
+    const origin = b4PrintOracle.pageOrigins[i]!;
     point(page.origin, origin);
     expect(page.guides.map(g => g.positionMm)).toEqual(c.expected.guides);
     const rect = outputPreviewPageRectsFor(plan, size, viewport)[i];

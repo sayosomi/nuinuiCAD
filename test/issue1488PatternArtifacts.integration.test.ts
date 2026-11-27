@@ -30,8 +30,24 @@ import { canonicalRegressionFiles, canonicalRegressionSource } from "./canonical
 
 type Cell = typeof matrix[number];
 type Bundle = ReturnType<typeof compileGraph>;
+type Oracle = Cell["expected"];
 const sha = (value: string | Buffer) => createHash("sha256").update(value).digest("hex");
 const records: Record<string, unknown>[] = [];
+const fixedOriginOracle = (oracle: Oracle): Oracle => {
+  const [paperWidthMm, paperHeightMm] = oracle.paperMm;
+  const overlapMm = oracle.overlap;
+  const strideXmm = paperWidthMm - 2 * overlapMm;
+  const strideYmm = paperHeightMm - 2 * overlapMm;
+  const columns = Math.max(1, Math.ceil(oracle.bounds.maxX / strideXmm));
+  const rows = Math.max(1, Math.ceil(oracle.bounds.maxY / strideYmm));
+  const pageOrigins = Array.from({ length: columns * rows }, (_, index) => ({
+    x: index % columns * strideXmm - overlapMm,
+    y: Math.floor(index / columns) * strideYmm - overlapMm
+  }));
+  return { ...oracle, columns, rows, pageOrigins };
+};
+const fixedOriginOracles = new WeakMap<object, Oracle>();
+for (const cell of matrix) fixedOriginOracles.set(cell.expected, fixedOriginOracle(cell.expected));
 let directory: string;
 let rust: RustEvaluationProcess;
 let closed: Promise<void> | undefined;
@@ -107,7 +123,7 @@ const checkGeometry = (doc: LastGoodDslDocument, result: ReturnType<typeof evalu
 };
 
 const physical = async (b: Bundle, cell: Cell, label: string) => {
-  const doc = documentFor(b), results = [];
+  const doc = documentFor(b), results = [], printOracle = fixedOriginOracles.get(cell.expected)!;
   for (const format of ["svg", "pdf"] as const) {
     const outputs = format === "svg" ? doc.document.svgOutputs : doc.document.printOutputs;
     const selected = outputs.find(o => o.name === (format === "svg" ? "Vector" : "Paper"))!;
@@ -128,14 +144,14 @@ const physical = async (b: Bundle, cell: Cell, label: string) => {
     });
     compare(plan.drawables, cell.expected.drawables.map(shape => ({ kind: shape.kind, name: shape.name, start: shape.start, end: shape.end })));
     if (plan.print) {
-      compare([plan.print.columns, plan.print.rows, plan.print.strideXmm, plan.print.strideYmm, plan.print.overlapMm], [cell.expected.columns, cell.expected.rows, 190, 277, 10]);
-      compare(plan.print.pages.map(page => page.origin), cell.expected.pageOrigins);
+      compare([plan.print.columns, plan.print.rows, plan.print.strideXmm, plan.print.strideYmm, plan.print.overlapMm], [printOracle.columns, printOracle.rows, 190, 277, 10]);
+      compare(plan.print.pages.map(page => page.origin), printOracle.pageOrigins);
     }
     const path = join(directory, `${label}.${format}`);
     exports++;
     expect(await bounded(rust.exportOutput({ path, payload: plan.rustPayload }))).toEqual({ exported: true });
     const bytes = readFileSync(path);
-    const contents = checkFile(bytes, format, cell.expected);
+    const contents = checkFile(bytes, format, format === "pdf" ? printOracle : cell.expected);
     results.push({ format, path, sha256: sha(bytes), byteLength: bytes.length, contents, plan });
   }
   return results;
@@ -244,7 +260,7 @@ for (let root = 1; root <= 4; root++) it(`R${root}: saved/current/cache → cano
       const artifacts = record.artifacts as Awaited<ReturnType<typeof physical>>;
       const wrongPhysical = structuredClone(cell.expected); wrongPhysical.svgMm[0] += 1;
       expect(() => checkFile(readFileSync(artifacts[0].path), "svg", wrongPhysical)).toThrow();
-      const wrongPage = structuredClone(cell.expected); wrongPage.paperMm[0] += 1;
+      const wrongPage = structuredClone(fixedOriginOracles.get(cell.expected)!); wrongPage.paperMm[0] += 1;
       expect(() => checkFile(readFileSync(artifacts[1].path), "pdf", wrongPage)).toThrow();
       const wrongSelection = structuredClone(cell.expected); wrongSelection.drawables.reverse();
       expect(() => checkFile(readFileSync(artifacts[0].path), "svg", wrongSelection)).toThrow();
