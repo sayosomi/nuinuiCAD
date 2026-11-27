@@ -1,0 +1,13 @@
+nui 1
+group Pattern {
+  point Start = coordinate(x: 0, y: 0)
+  point End = coordinate(x: 100, y: 0)
+  line Reference = segment(start: Start, end: End)
+  text Caption = label(text: "AB 日本\n裁断型紙", anchor: (8, 80), size: 4)
+}
+layout Sheet {
+  place Pattern(at: (20, 30), scale: 1, angle: 0, mirror: false)
+  place Pattern(at: (260, 70), scale: 1, angle: 30, mirror: true)
+}
+svg Vector(layout: Sheet, layers: [default], margin: 3)
+print Paper(layout: Sheet, layers: [default], paper: a4, orientation: portrait, overlap: 10)
