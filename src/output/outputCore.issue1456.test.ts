@@ -9,7 +9,7 @@ import { evaluateElementsReference } from "../geometry/evaluationEngine";
 import { buildEvaluationOptions } from "../geometry/productionEvaluationContext";
 import { prepareRustEvaluation } from "../geometry/rustEvaluationRunner";
 import { evaluationPayloadToResult, type EvaluationPayload } from "../geometry/evaluationPayload";
-import { buildOutputPlan, evaluateOutputPlan, type OutputPlan } from "./outputCore";
+import { buildOutputPlan, evaluateOutputPlan, type OutputJoiningLabel, type OutputPlan } from "./outputCore";
 
 const root = "test/fixtures/issue-1456/";
 
@@ -81,7 +81,7 @@ type FrozenPrintExpectation = {
     column: number;
     row: number;
     origin: { x: number; y: number };
-    guides: { axis: "vertical" | "horizontal"; positionMm: number; label: unknown | null }[];
+    guides: { axis: "vertical" | "horizontal"; positionMm: number; label: OutputJoiningLabel | null }[];
   }[];
 };
 const fixedOriginExpected = (c: Frozen): Record<string, unknown> => {
