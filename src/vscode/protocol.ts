@@ -33,6 +33,7 @@ import type {
   VscodeReferencePickToExtensionMessage
 } from "./referencePickProtocol";
 import type { VscodeRuntimeDiagnosticsToExtensionMessage } from "./runtimeDiagnosticsProtocol";
+import type { VscodeSurfaceFeedbackToExtensionMessage } from "./surfaceFeedbackProtocol";
 import type {
   VscodeInlineModuleCanvasTargetsPublication,
   VscodeInlineModuleSelectionResult,
@@ -107,6 +108,13 @@ export type {
   VscodeRuntimeDiagnosticsPublication,
   VscodeRuntimeDiagnosticsToExtensionMessage
 } from "./runtimeDiagnosticsProtocol";
+export type {
+  VscodeCanvasFeedbackGraphIdentity,
+  VscodeSurfaceDiagnosticsPublication,
+  VscodeSurfaceFeedbackDiagnostic,
+  VscodeSurfaceFeedbackToExtensionMessage,
+  VscodeSurfaceOperationFailure
+} from "./surfaceFeedbackProtocol";
 export type {
   VscodeMultiDocumentGraphPublication,
   VscodeMultiDocumentGraphSnapshot,
@@ -293,6 +301,7 @@ export type VscodeToExtensionMessage =
   | { type: "configureCanvasGrid" }
   | { type: "toggleCanvasGridSnap" }
   | { type: "webviewAuthoritativeDocumentReady"; documentVersion: number }
+  | VscodeSurfaceFeedbackToExtensionMessage
   | VscodeRuntimeDiagnosticsToExtensionMessage
   | VscodeCanvasObservationToExtensionMessage
   | VscodeInlineModuleCanvasTargetsPublication

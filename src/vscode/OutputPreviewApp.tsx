@@ -398,6 +398,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
   const outputPlanEvaluationTailRef = useRef(Promise.resolve());
   const nextExportRequestIdRef = useRef(1);
   const nextPlanRequestIdRef = useRef(1);
+  const surfaceFeedbackPresentationIdRef = useRef(0);
   const pendingGraphPlansRef = useRef(new Map<number, {
     authority: VscodeOutputPreviewGraphAuthority;
     candidate: OutputPreviewCandidate;
@@ -1534,6 +1535,54 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     : graphBound
       ? graphError === null ? null : graphError || diagnosticMessageFor({ diagnostics: [], bindingIssueDiagnostics: [] }, webviewPresentation)
       : diagnosticMessageFor({ diagnostics, bindingIssueDiagnostics }, webviewPresentation);
+  useEffect(() => {
+    const documentVersion = hostSource?.version;
+    if (documentVersion === undefined) return;
+    const surfaceDiagnostics: Array<{
+      id: string;
+      severity: "error" | "warning";
+      message: string;
+    }> = [];
+    if (previewError) {
+      surfaceDiagnostics.push({
+        id: "output-preview-unavailable",
+        severity: "error",
+        message: webviewPresentationTextFor(
+          webviewPresentation,
+          "output.surface.unavailable",
+          "Output Preview is unavailable: {error}",
+          { error: previewError }
+        )
+      });
+    }
+    if (plan?.kind === "print" && plan.print?.warning?.kind === "negative-rendered-bounds") {
+      surfaceDiagnostics.push({
+        id: `negative-rendered-bounds:${plan.outputId}:${plan.layoutId}`,
+        severity: "warning",
+        message: webviewPresentationTextFor(
+          webviewPresentation,
+          "output.print.negativeBoundsWarning",
+          "Geometry extends beyond the usable print origin. Portions outside the physical paper may be omitted from PDF output."
+        )
+      });
+    }
+    api.postMessage({
+      type: "surfaceDiagnosticsPublication",
+      surface: "outputPreview",
+      documentVersion,
+      presentationId: ++surfaceFeedbackPresentationIdRef.current,
+      ...(graphContext ? { graphAuthority: graphContext.authority } : {}),
+      outputIdentity: {
+        outputKey: selectedOutputKey,
+        ...(canonicalSelectedCandidate ? {
+          kind: canonicalSelectedCandidate.kind,
+          outputId: canonicalSelectedCandidate.output.id,
+          layoutId: canonicalSelectedCandidate.output.layoutId
+        } : {})
+      },
+      diagnostics: surfaceDiagnostics
+    });
+  }, [api, canonicalSelectedCandidate, graphContext, hostSource, plan, previewError, selectedOutputKey, webviewPresentation]);
   const pageRects = plan ? outputPreviewPageRectsFor(plan, viewportSize, viewport) : [];
   const guideLines = plan ? outputPreviewGuideLinesFor(plan, viewportSize, viewport) : [];
   const paperBounds = plan?.kind === "svg" ? plan.bounds : null;
@@ -1836,15 +1885,6 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
               {pageRects.map((page, index) => <rect key={`page-boundary-${index}`} {...page} data-output-preview-layer="page-boundary" fill="none" stroke="#9aa0a6" strokeWidth={1} />)}
               {guideLines.map((guide, index) => <line key={`guide-${index}`} {...guide} data-output-preview-layer="overlap-guide" stroke="#70757a" strokeWidth={1} strokeDasharray="6 4" />)}
             </svg>
-            {plan.kind === "print" && plan.print?.warning?.kind === "negative-rendered-bounds" ? (
-              <div className="output-preview-warning" role="status" aria-live="polite">
-                {webviewPresentationTextFor(
-                  webviewPresentation,
-                  "output.print.negativeBoundsWarning",
-                  "Geometry extends beyond the usable print origin. Portions outside the physical paper may be omitted from PDF output."
-                )}
-              </div>
-            ) : null}
             <OutputPreviewPlaceOverlay
               projections={placeProjections}
               sourceText={effectiveSourceText}

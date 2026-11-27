@@ -128,6 +128,10 @@ import type {
   VscodeToExtensionMessage
 } from "../../src/vscode/protocol";
 import {
+  isVscodeSurfaceDiagnosticsPublication,
+  isVscodeSurfaceOperationFailure
+} from "../../src/vscode/surfaceFeedbackProtocol";
+import {
   vscodeWebviewSurfaceDataAttribute,
   type VscodeWebviewSurfaceKind
 } from "../../src/vscode/protocol";
@@ -195,6 +199,10 @@ import {
   registerOutputPreviewFeature,
   type OutputPreviewSession
 } from "./outputPreviewFeature";
+import {
+  SurfaceFeedbackDiagnostics,
+  type SurfaceFeedbackSession
+} from "./surfaceFeedbackDiagnostics";
 import { applySourceLineSplices, textEditForLineSplice } from "./textDocumentLineSplices";
 import type { WebviewEditableFocusContext } from "./webviewEditableFocusContext";
 
@@ -204,6 +212,7 @@ type DocumentSession = VscodeWebviewSessionBase & {
   hostDocumentUri: string;
   document: vscode.TextDocument;
   panel: vscode.WebviewPanel;
+  surfaceFeedbackSession: SurfaceFeedbackSession;
   disposables: vscode.Disposable[];
   inFlightCanvasHistory: {
     direction: "undo" | "redo";
@@ -606,6 +615,8 @@ export const activate = (
   const sessions = new VscodeWebviewSessionRegistry<WebviewSession>();
   const languageAnalysisSessions = new Map<string, NuiLanguageAnalysisSession>();
   const compilerDiagnosticCollection = vscode.languages.createDiagnosticCollection("nuinuiCAD");
+  const surfaceFeedbackDiagnostics = new SurfaceFeedbackDiagnostics();
+  const operationFailureEventsBySession = new WeakMap<DocumentSession, Set<number>>();
   let bakeOutputChannel: vscode.OutputChannel | null = null;
   const rustProcessOwner = new RustEvaluationProcessOwner((onTerminated) => new RustEvaluationProcess(rustBinaryPath(context), { onTerminated }));
   const benchmarkConfig = benchmarkConfigFromEnvironment();
@@ -928,7 +939,8 @@ export const activate = (
     ),
     activeCanvasDocumentForOpenCommand: () => activeCanvasSessionForOpenCommand()?.document ?? null,
     isOutputPreviewTabActive: () => isNuiOutputPreviewTab(activeEditorTabInput()),
-    attachWebviewEditableFocus: webviewEditableFocusContext?.attach
+    attachWebviewEditableFocus: webviewEditableFocusContext?.attach,
+    surfaceFeedbackDiagnostics
   });
 
   const activeOutputPreviewSessionForOpenCommand = (): OutputPreviewSession | null =>
@@ -1327,6 +1339,59 @@ export const activate = (
     publishCurrentDiagnostics(session.document, analysis);
   };
 
+  const acceptSurfaceOperationFailure = (
+    session: DocumentSession,
+    message: Extract<VscodeToExtensionMessage, { type: "surfaceOperationFailure" }>
+  ): void => {
+    if (
+      sessions.get(session.documentUri, "canvas") !== session ||
+      !isOpenDocument(session.document) ||
+      session.authoritativeDocumentVersion !== message.documentVersion ||
+      session.document.version !== message.documentVersion
+    ) return;
+    const seen = operationFailureEventsBySession.get(session) ?? new Set<number>();
+    if (seen.has(message.eventId)) return;
+    seen.add(message.eventId);
+    operationFailureEventsBySession.set(session, seen);
+    void vscode.window.showErrorMessage(message.message);
+  };
+
+  const acceptCanvasSurfaceDiagnostics = (
+    session: DocumentSession,
+    message: Extract<VscodeToExtensionMessage, { type: "surfaceDiagnosticsPublication" }>
+  ): void => {
+    if (
+      message.surface !== "canvas" ||
+      sessions.get(session.documentUri, "canvas") !== session ||
+      !isOpenDocument(session.document) ||
+      session.authoritativeDocumentVersion !== message.documentVersion ||
+      session.document.version !== message.documentVersion
+    ) return;
+    const graphIdentity = message.graphIdentity;
+    if (graphIdentity) {
+      const graphHost = activeVscodeMultiDocumentHost();
+      const current = graphHost?.canvasOpenMeasurementAuthorityFor?.(session.document);
+      if (!current ||
+          graphIdentity.hostDocumentUri !== session.hostDocumentUri ||
+          current.documentVersion !== message.documentVersion ||
+          current.rootDocumentId !== graphIdentity.hostDocumentUri ||
+          current.graphRevision !== graphIdentity.graphRevision ||
+          current.sourceRevision !== graphIdentity.sourceRevision) return;
+    }
+
+    const analysis = languageAnalysisSessions.get(session.documentUri);
+    const representedDiagnostics = analysis?.getSource() === session.document.getText()
+      ? [
+          ...analysis.getDiagnostics(),
+          ...(analysis.runtimeDiagnosticsSnapshotFor(session.document.version)?.diagnostics ?? [])
+        ]
+      : [];
+    const diagnostics = message.diagnostics.filter((item) => !item.elementId ||
+      !representedDiagnostics.some((represented) => represented.elementId === item.elementId &&
+        represented.severity === item.severity && represented.message === item.message));
+    surfaceFeedbackDiagnostics.accept(session.surfaceFeedbackSession, { ...message, diagnostics });
+  };
+
   const hoverFeature = registerNuiHoverFeature({
     rustProcessOwner,
     sessionFor: languageAnalysisSessionFor
@@ -1506,6 +1571,7 @@ export const activate = (
   });
   context.subscriptions.push(
     compilerDiagnosticCollection,
+    surfaceFeedbackDiagnostics,
     observationFeature,
     canvasThemeWarningFeature,
     compilerDiagnosticOpenListener,
@@ -2023,6 +2089,7 @@ export const activate = (
 
   const disposeCanvasSession = (session: DocumentSession): void => {
     if (sessions.get(session.documentUri, "canvas") !== session) return;
+    surfaceFeedbackDiagnostics.disposeSession(session.surfaceFeedbackSession);
     coordinatePointCreationModeRuns.delete(session);
     sourceAuthoringPositionFeature.disposeSession(session, session.document);
     canvasFreePointAtPointerFeature?.disposeSession(session, session.document);
@@ -2117,6 +2184,7 @@ export const activate = (
       surfaceKind: "canvas",
       document,
       panel,
+      surfaceFeedbackSession: surfaceFeedbackDiagnostics.createSession("canvas", documentUri),
       disposables: [],
       inFlightCanvasHistory: null,
       webviewReady: false,
@@ -2226,6 +2294,14 @@ export const activate = (
     }));
 
     session.disposables.push(panel.webview.onDidReceiveMessage(async (message: VscodeToExtensionMessage) => {
+      if (isVscodeSurfaceOperationFailure(message)) {
+        acceptSurfaceOperationFailure(session, message);
+        return;
+      }
+      if (isVscodeSurfaceDiagnosticsPublication(message)) {
+        acceptCanvasSurfaceDiagnostics(session, message);
+        return;
+      }
       if (message.type === "webviewReady") {
         const webviewReadyAt = session.canvasOpenCapture ? performance.now() : null;
         session.webviewReady = true;

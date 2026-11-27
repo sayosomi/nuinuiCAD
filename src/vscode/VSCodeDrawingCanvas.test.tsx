@@ -55,6 +55,7 @@ const mocks = vi.hoisted(() => ({
   nativePointerBoundaryFallback: false,
   renderRealCanvas: false,
   retainedImageSourceUrl: undefined as CanvasHostAdapter["resolveImageSourceUrl"] | undefined,
+  suppressEvaluationCountOverlay: false,
   onProductionDrawCompleted: null as ((draw: { drawablePrimitiveCount: number; isCurrentDraw: boolean; isProjectedDraw: boolean }) => void) | null
 }));
 
@@ -76,6 +77,7 @@ vi.mock("../components/DrawingCanvas", async (importOriginal) => {
       canvasFocusRef: { current: HTMLDivElement | null };
       nativePointerBoundaryFallback?: boolean;
       retainedImageSourceUrl?: CanvasHostAdapter["resolveImageSourceUrl"];
+      suppressEvaluationCountOverlay?: boolean;
       onProductionDrawCompleted?: (draw: { drawablePrimitiveCount: number; isCurrentDraw: boolean; isProjectedDraw: boolean }) => void;
     }, ref) => {
       void ref;
@@ -85,6 +87,7 @@ vi.mock("../components/DrawingCanvas", async (importOriginal) => {
       mocks.canvasFocusRef = props.canvasFocusRef;
       mocks.nativePointerBoundaryFallback = props.nativePointerBoundaryFallback ?? false;
       mocks.retainedImageSourceUrl = props.retainedImageSourceUrl;
+      mocks.suppressEvaluationCountOverlay = props.suppressEvaluationCountOverlay ?? false;
       mocks.onProductionDrawCompleted = props.onProductionDrawCompleted ?? null;
       if (mocks.renderRealCanvas) {
         return React.createElement(actual.DrawingCanvas, { ...props, ref } as unknown as ComponentProps<typeof actual.DrawingCanvas>);
@@ -107,6 +110,7 @@ afterEach(() => {
   mocks.nativePointerBoundaryFallback = false;
   mocks.renderRealCanvas = false;
   mocks.retainedImageSourceUrl = undefined;
+  mocks.suppressEvaluationCountOverlay = false;
   mocks.onProductionDrawCompleted = null;
   act(() => {
     useCadUiStore.setState(initialCadUiState());
@@ -371,6 +375,58 @@ describe("VSCodeDrawingCanvas adapter", () => {
     />);
 
     expect(mocks.onProductionDrawCompleted).toBe(onProductionDrawCompleted);
+  });
+
+  it("publishes stale geometry as a surface problem, clears it while evaluation is pending, and suppresses Canvas overlays", async () => {
+    const api = { postMessage: vi.fn() };
+    vi.spyOn(await import("./vscodeWebviewApiContext"), "vscodeWebviewApi").mockReturnValue(api);
+    const evaluation = {
+      ...emptyEvaluationResult([]),
+      warnings: [{ elementId: "P", elementName: "P", message: "current evaluation warning" }]
+    };
+    const compiledRevision = useCadDocumentStore.getState().compiledDocumentRevision;
+    const graphIdentity = { hostDocumentUri: "file:///pattern.nui", graphRevision: 5, sourceRevision: 8 };
+    const props = {
+      evaluation,
+      evaluationState: makeEvaluationState(evaluation, compiledRevision, { status: "ready" }),
+      documentVersion: 12,
+      feedbackGraphIdentity: graphIdentity,
+      staleCanvasPresentation: {
+        status: "ready" as const,
+        currentGraphRevision: 5,
+        currentSourceRevision: 8,
+        lastGoodGraphRevision: 4,
+        lastGoodSourceRevision: 7
+      },
+      canvasFocusRef: createRef<HTMLDivElement>(),
+      postCanonicalSourceText: vi.fn(),
+      currentReferencePickAuthorityFor: () => null
+    };
+    const view = render(<VSCodeDrawingCanvas {...props} />);
+    const publications = () => api.postMessage.mock.calls.map(([message]) => message)
+      .filter((message) => message.type === "surfaceDiagnosticsPublication");
+    expect(publications().at(-1)).toMatchObject({
+      type: "surfaceDiagnosticsPublication",
+      surface: "canvas",
+      documentVersion: 12,
+      graphIdentity,
+      diagnostics: [expect.objectContaining({ severity: "warning", id: "canvas-stale-geometry" })]
+    });
+    expect(screen.queryByTestId("stale-canvas-status")).toBeNull();
+    expect(mocks.suppressEvaluationCountOverlay).toBe(true);
+
+    view.rerender(<VSCodeDrawingCanvas {...props} staleCanvasPresentation={null} evaluationState={makeEvaluationState(
+      evaluation,
+      compiledRevision,
+      { status: "evaluating" }
+    )} />);
+    expect(publications().at(-1)).toMatchObject({ diagnostics: [] });
+    expect(publications().at(-1)).not.toMatchObject({ diagnostics: [expect.objectContaining({ severity: "error" })] });
+
+    view.rerender(<VSCodeDrawingCanvas {...props} staleCanvasPresentation={null} />);
+    expect(publications().at(-1)).toMatchObject({
+      diagnostics: [expect.objectContaining({ message: "current evaluation warning", severity: "warning" })]
+    });
   });
 
   it("#1673 fits the graph-backed imported Module through the Canvas-owned Fit operation", async () => {

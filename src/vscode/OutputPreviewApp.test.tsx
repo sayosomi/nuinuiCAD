@@ -1430,7 +1430,14 @@ describe("Output Preview application", () => {
       graphAuthority: request.graphAuthority,
       plan
     });
-    expect(await screen.findByText(warningText)).toBeInTheDocument();
+    const currentSurfaceDiagnostics = () => vi.mocked(api.postMessage).mock.calls
+      .map(([message]) => message)
+      .filter((message) => message.type === "surfaceDiagnosticsPublication" && message.surface === "outputPreview")
+      .at(-1);
+    await waitFor(() => expect(currentSurfaceDiagnostics()).toMatchObject({
+      diagnostics: [expect.objectContaining({ severity: "warning", message: warningText })]
+    }));
+    expect(screen.queryByText(warningText)).toBeNull();
 
     const firstPlaceId = compiled.document.layouts[0]!.placements[0]!.id;
     const handleForFirstPlace = () => [...document.querySelectorAll<HTMLButtonElement>("button[data-place-id]")]
@@ -1442,10 +1449,12 @@ describe("Output Preview application", () => {
       fireEvent.pointerDown(handle, { button: 0, buttons: 1, pointerId: 1749, clientX: 100, clientY: 100 });
       fireEvent.pointerMove(handle, { buttons: 1, pointerId: 1749, clientX: 160, clientY: 100 });
     });
-    await waitFor(() => expect(screen.queryByText(warningText)).toBeNull());
+    await waitFor(() => expect(currentSurfaceDiagnostics()).toMatchObject({ diagnostics: [] }));
     expect(outputPreviewPlanRequests()).toHaveLength(1);
     fireEvent.pointerCancel(handleForFirstPlace() ?? handle, { pointerId: 1749 });
-    expect(await screen.findByText(warningText)).toBeInTheDocument();
+    await waitFor(() => expect(currentSurfaceDiagnostics()).toMatchObject({
+      diagnostics: [expect.objectContaining({ severity: "warning", message: warningText })]
+    }));
 
     const currentHandle = handleForFirstPlace();
     if (!currentHandle) throw new Error("missing place handle after drag cancellation");
@@ -1453,7 +1462,7 @@ describe("Output Preview application", () => {
       fireEvent.pointerDown(currentHandle, { button: 0, buttons: 1, pointerId: 1750, clientX: 100, clientY: 100 });
       fireEvent.pointerMove(currentHandle, { buttons: 1, pointerId: 1750, clientX: 160, clientY: 100 });
     });
-    await waitFor(() => expect(screen.queryByText(warningText)).toBeNull());
+    await waitFor(() => expect(currentSurfaceDiagnostics()).toMatchObject({ diagnostics: [] }));
     await act(async () => {
       fireEvent.pointerUp(handleForFirstPlace() ?? currentHandle, {
         button: 0, buttons: 0, pointerId: 1750, clientX: 160, clientY: 100
@@ -1464,7 +1473,10 @@ describe("Output Preview application", () => {
     expect(outputExportRequestMessages()).toEqual([]);
 
     sendImportedSource(warningSource, 1, importedRootUri);
-    expect(await screen.findByText(warningText)).toBeInTheDocument();
+    await waitFor(() => expect(currentSurfaceDiagnostics()).toMatchObject({
+      diagnostics: [expect.objectContaining({ severity: "warning", message: warningText })]
+    }));
+    expect(screen.queryByText(warningText)).toBeNull();
     await waitFor(() => expect(outputExportAvailabilityMessages().at(-1)?.outputKey).toBe(request.outputKey));
     postWindowMessage({ type: "outputPreviewExport" });
     const settledExport = outputExportRequestMessages().at(-1);
@@ -2254,13 +2266,24 @@ describe("Output Preview application", () => {
     expect(api.postMessage).toHaveBeenCalledWith({ type: "webviewReady" });
   });
 
-  it("shows current-source errors instead of stale last-good output", () => {
+  it("shows current-source errors and publishes actual Output Preview unavailability", async () => {
     useCadDocumentStore.setState(initialCadDocumentState());
     useCadDocumentStore.getState().commitText("nui 1\npoint A = coordinate(", "test");
 
     render(<OutputPreviewApp api={api} />);
+    sendImportedSource("nui 1\npoint A = coordinate(", 1);
 
     expect(screen.getByRole("alert")).toHaveTextContent("Output Preview unavailable");
+    expect(screen.getByRole("button", { name: "Go to Source" })).toBeInTheDocument();
+    await waitFor(() => {
+      const publication = vi.mocked(api.postMessage).mock.calls
+        .map(([message]) => message)
+        .filter((message) => message.type === "surfaceDiagnosticsPublication" && message.surface === "outputPreview")
+        .at(-1);
+      expect(publication).toMatchObject({
+        diagnostics: [expect.objectContaining({ severity: "error", id: "output-preview-unavailable" })]
+      });
+    });
   });
 
   it.each([

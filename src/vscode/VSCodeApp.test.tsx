@@ -4675,11 +4675,13 @@ describe("VSCodeApp Canvas history coordinator", () => {
     });
 
     const reason = `選択要素 ${text.id} はスナップショットに対応しないジオメトリです (unsupported-geometry-kind)。`;
-    const alert = screen.getByRole("alert");
-    expect(alert.textContent).toBe(reason);
-    expect(alert.parentElement).toBe(screen.getByRole("main"));
-    expect(alert.style.position).toBe("absolute");
-    expect(alert.style.pointerEvents).toBe("none");
+    expect(screen.queryByRole("alert")).toBeNull();
+    const operationFailures = () => api.postMessage.mock.calls
+      .map(([message]) => message)
+      .filter((message) => message?.type === "surfaceOperationFailure");
+    expect(operationFailures()).toEqual([
+      expect.objectContaining({ type: "surfaceOperationFailure", message: reason })
+    ]);
     expect(useCadUiStore.getState().commandErrorMessage).toBe(reason);
     expect(useCadDocumentStore.getState().sourceText).toBe(sourceBefore);
     expect(useCadDocumentStore.getState().past).toEqual(pastBefore);
@@ -4694,6 +4696,12 @@ describe("VSCodeApp Canvas history coordinator", () => {
     }).toEqual(selectionBefore);
     expect(api.postMessage.mock.calls.map(([message]) => message)
       .filter((message) => message?.type === "canvasCommit")).toHaveLength(0);
+
+    await act(async () => { view.rerender(<VSCodeAppForTest api={api} />); });
+    expect(operationFailures()).toHaveLength(1);
+    act(() => useCadUiStore.getState().setCommandErrorMessage(reason));
+    expect(operationFailures()).toHaveLength(2);
+    expect(operationFailures()[1]).toMatchObject({ message: reason });
   });
 
   it("snapshots selected imported Canvas runtime geometry with its graph commit authority", async () => {
@@ -4750,7 +4758,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
     expect(drawingCanvasProps.evaluation.computedGeometry.get(rootPoint.id)).toMatchObject({ x: 0, y: 0 });
 
     act(() => useCadUiStore.getState().setCommandErrorMessage("stale snapshot rejection"));
-    expect(screen.getByRole("alert").textContent).toBe("stale snapshot rejection");
+    expect(screen.queryByRole("alert")).toBeNull();
     api.postMessage.mockClear();
     evaluationRevisionCapture.revisions = [];
     await act(async () => {
