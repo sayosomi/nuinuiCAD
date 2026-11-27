@@ -335,6 +335,7 @@ export type VscodeToExtensionMessage =
       requestId: number;
       status: "applied" | "rejected";
       documentVersion: number;
+      rejectionReason?: string;
       nextSourcePosition?: { line: number; character: number };
     }
   | {

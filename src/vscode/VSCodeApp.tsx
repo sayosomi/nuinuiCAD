@@ -2080,34 +2080,32 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
     const runCanvasFreePointAtPointer = (
       message: Extract<ExtensionToVscodeMessage, { type: "canvasFreePointAtPointer" }>
     ): void => {
-      const reject = (): void => {
+      const reject = (rejectionReason: string): void => {
+        useCadUiStore.getState().setCommandErrorMessage(rejectionReason, { alreadyReportedByHost: true });
         api.postMessage({
           type: "canvasFreePointAtPointerResult",
           requestId: message.requestId,
           status: "rejected",
-          documentVersion: latestHostDocumentVersionRef.current ?? message.documentVersion
+          documentVersion: latestHostDocumentVersionRef.current ?? message.documentVersion,
+          rejectionReason
         });
       };
       if (pendingCanvasFreePointCommitRef.current !== null) {
-        useCadUiStore.getState().setCommandErrorMessage(staleSourceAnchorError, { alreadyReportedByHost: true });
-        reject();
+        reject(staleSourceAnchorError);
         return;
       }
       if (!Number.isFinite(message.pointer.x) || !Number.isFinite(message.pointer.y)) {
-        useCadUiStore.getState().setCommandErrorMessage(canvasPointerError, { alreadyReportedByHost: true });
-        reject();
+        reject(canvasPointerError);
         return;
       }
       if (!Number.isFinite(message.documentVersion) || !Number.isInteger(message.documentVersion)) {
-        useCadUiStore.getState().setCommandErrorMessage(sourceCreationInsertionUnsafeError, { alreadyReportedByHost: true });
-        reject();
+        reject(sourceCreationInsertionUnsafeError);
         return;
       }
 
       const current = currentAuthoritativeCanvasSourceDocument(message.documentVersion);
       if (!current) {
-        useCadUiStore.getState().setCommandErrorMessage(canvasAuthorityRejectionErrorFor(message.documentVersion), { alreadyReportedByHost: true });
-        reject();
+        reject(canvasAuthorityRejectionErrorFor(message.documentVersion));
         return;
       }
       const graphAuthority = current.graphAuthority;
@@ -2130,8 +2128,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           )
         : current.state.sourceText.length;
       if (sourceInsertionOffset === null) {
-        useCadUiStore.getState().setCommandErrorMessage(sourceCreationInsertionUnsafeError, { alreadyReportedByHost: true });
-        reject();
+        reject(sourceCreationInsertionUnsafeError);
         return;
       }
 
@@ -2142,8 +2139,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
       );
       const recipe = creationRecipeForType("freePoint");
       if (!recipe) {
-        useCadUiStore.getState().setCommandErrorMessage(sourceCreationInsertionUnsafeError, { alreadyReportedByHost: true });
-        reject();
+        reject(sourceCreationInsertionUnsafeError);
         return;
       }
       const element = applyCreationPlacement(
@@ -2165,8 +2161,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         revalidated.state.sourceText !== current.state.sourceText ||
         revalidated.sourceEditing?.sourceText !== current.sourceEditing?.sourceText
       ) {
-        useCadUiStore.getState().setCommandErrorMessage(canvasAuthorityRejectionErrorFor(message.documentVersion), { alreadyReportedByHost: true });
-        reject();
+        reject(canvasAuthorityRejectionErrorFor(message.documentVersion));
         return;
       }
 
@@ -2184,8 +2179,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         declarationText
       });
       if (!textInsertion) {
-        useCadUiStore.getState().setCommandErrorMessage(sourceInsertionError, { alreadyReportedByHost: true });
-        reject();
+        reject(sourceInsertionError);
         return;
       }
       const sourceCommitResult = useCadDocumentStore.getState().commitAuthoritativeSourceInsertion(
@@ -2203,13 +2197,11 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
       const selectedSourceStatementIndex = [...compiled.sourceElementsByStatementIndex.entries()]
         .find(([, sourceElement]) => sourceElement.id === element.id)?.[0];
       if (sourceCommitResult.status !== "applied") {
-        useCadUiStore.getState().setCommandErrorMessage(
+        reject(
           sourceCommitResult.status === "rejected"
             ? canvasAuthorityRejectionErrorFor(message.documentVersion)
-            : sourceInsertionError,
-          { alreadyReportedByHost: true }
+            : sourceInsertionError
         );
-        reject();
         return;
       }
 
@@ -2440,12 +2432,14 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
             selection: pending.previousSelection
           };
           tryApplyPendingCanvasSelectionRestore();
-          useCadUiStore.getState().setCommandErrorMessage(staleSourceAnchorError, { alreadyReportedByHost: true });
+          const rejectionReason = staleSourceAnchorError;
+          useCadUiStore.getState().setCommandErrorMessage(rejectionReason, { alreadyReportedByHost: true });
           api.postMessage({
             type: "canvasFreePointAtPointerResult",
             requestId: pending.requestId,
             status: "rejected",
-            documentVersion: message.documentVersion
+            documentVersion: message.documentVersion,
+            rejectionReason
           });
           return;
         }

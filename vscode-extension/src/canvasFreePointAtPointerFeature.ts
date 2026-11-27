@@ -360,10 +360,17 @@ export const registerVscodeCanvasFreePointAtPointerFeature = ({
       pendingRequests.delete(message.requestId);
       const state = sessionStates.get(pending.sessionToken);
       if (!state || state.document !== document || state.inFlightRequestId !== message.requestId) return;
+      if (message.status === "rejected") {
+        const rejectionReason = typeof message.rejectionReason === "string" && message.rejectionReason.trim().length > 0
+          ? message.rejectionReason
+          : staleSourceAnchorError();
+        void vscode.window.showErrorMessage(rejectionReason);
+        invalidateSessionState(state);
+        return;
+      }
       state.inFlightRequestId = null;
       const provisionalDocumentVersion = state.provisionalCommandOwnedDocumentVersion;
       if (
-        message.status !== "applied" ||
         !sourcePositionIsValid(message.nextSourcePosition) ||
         document.version !== message.documentVersion ||
         message.documentVersion !== pending.sourcePosition.documentVersion + 1 ||

@@ -933,7 +933,8 @@ describe("VSCodeApp Canvas history coordinator", () => {
       type: "canvasFreePointAtPointerResult",
       requestId: 601,
       status: "rejected",
-      documentVersion: 7
+      documentVersion: 7,
+      rejectionReason: expectedError
     });
   });
 
@@ -1917,6 +1918,13 @@ describe("VSCodeApp Canvas history coordinator", () => {
           requestId: 16652,
           status: "rejected"
         }));
+        const rejectionResult = api.postMessage.mock.calls.map(([message]) => message)
+          .find((message) => message?.type === "canvasFreePointAtPointerResult");
+        expect(rejectionResult).toMatchObject({
+          requestId: 16652,
+          status: "rejected",
+          rejectionReason: useCadUiStore.getState().commandErrorMessage
+        });
       } else {
         await send({
           type: "canvasCoordinatePointCreationStart",
@@ -3135,7 +3143,8 @@ describe("VSCodeApp Canvas history coordinator", () => {
       type: "canvasFreePointAtPointerResult",
       requestId: 42,
       status: "rejected",
-      documentVersion: 7
+      documentVersion: 7,
+      rejectionReason: useCadUiStore.getState().commandErrorMessage
     }]);
     expect(freePointResults.some((message) => message.status === "applied")).toBe(false);
     expect(freePointResults[0]).not.toHaveProperty("nextSourcePosition");
