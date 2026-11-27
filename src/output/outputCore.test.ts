@@ -1,8 +1,14 @@
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { execFileSync, spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import { compileFreshCanonicalText } from "@nuinuicad/nui-language/document";
 import { evaluateElementsReference } from "../geometry/evaluationEngine";
 import { buildEvaluationOptions } from "../geometry/productionEvaluationContext";
+import { RustEvaluationProcess } from "../node/rustEvaluationProcess";
 import { useCadUiStore } from "../state/cadUiStore";
+import { parsePdf } from "../../test/pdfArtifactInspector";
 import {
   OUTPUT_PALETTE,
   OUTPUT_TEXT_ASCENT,
@@ -1990,4 +1996,199 @@ describe("SAY-64 output core", () => {
     expect(plan.renderedBounds.height).toBeGreaterThan(text.lineHeightMm + ascent - descent);
     expect(ascent + descent).toBe(text.fontSizeMm);
   });
+});
+
+describe("#1763 canonical print planning through actual Rust PDF export", () => {
+  let rust: RustEvaluationProcess | undefined;
+  let child: ChildProcessWithoutNullStreams | undefined;
+  let closed: Promise<void> | undefined;
+  let closure: { code: number | null; signal: NodeJS.Signals | null } | undefined;
+  let exit: { code: number | null; signal: NodeJS.Signals | null } | undefined;
+  let childError: Error | undefined;
+  const diagnostics: string[] = [];
+  let artifactDirectory = "";
+
+  const bounded = async <T,>(operation: Promise<T>, label: string, timeoutMs = 10_000): Promise<T> => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      return await Promise.race([
+        operation,
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => {
+            rust?.dispose();
+            reject(new Error(`#1763 ${label} exceeded the ${timeoutMs / 1000}s bound`));
+          }, timeoutMs);
+        })
+      ]);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  };
+
+  beforeAll(() => {
+    artifactDirectory = mkdtempSync(join(tmpdir(), "nuinui-1763-output-"));
+    execFileSync("cargo", ["build", "--quiet", "--manifest-path", "rust-evaluator/Cargo.toml", "--bin", "evaluation_stdio"], {
+      cwd: process.cwd(),
+      timeout: 120_000,
+      stdio: "inherit"
+    });
+    const binary = resolve(
+      process.env.CARGO_TARGET_DIR ?? "rust-evaluator/target",
+      "debug",
+      process.platform === "win32" ? "evaluation_stdio.exe" : "evaluation_stdio"
+    );
+    rust = new RustEvaluationProcess(binary, {
+      spawnProcess: ((...args: Parameters<typeof spawn>) => {
+        child = spawn(...args) as ChildProcessWithoutNullStreams;
+        child.once("error", (error) => { childError = error; });
+        child.once("exit", (code, signal) => { exit = { code, signal }; });
+        closed = new Promise<void>((resolveClosed) => {
+          child!.once("close", (code, signal) => {
+            closure = { code, signal };
+            resolveClosed();
+          });
+        });
+        return child;
+      }) as typeof spawn,
+      reportDiagnostic: (message) => diagnostics.push(message)
+    });
+  }, 125_000);
+
+  afterAll(async () => {
+    rust?.dispose();
+    if (closed) await bounded(closed, "process cleanup", 5_000);
+    if (artifactDirectory) rmSync(artifactDirectory, { recursive: true, force: true });
+    expect(childError).toBeUndefined();
+    expect(exit).toBeDefined();
+    expect(closure).toBeDefined();
+    expect(diagnostics).toEqual([]);
+  }, 10_000);
+
+  it("exports the canonical one-page edge contact and just-over two-page control", async () => {
+    const cases = [
+      {
+        endX: 190,
+        columns: 1,
+        origins: [{ x: -10, y: -10 }],
+        guideLabels: [[null, null, null, null]]
+      },
+      {
+        endX: 190.001,
+        columns: 2,
+        origins: [{ x: -10, y: -10 }, { x: 180, y: -10 }],
+        guideLabels: [[null, "1", null, null], ["1", null, null, null]]
+      }
+    ] as const;
+    const halfStrokeMm = 50 * 25.4 / 96;
+    const expectedPageBox = [0, 0, 595.276, 841.89];
+    const pointsPerMm = 72 / 25.4;
+    const near = (actual: number, expected: number) => expect(actual).toBeCloseTo(expected, 3);
+
+    const hasPdfLine = (
+      page: ReturnType<typeof parsePdf>["pages"][number],
+      start: readonly [number, number],
+      end: readonly [number, number]
+    ) => page.ops.some((operation, index) => {
+      const next = page.ops[index + 1];
+      return operation.op === "m" && next?.op === "l" &&
+        typeof operation.args[0] === "number" && typeof operation.args[1] === "number" &&
+        typeof next.args[0] === "number" && typeof next.args[1] === "number" &&
+        Math.abs(operation.args[0] - start[0]) < 0.001 && Math.abs(operation.args[1] - start[1]) < 0.001 &&
+        Math.abs(next.args[0] - end[0]) < 0.001 && Math.abs(next.args[1] - end[1]) < 0.001;
+    });
+
+    for (const testCase of cases) {
+      const plan = printPlanForLine({ x: 0, y: 20 }, { x: testCase.endX, y: 20 }, 10, "a4", "portrait", 100);
+      const pages = testCase.origins.length;
+      expect(plan.drawables).toHaveLength(1);
+      expect(plan.drawables[0]).toMatchObject({
+        kind: "line",
+        start: { x: 0, y: 20 },
+        end: { x: testCase.endX, y: 20 },
+        stroke: { widthMm: 100 * 25.4 / 96 }
+      });
+      expect(plan.renderedBounds.maxX).toBeCloseTo(testCase.endX + halfStrokeMm, 10);
+      expect(plan.print).toMatchObject({
+        paper: "a4",
+        orientation: "portrait",
+        paperWidthMm: 210,
+        paperHeightMm: 297,
+        overlapMm: 10,
+        strideXmm: 190,
+        strideYmm: 277,
+        columns: testCase.columns,
+        rows: 1,
+        pages: Array.from({ length: pages }, (_, index) => ({ origin: testCase.origins[index] }))
+      });
+      expect(plan.print?.warning).toEqual({ kind: "physical-paper-overflow" });
+      expect(plan.print!.pages.map((page) => page.guides.map((guide) => guide.label?.text ?? null)))
+        .toEqual(testCase.guideLabels);
+      expect(plan.rustPayload.kind).toBe("print");
+      if (plan.rustPayload.kind !== "print") throw new Error("expected canonical print payload");
+      const canonicalPayload = structuredClone(plan.rustPayload);
+      const pdfPath = join(artifactDirectory, `boundary-${testCase.endX}.pdf`);
+      expect(await bounded(rust!.exportOutput({ path: pdfPath, payload: plan.rustPayload }), `PDF export ${testCase.endX}`))
+        .toEqual({ exported: true });
+      expect(plan.rustPayload).toEqual(canonicalPayload);
+
+      const pdf = parsePdf(readFileSync(pdfPath));
+      expect(pdf.pages).toHaveLength(pages);
+      expect(pdf.pages.map((page) => page.box)).toEqual(Array.from({ length: pages }, () => expectedPageBox));
+
+      for (const [pageIndex, page] of pdf.pages.entries()) {
+        const ops = page.ops;
+        const clipIndex = ops.findIndex((operation) => operation.op === "re" &&
+          operation.args.length === 4 && operation.args[0] === 0 && operation.args[1] === 0 &&
+          operation.args[2] === expectedPageBox[2] && operation.args[3] === expectedPageBox[3]);
+        expect(clipIndex).toBeGreaterThanOrEqual(0);
+        expect(ops.slice(clipIndex, clipIndex + 3).map((operation) => operation.op)).toEqual(["re", "W", "n"]);
+
+        const origin = testCase.origins[pageIndex]!;
+        const expectedPathStart = [(0 - origin.x) * pointsPerMm, (20 - origin.y) * pointsPerMm] as const;
+        const expectedPathEnd = [(testCase.endX - origin.x) * pointsPerMm, (20 - origin.y) * pointsPerMm] as const;
+        const strokeIndex = ops.findIndex((operation, index) => index > clipIndex &&
+          operation.op === "w" && operation.args[0] === 75);
+        const pathIndex = ops.findIndex((operation, index) => {
+          const next = ops[index + 1];
+          return index > clipIndex && operation.op === "m" && next?.op === "l" &&
+            typeof operation.args[0] === "number" && typeof operation.args[1] === "number" &&
+            typeof next.args[0] === "number" && typeof next.args[1] === "number" &&
+            Math.abs(operation.args[0] - expectedPathStart[0]) < 0.001 &&
+            Math.abs(operation.args[1] - expectedPathStart[1]) < 0.001 &&
+            Math.abs(next.args[0] - expectedPathEnd[0]) < 0.001 &&
+            Math.abs(next.args[1] - expectedPathEnd[1]) < 0.001;
+        });
+        expect(strokeIndex).toBeGreaterThan(clipIndex);
+        expect(pathIndex).toBeGreaterThan(strokeIndex);
+        expect(ops.slice(pathIndex, pathIndex + 3).map((operation) => operation.op)).toEqual(["m", "l", "S"]);
+        near(ops[pathIndex]!.args[0] as number, expectedPathStart[0]);
+        near(ops[pathIndex]!.args[1] as number, expectedPathStart[1]);
+        near(ops[pathIndex + 1]!.args[0] as number, expectedPathEnd[0]);
+        near(ops[pathIndex + 1]!.args[1] as number, expectedPathEnd[1]);
+
+        for (const guide of plan.print!.pages[pageIndex]!.guides) {
+          const position = guide.positionMm * pointsPerMm;
+          const expectedStart = guide.axis === "vertical" ? [position, 0] as const : [0, position] as const;
+          const expectedEnd = guide.axis === "vertical"
+            ? [position, 841.89] as const
+            : [595.276, position] as const;
+          expect(hasPdfLine(page, expectedStart, expectedEnd)).toBe(true);
+        }
+      }
+
+      if (testCase.columns === 2) {
+        const joiningLabelText = (pageIndex: number) => pdf.pages[pageIndex]!.ops.some((operation) =>
+          operation.op === "TJ" && operation.args.some((argument) =>
+            Array.isArray(argument) && argument.includes("<0031>")
+          )
+        );
+        expect(joiningLabelText(0)).toBe(true);
+        expect(joiningLabelText(1)).toBe(true);
+        expect(hasPdfLine(pdf.pages[0]!, [200 * pointsPerMm, 0], [200 * pointsPerMm, 841.89])).toBe(true);
+        expect(hasPdfLine(pdf.pages[1]!, [10 * pointsPerMm, 0], [10 * pointsPerMm, 841.89])).toBe(true);
+      } else {
+        expect(pdf.pages[0]!.ops.some((operation) => operation.op === "TJ")).toBe(false);
+      }
+    }
+  }, 30_000);
 });

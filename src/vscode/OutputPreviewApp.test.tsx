@@ -386,6 +386,21 @@ const standaloneTwoPlaceOutputSource = [
   "svg Preview(layout: L, layers: [default], margin: 1)"
 ].join("\n");
 
+const printPageBoundarySource = (endX: number, placeX = 0) => [
+  "nui 1",
+  'import "./dart_seam.nui" as dart_seam',
+  "style WideStroke {",
+  "  width: 100px,",
+  "}",
+  "group G {",
+  `  line Edge [WideStroke] = segment(start: (0, 20), end: (${endX}, 20))`,
+  "}",
+  "layout L {",
+  `  place G(at: (${placeX}, 0))`,
+  "}",
+  "print Pages(layout: L, layers: [default], paper: a4, orientation: portrait, overlap: 10)"
+].join("\n");
+
 const importedGraphPublication = async (
   normalizedSource: string,
   documentVersion = 1,
@@ -1805,6 +1820,226 @@ describe("Output Preview application", () => {
     }));
   });
 
+  it("keeps the exact A4 usable-width edge on one page and promotes the live just-over edge to two", async () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(viewportRect);
+    const exactEdgeSource = printPageBoundarySource(190);
+    const { compiled: exactCompiled, publication: exactPublication, plan: exactPlan } =
+      await planForImportedTwoPlaceRoot(exactEdgeSource, "print");
+    expect(exactCompiled.diagnostics).toEqual([]);
+    expect(exactPlan.drawables[0]).toMatchObject({
+      kind: "line",
+      start: { x: 0, y: 20 },
+      end: { x: 190, y: 20 },
+      stroke: { widthMm: 100 * 25.4 / 96 }
+    });
+    expect(exactPlan.renderedBounds.maxX).toBeGreaterThan(200);
+    expect(exactPlan.print?.warning).toEqual({ kind: "physical-paper-overflow" });
+    expect(exactPlan.print).toMatchObject({
+      paperWidthMm: 210,
+      paperHeightMm: 297,
+      overlapMm: 10,
+      strideXmm: 190,
+      columns: 1,
+      rows: 1,
+      pages: [{ origin: { x: -10, y: -10 } }]
+    });
+    const exactSvg = await renderPublishedOutputPlan(exactEdgeSource, exactPublication, exactPlan);
+    const exactFitBounds = outputPreviewFitBoundsFor(exactPlan);
+    if (!exactFitBounds) throw new Error("missing exact-edge print fit bounds");
+    const fittedViewport = fitOutputPreviewViewport(exactFitBounds, {
+      width: viewportRect.width,
+      height: viewportRect.height
+    });
+    const size = { width: viewportRect.width, height: viewportRect.height };
+    const pageOrigins = (svg: Element) => [...svg.querySelectorAll<SVGRectElement>(
+      '[data-output-preview-layer="page-fill"]'
+    )].map((rect) => {
+      const topLeft = outputPreviewScreenToWorld(
+        { x: Number(rect.getAttribute("x")), y: Number(rect.getAttribute("y")) }, size, fittedViewport
+      );
+      return { x: Number(topLeft.x.toFixed(6)), y: Number((topLeft.y - 297).toFixed(6)) };
+    });
+    const guideWorldStarts = (svg: Element) => [...svg.querySelectorAll<SVGLineElement>(
+      '[data-output-preview-layer="overlap-guide"]'
+    )].map((line) => {
+      const start = outputPreviewScreenToWorld(
+        { x: Number(line.getAttribute("x1")), y: Number(line.getAttribute("y1")) }, size, fittedViewport
+      );
+      const end = outputPreviewScreenToWorld(
+        { x: Number(line.getAttribute("x2")), y: Number(line.getAttribute("y2")) }, size, fittedViewport
+      );
+      const axis = Math.abs(start.x - end.x) < 1e-6 ? "vertical" as const : "horizontal" as const;
+      return { axis, position: axis === "vertical" ? start.x : start.y };
+    });
+
+    expect(exactSvg.querySelectorAll('[data-output-preview-layer="page-fill"]')).toHaveLength(1);
+    expect(exactSvg.querySelectorAll('[data-output-preview-layer="page-boundary"]')).toHaveLength(1);
+    expect(exactSvg.querySelectorAll('[data-output-preview-layer="overlap-guide"]')).toHaveLength(4);
+    expect(pageOrigins(exactSvg)).toEqual([{ x: -10, y: -10 }]);
+    const exactGuides = guideWorldStarts(exactSvg);
+    expect(exactGuides.filter(({ axis }) => axis === "vertical").map(({ position }) => Number(position.toFixed(6))).sort((a, b) => a - b))
+      .toEqual([0, 190]);
+    expect(exactGuides.filter(({ axis }) => axis === "horizontal").map(({ position }) => Number(position.toFixed(6))).sort((a, b) => a - b))
+      .toEqual([0, 277]);
+    await waitFor(() => expect(outputExportAvailabilityMessages().at(-1)?.outputKey)
+      .toBe(`print:${exactCompiled.document.printOutputs[0]!.id}`));
+    postWindowMessage({ type: "outputPreviewExport" });
+    expect(outputExportRequestMessages().at(-1)).toEqual(expect.objectContaining({ payload: exactPlan.rustPayload }));
+  });
+
+  it("promotes the live just-over A4 usable-width edge to a two-page canonical plan", async () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(viewportRect);
+    const justOverSource = printPageBoundarySource(190.001, -4.001);
+    const { compiled, publication, plan } = await planForImportedTwoPlaceRoot(justOverSource, "print");
+    expect(compiled.diagnostics).toEqual([]);
+    expect(plan.print).toMatchObject({ columns: 1, rows: 1, pages: [{ origin: { x: -10, y: -10 } }] });
+    const svg = await renderPublishedOutputPlan(justOverSource, publication, plan);
+    const size = { width: viewportRect.width, height: viewportRect.height };
+    const firstPlaceId = compiled.document.layouts[0]!.placements[0]!.id;
+    const handle = [...document.querySelectorAll<HTMLButtonElement>("button[data-place-id]")]
+      .find((candidate) => candidate.dataset.placeId === firstPlaceId);
+    if (!handle) throw new Error("missing boundary fixture placement handle");
+    const fitBounds = outputPreviewFitBoundsFor(plan);
+    if (!fitBounds) throw new Error("missing just-over print fit bounds");
+    const dragViewport = fitOutputPreviewViewport(fitBounds, size);
+    const pageOrigins = (preview: Element) => [...preview.querySelectorAll<SVGRectElement>(
+      '[data-output-preview-layer="page-fill"]'
+    )].map((rect) => {
+      const topLeft = outputPreviewScreenToWorld(
+        { x: Number(rect.getAttribute("x")), y: Number(rect.getAttribute("y")) }, size, dragViewport
+      );
+      return { x: Number(topLeft.x.toFixed(6)), y: Number((topLeft.y - 297).toFixed(6)) };
+    });
+    const origins = () => pageOrigins(svg);
+    const guideXs = () => [...svg.querySelectorAll<SVGLineElement>(
+      '[data-output-preview-layer="overlap-guide"]'
+    )].filter((line) => Math.abs(Number(line.getAttribute("x1")) - Number(line.getAttribute("x2"))) < 1e-6)
+      .map((line) => outputPreviewScreenToWorld(
+        { x: Number(line.getAttribute("x1")), y: Number(line.getAttribute("y1")) }, size, dragViewport
+      ).x);
+    const displayedEndpointX = () => {
+      const path = geometryPathData()[0];
+      if (!path) throw new Error("missing displayed boundary line");
+      return outputPreviewScreenToWorld(lineScreenPoints(path)[1], size, dragViewport).x;
+    };
+    const placeHandle = () => [...document.querySelectorAll<HTMLButtonElement>("button[data-place-id]")]
+      .find((candidate) => candidate.dataset.placeId === firstPlaceId) ?? handle;
+
+    expect(svg.querySelectorAll('[data-output-preview-layer="page-fill"]')).toHaveLength(1);
+    expect(svg.querySelectorAll('[data-output-preview-layer="page-boundary"]')).toHaveLength(1);
+    expect(svg.querySelectorAll('[data-output-preview-layer="overlap-guide"]')).toHaveLength(4);
+    expect(origins()).toEqual([{ x: -10, y: -10 }]);
+    await act(async () => {
+      fireEvent.pointerDown(placeHandle(), { button: 0, buttons: 1, pointerId: 1763, clientX: 100, clientY: 100 });
+      fireEvent.pointerMove(placeHandle(), {
+        buttons: 1,
+        pointerId: 1763,
+        clientX: 100 + 4 * dragViewport.zoom,
+        clientY: 100
+      });
+    });
+    expect(displayedEndpointX()).toBeCloseTo(190, 7);
+    expect(svg.querySelectorAll('[data-output-preview-layer="page-fill"]')).toHaveLength(1);
+    expect(svg.querySelectorAll('[data-output-preview-layer="page-boundary"]')).toHaveLength(1);
+    expect(svg.querySelectorAll('[data-output-preview-layer="overlap-guide"]')).toHaveLength(4);
+    expect(origins()).toEqual([{ x: -10, y: -10 }]);
+
+    await act(async () => {
+      fireEvent.pointerMove(placeHandle(), {
+        buttons: 1,
+        pointerId: 1763,
+        clientX: 100 + 4.001 * dragViewport.zoom,
+        clientY: 100
+      });
+    });
+    expect(displayedEndpointX()).toBeCloseTo(190.001, 7);
+    expect(svg.querySelectorAll('[data-output-preview-layer="page-fill"]')).toHaveLength(2);
+    expect(svg.querySelectorAll('[data-output-preview-layer="page-boundary"]')).toHaveLength(2);
+    expect(svg.querySelectorAll('[data-output-preview-layer="overlap-guide"]')).toHaveLength(8);
+    expect(origins()).toEqual([{ x: -10, y: -10 }, { x: 180, y: -10 }]);
+    expect(guideXs().filter((x) => Math.abs(x - 190) < 1e-6)).toHaveLength(2);
+    postWindowMessage({ type: "outputPreviewExport" });
+    expect(outputExportRequestMessages()).toEqual([]);
+
+    await act(async () => {
+      fireEvent.pointerUp(placeHandle(), {
+        button: 0,
+        buttons: 0,
+        pointerId: 1763,
+        clientX: 100 + 4.001 * dragViewport.zoom,
+        clientY: 100
+      });
+    });
+    const commit = placeCommitMessages().at(-1);
+    if (!commit) throw new Error("missing accepted boundary placement commit");
+    const committedSource = sourceAfterPlaceCommit(justOverSource, commit);
+    expect(committedSource).not.toBe(justOverSource);
+    expect(outputExportAvailabilityMessages().at(-1)?.outputKey).toBeNull();
+    postWindowMessage({ type: "outputPreviewExport" });
+    expect(outputExportRequestMessages()).toEqual([]);
+
+    postWindowMessage({
+      type: "commitText",
+      sourceText: committedSource,
+      documentVersion: 2,
+      hostDocumentUri: importedRootUri,
+      reason: "edit"
+    });
+    const assignedIds = new Map([...(compiled.statementMap?.statementIdByStatementIndex ?? [])]);
+    const { compiled: acceptedCompiled, publication: acceptedPublication } = await importedGraphPublication(
+      committedSource, 2, 2, importedDependency, importedRootUri, assignedIds
+    );
+    if (!isLastGoodDslDocument(acceptedCompiled)) throw new Error("missing committed boundary graph compile");
+    const actual = await vi.importActual<typeof import("../output/outputCore")>("../output/outputCore");
+    const acceptedPlan = await actual.evaluateOutputPlan({
+      compiledDocument: acceptedCompiled,
+      output: acceptedCompiled.document.printOutputs[0]!
+    });
+    expect(acceptedPlan.placements[0]?.at.x).toBeCloseTo(0, 7);
+    expect(acceptedPlan.placements[0]?.at.y).toBeCloseTo(0, 7);
+    expect(acceptedPlan.print).toMatchObject({
+      columns: 2,
+      rows: 1,
+      pages: [{ origin: { x: -10, y: -10 } }, { origin: { x: 180, y: -10 } }]
+    });
+    expect(acceptedPlan.drawables[0]).toMatchObject({
+      kind: "line",
+      end: { x: expect.closeTo(190.001, 7), y: 20 }
+    });
+    expect(acceptedPlan.print?.pages[0]?.guides.find((guide) => guide.axis === "vertical" && guide.positionMm === 200)?.label)
+      .toMatchObject({ text: "1" });
+    expect(acceptedPlan.print?.pages[1]?.guides.find((guide) => guide.axis === "vertical" && guide.positionMm === 10)?.label)
+      .toMatchObject({ text: "1" });
+    sendGraphPublication({
+      type: "multiDocumentGraphPublication",
+      status: "building",
+      graph: null,
+      hostDocumentUri: importedRootUri,
+      documentVersion: 2,
+      outputPreview: { sequence: 2 }
+    });
+    expect(outputExportAvailabilityMessages().at(-1)?.outputKey).toBeNull();
+    sendGraphPublication({ ...acceptedPublication, outputPreview: { ...acceptedPublication.outputPreview!, sequence: 3 } });
+    await waitFor(() => expect(outputPreviewPlanRequests()).toHaveLength(2));
+    const acceptedRequest = outputPreviewPlanRequests()[1]!;
+    postWindowMessage({
+      type: "outputPreviewPlanResult",
+      requestId: acceptedRequest.requestId,
+      graphAuthority: acceptedRequest.graphAuthority,
+      plan: acceptedPlan
+    });
+    await waitFor(() => expect(outputExportAvailabilityMessages().at(-1)?.outputKey).toBe(acceptedRequest.outputKey));
+    expect(svg.querySelectorAll('[data-output-preview-layer="page-fill"]')).toHaveLength(2);
+    expect(svg.querySelectorAll('[data-output-preview-layer="page-boundary"]')).toHaveLength(2);
+    expect(svg.querySelectorAll('[data-output-preview-layer="overlap-guide"]')).toHaveLength(8);
+    expect(origins()).toEqual([{ x: -10, y: -10 }, { x: 180, y: -10 }]);
+    postWindowMessage({ type: "outputPreviewExport" });
+    expect(outputExportRequestMessages().at(-1)).toEqual(expect.objectContaining({
+      outputKey: acceptedRequest.outputKey,
+      payload: acceptedPlan.rustPayload
+    }));
+  });
+
   it.each(["invalid graph", "changed saved dependency", "root Source mismatch", "mismatched document version", "root URI mismatch"] as const)(
     "withdraws a speculative plane immediately for a graph-first %s",
     async (mismatch) => {
@@ -1998,6 +2233,79 @@ describe("Output Preview application", () => {
       payload: expect.objectContaining({ kind: "print" })
     }));
     expect(settledExport?.payload).not.toHaveProperty("warning");
+
+    const exportsBeforeAcceptedCorrection = outputExportRequestMessages().length;
+    const correctionHandle = handleForFirstPlace();
+    if (!correctionHandle) throw new Error("missing place handle after rejected correction rejoin");
+    await act(async () => {
+      fireEvent.pointerDown(correctionHandle, { button: 0, buttons: 1, pointerId: 1751, clientX: 100, clientY: 100 });
+      fireEvent.pointerMove(correctionHandle, { buttons: 1, pointerId: 1751, clientX: 160, clientY: 100 });
+    });
+    await waitFor(() => expect(currentSurfaceDiagnostics()).toMatchObject({ diagnostics: [] }));
+    await act(async () => {
+      fireEvent.pointerUp(handleForFirstPlace() ?? correctionHandle, {
+        button: 0, buttons: 0, pointerId: 1751, clientX: 160, clientY: 100
+      });
+    });
+    const acceptedCommit = placeCommitMessages().at(-1);
+    if (!acceptedCommit) throw new Error("missing successful corrected-source place commit");
+    const committedSource = sourceAfterPlaceCommit(warningSource, acceptedCommit);
+    expect(committedSource).not.toBe(warningSource);
+    expect(outputExportAvailabilityMessages().at(-1)?.outputKey).toBeNull();
+    postWindowMessage({ type: "outputPreviewExport" });
+    expect(outputExportRequestMessages()).toHaveLength(exportsBeforeAcceptedCorrection);
+    await waitFor(() => expect(currentSurfaceDiagnostics()).toMatchObject({ diagnostics: [] }));
+
+    postWindowMessage({
+      type: "commitText",
+      sourceText: committedSource,
+      documentVersion: 2,
+      hostDocumentUri: importedRootUri,
+      reason: "edit"
+    });
+    await waitFor(() => expect(currentSurfaceDiagnostics()).toMatchObject({ diagnostics: [] }));
+    const assignedIds = new Map([...(compiled.statementMap?.statementIdByStatementIndex ?? [])]);
+    const { compiled: acceptedCompiled, publication: acceptedPublication } = await importedGraphPublication(
+      committedSource, 2, 2, importedDependency, importedRootUri, assignedIds
+    );
+    if (!isLastGoodDslDocument(acceptedCompiled)) throw new Error("missing accepted corrected-source graph compile");
+    const actual = await vi.importActual<typeof import("../output/outputCore")>("../output/outputCore");
+    const acceptedPlan = await actual.evaluateOutputPlan({
+      compiledDocument: acceptedCompiled,
+      output: acceptedCompiled.document.printOutputs[0]!
+    });
+    expect(acceptedPlan.print?.warning).toBeNull();
+    sendGraphPublication({
+      type: "multiDocumentGraphPublication",
+      status: "building",
+      graph: null,
+      hostDocumentUri: importedRootUri,
+      documentVersion: 2,
+      outputPreview: { sequence: 2 }
+    });
+    await waitFor(() => expect(currentSurfaceDiagnostics()).toMatchObject({ diagnostics: [] }));
+    sendGraphPublication({
+      ...acceptedPublication,
+      outputPreview: { ...acceptedPublication.outputPreview!, sequence: 3 }
+    });
+    await waitFor(() => expect(outputPreviewPlanRequests()).toHaveLength(2));
+    const acceptedRequest = outputPreviewPlanRequests()[1]!;
+    await waitFor(() => expect(currentSurfaceDiagnostics()).toMatchObject({ diagnostics: [] }));
+    postWindowMessage({
+      type: "outputPreviewPlanResult",
+      requestId: acceptedRequest.requestId,
+      graphAuthority: acceptedRequest.graphAuthority,
+      plan: acceptedPlan
+    });
+    await waitFor(() => expect(outputExportAvailabilityMessages().at(-1)?.outputKey).toBe(request.outputKey));
+    await waitFor(() => expect(currentSurfaceDiagnostics()).toMatchObject({ diagnostics: [] }));
+    postWindowMessage({ type: "outputPreviewExport" });
+    expect(outputExportRequestMessages().at(-1)).toEqual(expect.objectContaining({
+      outputKey: request.outputKey,
+      format: "pdf",
+      payload: acceptedPlan.rustPayload
+    }));
+    expect(outputExportRequestMessages()).toHaveLength(exportsBeforeAcceptedCorrection + 1);
   });
 
   it("renders and exports the populated plan evaluated from the exact Host compiler and Rust input", async () => {
