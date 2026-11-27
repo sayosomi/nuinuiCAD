@@ -1285,10 +1285,10 @@ mod tests {
         let text = String::from_utf8_lossy(&pdf);
         assert!(text.contains("/DW 1000"));
         assert!(text.contains(
-            "BT 0.2 0.4 0.6 rg /F1 11.339 Tf -0.866 -0.5 -0.5 0.866 45.718 53.432 Tm [<0041> 380 <0042> 380] TJ ET"
+            "BT 0.2 0.4 0.6 rg /F1 11.339 Tf -0.866 -0.5 -0.5 0.866 85.039 113.386 Tm [<0041> 380 <0042> 380] TJ ET"
         ));
         assert!(text.contains(
-            "BT 0.2 0.4 0.6 rg /F1 11.339 Tf -0.866 -0.5 -0.5 0.866 52.521 41.649 Tm [<65E5> 0 <672C> 0] TJ ET"
+            "BT 0.2 0.4 0.6 rg /F1 11.339 Tf -0.866 -0.5 -0.5 0.866 91.843 101.602 Tm [<65E5> 0 <672C> 0] TJ ET"
         ));
         assert!(!text.contains("BT 0.2 0.4 0.6 RG"));
         assert!(!text.contains("FEFF"));
