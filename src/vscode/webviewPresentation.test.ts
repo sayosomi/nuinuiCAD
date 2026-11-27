@@ -12,7 +12,7 @@ describe("Webview presentation boundary", () => {
     locale: "ja" as const,
     strings: {
       "modulePreview.parameters.valueFor": "{name}の値",
-      "output.print.negativeBoundsWarning": "物理用紙の外側はPDFから欠落する場合があります。",
+      "output.print.physicalPaperOverflowWarning": "図形が物理用紙からはみ出しています。用紙の外側にある部分はPDF出力から欠落する場合があります。",
       "modulePreview.parameters.diagnostic.required-value-missing": "パラメータ「{name}」には値が必要です。"
     },
     diagnosticTemplates: {
@@ -29,9 +29,9 @@ describe("Webview presentation boundary", () => {
     )).toBe("Bustの値");
     expect(webviewPresentationTextFor(
       presentation,
-      "output.print.negativeBoundsWarning",
+      "output.print.physicalPaperOverflowWarning",
       "fallback warning"
-    )).toBe("物理用紙の外側はPDFから欠落する場合があります。");
+    )).toBe("図形が物理用紙からはみ出しています。用紙の外側にある部分はPDF出力から欠落する場合があります。");
     expect(webviewDiagnosticTextFor(presentation, {
       message: "raw fallback",
       presentation: { key: "diagnostic.undefined-binding", parameters: { referencedName: "missing" } }

@@ -31,18 +31,27 @@ millimetres. For paper width `W` and height `H`, the usable dimensions are
 uses those usable dimensions, so overlap reduces the stride and adjacent
 sheets physically overlap.
 
-For nonempty print output, positive rendered coordinates determine the page
-count. The first usable-area origin is always global `(0, 0)` and page origins
-never move with the rendered minimum bounds:
+For nonempty print output, positive coordinates of selected, placed output
+geometry determine the page count. The page-count extent excludes path stroke
+expansion and uses the existing exact line, Bezier, arc, and composite-path
+extrema; text keeps its existing text bounds. Stroke-inclusive
+`renderedBounds` remain unchanged for rendering, SVG bounds, and physical-paper
+containment. The first usable-area origin is always global `(0, 0)` and page
+origins never move with the rendered minimum bounds:
 
 ```text
 strideX = W - 2 * overlap
 strideY = H - 2 * overlap
-columns = max(1, ceil(bounds.maxX / strideX))
-rows    = max(1, ceil(bounds.maxY / strideY))
+tol(a, b) = 64 * 2^-52 * max(1, abs(a), abs(b)) mm
+columns = max(1, ceil((geometryBounds.maxX - tol(geometryBounds.maxX, strideX)) / strideX))
+rows    = max(1, ceil((geometryBounds.maxY - tol(geometryBounds.maxY, strideY)) / strideY))
 pageOriginX = column * strideX - overlap
 pageOriginY = row * strideY - overlap
 ```
+
+`tol` absorbs only floating-point rounding scale at a computed boundary. At
+554 mm it is less than `8e-12 mm`, over 100 million times smaller than a real
+`0.001 mm` crossing.
 
 Page indices start at zero and are ordered left-to-right, then bottom-to-top.
 The first physical sheet starts at `(-overlap, -overlap)`. For A4 portrait
@@ -51,16 +60,22 @@ at `(180, -10)`. Negative coordinates do not add pages in the negative
 direction. A nonempty output has at least one page per axis, including when
 all selected geometry is negative; empty output still has zero pages.
 
-The stroke-inclusive rendered bounds of selected print geometry drive a
-non-blocking Output Preview warning when `minX < 0` or `minY < 0`. It explains
-that geometry extends beyond the usable print origin and portions outside
-physical paper may be omitted from PDF output. The warning does not block
-editing, PDF export, or printing, and disappears when rendered bounds return
-to nonnegative coordinates. Geometry is not clipped at the usable-area origin
-or at inset guides. Negative geometry within a physical page's overlap strip
-remains printable. The PDF output clips to each physical sheet rectangle, and
-portions beyond that rectangle may be omitted. Output Preview keeps off-paper
-geometry visible for placement correction. Inset guides are advisory only.
+For nonempty print output, Output Preview warns only when stroke-inclusive
+`renderedBounds` exceed the physical union of the finalized page grid beyond
+`tol`:
+
+```text
+paperMinX = paperMinY = -overlap
+paperMaxX = columns * strideX + overlap
+paperMaxY = rows * strideY + overlap
+```
+
+The warning applies to all four edges. Physical-edge contact and geometry
+inside an overlap strip do not warn. It does not block editing, PDF export, or
+printing. The PDF output clips to each physical sheet rectangle, and portions
+beyond that rectangle may be omitted. Output Preview keeps off-paper geometry
+visible for placement correction. The warning clears when rendered bounds
+return inside the physical paper union. Inset guides are advisory only.
 
 When overlap is zero, the stride is the full paper size and no joining guides
 or labels are emitted. With positive overlap, guides are placed at the inset

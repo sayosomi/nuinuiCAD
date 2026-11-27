@@ -784,7 +784,7 @@ pub fn encode_pdf(payload: &ResolvedPrintOutputPayload) -> Result<Vec<u8>, Strin
 mod tests {
     use super::*;
     use crate::output::payload::{
-        text_bounds_relative, OutputBounds, OutputJoiningLabel, OutputPrintPage,
+        text_bounds_relative, OutputBounds, OutputGuide, OutputJoiningLabel, OutputPrintPage,
     };
 
     fn joining_label(text: &str, center: OutputPoint, rotation_deg: f64) -> OutputJoiningLabel {
@@ -952,6 +952,85 @@ mod tests {
             .find("-28.346 113.386 m -14.173 113.386 l")
             .expect("off-paper geometry uses the fixed (-10,-10) physical origin");
         assert!(physical_clip < retained_overlap && retained_overlap < clipped_off_paper);
+    }
+
+    #[test]
+    fn preserves_stroke_and_clips_stroke_only_overflow_without_adding_a_pdf_page() {
+        let half_stroke_mm = 50.0 * 25.4 / 96.0;
+        let stroke_width_mm = 2.0 * half_stroke_mm;
+        let stroke_overflow = ResolvedPrintOutputPayload {
+            version: 1,
+            kind: "print".to_owned(),
+            bounds: OutputBounds {
+                min_x: -half_stroke_mm,
+                min_y: 20.0 - half_stroke_mm,
+                max_x: 190.0 + half_stroke_mm,
+                max_y: 20.0 + half_stroke_mm,
+                width: 190.0 + 2.0 * half_stroke_mm,
+                height: stroke_width_mm,
+            },
+            drawables: vec![OutputDrawable::Line {
+                element_id: "wide-stroke".to_owned(),
+                name: "wide-stroke".to_owned(),
+                start: OutputPoint { x: 0.0, y: 20.0 },
+                end: OutputPoint { x: 190.0, y: 20.0 },
+                stroke: OutputStroke {
+                    width_mm: stroke_width_mm,
+                    style: "solid".to_owned(),
+                    color_hex: "#31322f".to_owned(),
+                },
+                fill: None,
+            }],
+            paper: crate::output::payload::PaperSize {
+                width_mm: 210.0,
+                height_mm: 297.0,
+            },
+            overlap_mm: 10.0,
+            stride: OutputPoint { x: 190.0, y: 277.0 },
+            pages: vec![OutputPrintPage {
+                index: 0,
+                column: 0,
+                row: 0,
+                origin: OutputPoint { x: -10.0, y: -10.0 },
+                guides: vec![
+                    OutputGuide {
+                        axis: "vertical".to_owned(),
+                        position_mm: 10.0,
+                        label: None,
+                    },
+                    OutputGuide {
+                        axis: "vertical".to_owned(),
+                        position_mm: 200.0,
+                        label: None,
+                    },
+                    OutputGuide {
+                        axis: "horizontal".to_owned(),
+                        position_mm: 10.0,
+                        label: None,
+                    },
+                    OutputGuide {
+                        axis: "horizontal".to_owned(),
+                        position_mm: 287.0,
+                        label: None,
+                    },
+                ],
+            }],
+        };
+
+        let pdf = encode_pdf(&stroke_overflow).expect("stroke-only overflow remains exportable");
+        let text = String::from_utf8_lossy(&pdf);
+        assert!(text.contains("/Count 1"));
+        assert!(text.contains("/MediaBox [0 0 595.276 841.89]"));
+        assert!(text.contains("75 w [] 0 d"));
+        let physical_clip = text
+            .find("0 0 595.276 841.89 re W n")
+            .expect("the drawing stream must clip to the physical page rectangle");
+        let full_stroked_path = text
+            .find("28.346 85.039 m 566.929 85.039 l\nS")
+            .expect("the full stroke path remains present for clipping at the sheet edge");
+        assert!(physical_clip < full_stroked_path);
+        assert!(stroke_overflow.bounds.max_x > 200.0);
+        assert!((stroke_overflow.bounds.max_x - 203.229_166_666_666_66).abs() < 1e-12);
     }
 
     #[test]

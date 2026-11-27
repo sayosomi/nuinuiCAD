@@ -1557,14 +1557,14 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
         )
       });
     }
-    if (plan?.kind === "print" && plan.print?.warning?.kind === "negative-rendered-bounds") {
+    if (plan?.kind === "print" && plan.print?.warning?.kind === "physical-paper-overflow") {
       surfaceDiagnostics.push({
-        id: `negative-rendered-bounds:${plan.outputId}:${plan.layoutId}`,
+        id: `physical-paper-overflow:${plan.outputId}:${plan.layoutId}`,
         severity: "warning",
         message: webviewPresentationTextFor(
           webviewPresentation,
-          "output.print.negativeBoundsWarning",
-          "Geometry extends beyond the usable print origin. Portions outside the physical paper may be omitted from PDF output."
+          "output.print.physicalPaperOverflowWarning",
+          "Geometry extends beyond the physical paper. Portions outside the paper may be omitted from PDF output."
         )
       });
     }

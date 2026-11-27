@@ -207,9 +207,9 @@ export const webviewPresentationTranslationCatalog = {
   "output.goToSource": { en: "Go to Source", ja: "Sourceへ移動" },
   "output.noOutputs": { en: "No print or SVG outputs", ja: "印刷またはSVGの出力がありません" },
   "output.emptySelection": { en: "There are no output targets.", ja: "出力対象がありません" },
-  "output.print.negativeBoundsWarning": {
-    en: "Geometry extends beyond the usable print origin. Portions outside the physical paper may be omitted from PDF output.",
-    ja: "図形が有効印刷範囲の原点より負方向に広がっています。物理用紙の外側にある部分はPDF出力から欠落する場合があります。"
+  "output.print.physicalPaperOverflowWarning": {
+    en: "Geometry extends beyond the physical paper. Portions outside the paper may be omitted from PDF output.",
+    ja: "図形が物理用紙からはみ出しています。用紙の外側にある部分はPDF出力から欠落する場合があります。"
   },
   "output.surface.unavailable": {
     en: "Output Preview is unavailable: {error}",
