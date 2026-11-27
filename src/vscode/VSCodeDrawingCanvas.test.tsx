@@ -60,6 +60,18 @@ const mocks = vi.hoisted(() => ({
   onCanvasFrameDrawn: null as (() => void) | null
 }));
 
+type CanvasFrameTestMessage = {
+  type?: string;
+  surface?: string;
+  documentVersion?: number;
+  updateGeneration?: number;
+  sourceRevision?: number;
+  graphIdentity?: { hostDocumentUri: string; graphRevision: number; sourceRevision: number };
+  evaluationRevision?: number;
+  evaluationRequestRevision?: number;
+  canvasUpdate?: { generation?: number; frameIdentity?: Record<string, unknown> | null };
+};
+
 vi.mock("../commands/commands", () => ({
   dispatchCommand: mocks.dispatchCommand
 }));
@@ -2216,6 +2228,120 @@ describe("Canvas drag frame continuity", () => {
     });
     expect(mocks.onCanvasFrameDrawn).not.toBeNull();
     expect(mocks.onProductionDrawCompleted).toBeNull();
+  });
+
+  it.each(["root-only", "imported-runtime"] as const)(
+    "keeps graph-owned %s frame evidence strict after the real renderer draws it",
+    async kind => {
+      useRealCanvas();
+      let source: string;
+      let runtimePresentation: VscodeMultiDocumentCanvasRuntimePresentation;
+      let rootDocumentId: string;
+      let graphRevision: number;
+      let sourceRevision: number;
+      if (kind === "root-only") {
+        const fixture = await issue1609CanvasRootOnlyFixture();
+        source = fixture.source;
+        runtimePresentation = fixture.presentation;
+        rootDocumentId = fixture.rootDocumentId;
+        graphRevision = fixture.graphRevision;
+        sourceRevision = fixture.sourceRevision;
+      } else {
+        const fixture = await buildIssue1651ImportedModuleCanvasEditFixture(true);
+        source = fixture.source;
+        runtimePresentation = fixture.runtimePresentation;
+        rootDocumentId = runtimePresentation.rootDocumentId;
+        graphRevision = runtimePresentation.graphRevision;
+        sourceRevision = runtimePresentation.rootSourceRevision;
+      }
+      useCadDocumentStore.getState().replaceTextDocument(source, {
+        currentFilePath: rootDocumentId,
+        dirtySinceSave: false
+      });
+      const evaluation = emptyEvaluationResult(runtimePresentation.elements);
+      const api = { postMessage: vi.fn() };
+      vi.spyOn(await import("./vscodeWebviewApiContext"), "vscodeWebviewApi").mockReturnValue(api);
+      render(<VSCodeDrawingCanvas
+        evaluation={evaluation}
+        evaluationState={makeEvaluationState(evaluation, graphRevision, { status: "ready" })}
+        canvasFocusRef={createRef<HTMLDivElement>()}
+        postCanonicalSourceText={vi.fn()}
+        currentReferencePickAuthorityFor={() => null}
+        documentVersion={9}
+        canvasUpdateProgress={{ documentVersion: 9, generation: 10 }}
+        feedbackGraphIdentity={{
+          hostDocumentUri: rootDocumentId,
+          graphRevision,
+          sourceRevision
+        }}
+        hostRootDocumentId={rootDocumentId}
+        multiDocumentRuntimePresentation={runtimePresentation}
+      />);
+
+      const messages = api.postMessage.mock.calls.map(([message]) => message as CanvasFrameTestMessage);
+      const completion = messages.find(message => message.type === "canvasFrameDrawn");
+      const readyPublication = messages.find(message => message.type === "surfaceDiagnosticsPublication");
+      expect(completion).toMatchObject({
+        type: "canvasFrameDrawn",
+        documentVersion: 9,
+        updateGeneration: 10,
+        sourceRevision,
+        graphIdentity: { hostDocumentUri: rootDocumentId, graphRevision, sourceRevision }
+      });
+      expect(readyPublication?.canvasUpdate?.frameIdentity).toEqual({
+        documentVersion: 9,
+        updateGeneration: 10,
+        sourceRevision,
+        graphIdentity: { hostDocumentUri: rootDocumentId, graphRevision, sourceRevision },
+        evaluationRevision: graphRevision,
+        evaluationRequestRevision: graphRevision
+      });
+      expect(mocks.onProductionDrawCompleted).toBeNull();
+    }
+  );
+
+  it("does not associate a local frame when equal source revisions have different normalized Source", async () => {
+    const source = "nui 1\npoint A = coordinate(x: 12, y: 8)";
+    const mismatchedSource = "nui 1\npoint A = coordinate(x: 13, y: 8)";
+    useCadDocumentStore.getState().replaceTextDocument(source, { currentFilePath: null, dirtySinceSave: false });
+    const state = useCadDocumentStore.getState();
+    const evaluation = evaluateElements(state.elements);
+    expect(evaluation.errors).toEqual([]);
+    const graphIdentity = {
+      hostDocumentUri: "file:///pattern.nui",
+      graphRevision: 14,
+      sourceRevision: state.sourceRevision
+    };
+    const api = { postMessage: vi.fn() };
+    vi.spyOn(await import("./vscodeWebviewApiContext"), "vscodeWebviewApi").mockReturnValue(api);
+    render(<VSCodeDrawingCanvas
+      evaluation={evaluation}
+      evaluationState={makeEvaluationState(evaluation, state.compiledDocumentRevision, { status: "ready" })}
+      canvasFocusRef={createRef<HTMLDivElement>()}
+      postCanonicalSourceText={vi.fn()}
+      currentReferencePickAuthorityFor={() => null}
+      documentVersion={9}
+      canvasUpdateProgress={{ documentVersion: 9, generation: 5 }}
+      feedbackGraphIdentity={graphIdentity}
+      verifiedLocalFrameGraphAssociation={{ normalizedSource: mismatchedSource, graphIdentity }}
+    />);
+
+    const messages = api.postMessage.mock.calls.map(([message]) => message as CanvasFrameTestMessage);
+    const publication = messages.find(message => message.type === "surfaceDiagnosticsPublication");
+    expect(graphIdentity.sourceRevision).toBe(state.sourceRevision);
+    expect(publication).toMatchObject({
+      canvasUpdate: {
+        generation: 5,
+        frameIdentity: {
+          documentVersion: 9,
+          updateGeneration: 5,
+          sourceRevision: state.sourceRevision,
+          evaluationRevision: state.compiledDocumentRevision,
+          evaluationRequestRevision: state.compiledDocumentRevision
+        }
+      }
+    });
+    expect(publication?.canvasUpdate?.frameIdentity).not.toHaveProperty("graphIdentity");
   });
 
   it("keeps a ready update pending when the real Canvas has no drawable viewport", async () => {

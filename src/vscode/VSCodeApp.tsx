@@ -613,6 +613,30 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
     localEvaluationState.evaluationRevision === compiledDocumentRevision &&
     evaluationStateIsCurrentFor(localEvaluationState, compiledDocumentRevision)
   );
+  const verifiedLocalFrameGraphAssociation = useMemo(() => {
+    if (!currentHostGraph || !currentHostGraph.hostDocumentUri ||
+        (currentHostGraph.canvasRuntime
+          ? currentHostGraph.canvasRuntime.identityOnly !== true
+          : currentHostGraph.graph.nodes.length !== 1) ||
+        runtimeSnapshot || !graphCurrent || !sourceMatchesCurrentDocument || !graphSnapshot?.valid ||
+        !authoritativeHostSourceSnapshot || !localEvaluationIsCurrent) return null;
+    return {
+      normalizedSource: authoritativeHostSourceSnapshot.normalizedSource,
+      graphIdentity: {
+        hostDocumentUri: currentHostGraph.hostDocumentUri,
+        graphRevision: currentHostGraph.graph.revision,
+        sourceRevision: currentHostGraph.graph.rootSource.sourceRevision
+      }
+    };
+  }, [
+    authoritativeHostSourceSnapshot,
+    currentHostGraph,
+    graphCurrent,
+    graphSnapshot,
+    localEvaluationIsCurrent,
+    runtimeSnapshot,
+    sourceMatchesCurrentDocument
+  ]);
   const graphMatchesRuntime = Boolean(
     runtimeSnapshot
       ? graphCurrent &&
@@ -3157,6 +3181,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
               sourceRevision: multiDocumentGraphPublication.graph.rootSource.sourceRevision
             }
           : null}
+        verifiedLocalFrameGraphAssociation={verifiedLocalFrameGraphAssociation}
         hostRootDocumentId={
           multiDocumentGraphPublication?.status === "unavailable" ||
           (multiDocumentGraphPublication &&

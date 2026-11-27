@@ -130,6 +130,10 @@ type VSCodeDrawingCanvasProps = {
   } | null;
   documentVersion?: number | null;
   feedbackGraphIdentity?: VscodeCanvasFeedbackGraphIdentity | null;
+  verifiedLocalFrameGraphAssociation?: {
+    normalizedSource: string;
+    graphIdentity: VscodeCanvasFeedbackGraphIdentity;
+  } | null;
   hostRootDocumentId?: string | null;
   hostDocumentEpoch?: number;
   awaitingHostGraph?: boolean;
@@ -184,6 +188,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
     staleCanvasPresentation = null,
     documentVersion = null,
     feedbackGraphIdentity = null,
+    verifiedLocalFrameGraphAssociation = null,
     hostRootDocumentId = runtimePresentation?.rootDocumentId,
     hostDocumentEpoch = 0,
     awaitingHostGraph = false,
@@ -546,34 +551,52 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
     const feedbackGraphHostDocumentUri = feedbackGraphIdentity?.hostDocumentUri;
     const feedbackGraphRevision = feedbackGraphIdentity?.graphRevision;
     const feedbackGraphSourceRevision = feedbackGraphIdentity?.sourceRevision;
+    const frameSourceText = canvasPresentation.compiledDocument?.spans.sourceMap.source;
     const hasRuntimePresentationForRoot = Boolean(runtimePresentationForRoot);
     const runtimeGraphRootDocumentId = runtimePresentationForRoot?.rootDocumentId;
     const runtimeGraphRevision = runtimePresentationForRoot?.graphRevision;
     const runtimeGraphSourceRevision = runtimePresentationForRoot?.rootSourceRevision;
     const frameGraphIdentity = useMemo(() => {
-      if (!hasFeedbackGraphIdentity || frameSourceRevision !== feedbackGraphSourceRevision ||
-          (hostRootDocumentId && feedbackGraphHostDocumentUri !== hostRootDocumentId) ||
-          (hasRuntimePresentationForRoot && (
-            runtimeGraphRootDocumentId !== feedbackGraphHostDocumentUri ||
-            runtimeGraphRevision !== feedbackGraphRevision ||
-            runtimeGraphSourceRevision !== feedbackGraphSourceRevision
-          ))) return undefined;
-      return {
+      if (!hasFeedbackGraphIdentity ||
+          (hostRootDocumentId && feedbackGraphHostDocumentUri !== hostRootDocumentId)) return undefined;
+      const graphIdentity = {
         hostDocumentUri: feedbackGraphHostDocumentUri!,
         graphRevision: feedbackGraphRevision!,
         sourceRevision: feedbackGraphSourceRevision!
       };
+      if (hasRuntimePresentationForRoot) {
+        if (frameSourceRevision !== feedbackGraphSourceRevision ||
+            runtimeGraphRootDocumentId !== feedbackGraphHostDocumentUri ||
+            runtimeGraphRevision !== feedbackGraphRevision ||
+            runtimeGraphSourceRevision !== feedbackGraphSourceRevision) return undefined;
+        return graphIdentity;
+      }
+      const association = verifiedLocalFrameGraphAssociation;
+      if (!association || frameSourceRevision === undefined || frameSourceText === undefined ||
+          normalizedSourceFor(frameSourceText) !== association.normalizedSource ||
+          association.graphIdentity.hostDocumentUri !== graphIdentity.hostDocumentUri ||
+          association.graphIdentity.graphRevision !== graphIdentity.graphRevision ||
+          association.graphIdentity.sourceRevision !== graphIdentity.sourceRevision ||
+          frameEvaluationState?.status !== "ready" || frameEvaluationState.isStale ||
+          frameEvaluationState.evaluationRevision !== presentationCompiledDocumentRevision ||
+          !evaluationStateIsCurrentFor(frameEvaluationState, presentationCompiledDocumentRevision) ||
+          frameEvaluationState.evaluation.errors.length > 0) return undefined;
+      return association.graphIdentity;
     }, [
       feedbackGraphHostDocumentUri,
       feedbackGraphRevision,
       feedbackGraphSourceRevision,
+      frameEvaluationState,
       frameSourceRevision,
+      frameSourceText,
       hasFeedbackGraphIdentity,
       hasRuntimePresentationForRoot,
       hostRootDocumentId,
+      presentationCompiledDocumentRevision,
       runtimeGraphRevision,
       runtimeGraphRootDocumentId,
-      runtimeGraphSourceRevision
+      runtimeGraphSourceRevision,
+      verifiedLocalFrameGraphAssociation
     ]);
     const hasStaleCanvasPresentation = staleCanvasPresentation !== null;
     const sourceHasCurrentErrors = holdLastStableCanvasPresentation && !sourceMatchesLastGoodDocument &&

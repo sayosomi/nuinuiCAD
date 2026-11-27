@@ -191,7 +191,9 @@ describe("session scoped surface Problems", () => {
     const staleCandidates = [
       { ...current, documentVersion: 4 },
       { ...current, updateGeneration: update.generation - 1 },
+      { ...current, sourceRevision: current.sourceRevision - 1 },
       { ...current, graphIdentity: { ...current.graphIdentity, graphRevision: 13 } },
+      { ...current, graphIdentity: { ...current.graphIdentity, sourceRevision: current.graphIdentity.sourceRevision - 1 } },
       { ...current, evaluationRevision: 13 },
       { ...current, evaluationRequestRevision: 28 }
     ];
