@@ -28,6 +28,12 @@ export const webviewPresentationTranslationCatalog = {
   "canvas.display.points": { en: "Points", ja: "点" },
   "canvas.display.directionArrows": { en: "Direction", ja: "方向" },
   "canvas.warning": { en: "⚠ {count} errors or warnings", ja: "⚠ エラー/警告 {count} 件" },
+  "canvas.updateProgress": { en: "Updating Canvas…", ja: "Canvasを更新中…" },
+  "canvas.updateUnavailable": { en: "Current Canvas geometry is unavailable.", ja: "現在のCanvas図形は利用できません。" },
+  "canvas.updateStale": {
+    en: "Canvas is showing the last valid frame while the current Source or dependency graph is unavailable.",
+    ja: "現在のSourceまたは依存グラフを利用できないため、Canvasには最後に有効だったフレームが表示されています。"
+  },
   "canvas.staleFeedback.ready": {
     en: "Canvas is showing stale geometry from graph revision {lastGraphRevision} and Source revision {lastSourceRevision}; current graph revision {currentGraphRevision} and Source revision {currentSourceRevision} have unresolved geometry. The frame is display only and edits are disabled.",
     ja: "Canvasにはグラフ revision {lastGraphRevision}、Source revision {lastSourceRevision} の古い図形が表示されています。現在のグラフ revision {currentGraphRevision}、Source revision {currentSourceRevision} の図形は未解決です。この表示は確認用で、編集できません。"

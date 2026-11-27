@@ -106,4 +106,96 @@ describe("DrawingCanvas passive Canvas-open capture", () => {
     });
     view.unmount();
   });
+
+  it("reports identity-bearing completion only after an ordinary successful production draw", () => {
+    const elements = [point];
+    const evaluation = evaluateElements(elements);
+    const onCanvasFrameDrawn = vi.fn();
+    const onProductionDrawCompleted = vi.fn();
+
+    render(<DrawingCanvas
+      evaluation={evaluation}
+      evaluationState={{
+        evaluation,
+        evaluationRevision: 0,
+        evaluationRequestRevision: 6,
+        mode: "rust",
+        source: "rust",
+        status: "ready",
+        rustEligible: true,
+        isStale: false,
+        error: null
+      }}
+      canvasFocusRef={createRef<HTMLDivElement>()}
+      hostAdapter={drawingHost(elements)}
+      onCanvasFrameDrawn={onCanvasFrameDrawn}
+      // This remains the opt-in benchmark path; normal drawing does not provide it.
+    />);
+
+    expect(onCanvasFrameDrawn).toHaveBeenCalledOnce();
+    expect(onProductionDrawCompleted).not.toHaveBeenCalled();
+  });
+
+  it("reports a valid empty geometry frame after successful drawing", () => {
+    const elements: CadElement[] = [];
+    const evaluation = evaluateElements(elements);
+    const onCanvasFrameDrawn = vi.fn();
+
+    render(<DrawingCanvas
+      evaluation={evaluation}
+      evaluationState={{
+        evaluation,
+        evaluationRevision: 0,
+        evaluationRequestRevision: 1,
+        mode: "rust",
+        source: "rust",
+        status: "ready",
+        rustEligible: true,
+        isStale: false,
+        error: null
+      }}
+      canvasFocusRef={createRef<HTMLDivElement>()}
+      hostAdapter={drawingHost(elements)}
+      onCanvasFrameDrawn={onCanvasFrameDrawn}
+    />);
+
+    expect(onCanvasFrameDrawn).toHaveBeenCalledOnce();
+  });
+
+  it("does not report current-frame completion for placeholder, zero-size, or contextless draws", () => {
+    const elements = [point];
+    const evaluation = evaluateElements(elements);
+    const onCanvasFrameDrawn = vi.fn();
+    const canvasRef = createRef<HTMLDivElement>();
+    const props = {
+      evaluation,
+      evaluationState: {
+        evaluation,
+        evaluationRevision: 0,
+        evaluationRequestRevision: 6,
+        mode: "rust" as const,
+        source: "rust" as const,
+        status: "evaluating" as const,
+        rustEligible: true,
+        isStale: false,
+        error: null
+      },
+      canvasFocusRef: canvasRef,
+      hostAdapter: drawingHost(elements),
+      onCanvasFrameDrawn
+    };
+    const view = render(<DrawingCanvas {...props} />);
+    expect(onCanvasFrameDrawn).not.toHaveBeenCalled();
+    view.unmount();
+
+    Object.defineProperty(HTMLElement.prototype, "clientWidth", { configurable: true, value: 0 });
+    const currentState = { ...props.evaluationState, status: "ready" as const };
+    render(<DrawingCanvas {...props} evaluationState={currentState} />);
+    expect(onCanvasFrameDrawn).not.toHaveBeenCalled();
+
+    Object.defineProperty(HTMLElement.prototype, "clientWidth", { configurable: true, value: 500 });
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
+    render(<DrawingCanvas {...props} evaluationState={currentState} />);
+    expect(onCanvasFrameDrawn).not.toHaveBeenCalled();
+  });
 });

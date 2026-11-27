@@ -129,7 +129,10 @@ import type {
 } from "../../src/vscode/protocol";
 import {
   isVscodeSurfaceDiagnosticsPublication,
-  isVscodeSurfaceOperationFailure
+  isVscodeSurfaceOperationFailure,
+  isVscodeCanvasFrameDrawn,
+  type VscodeCanvasFeedbackGraphIdentity,
+  type VscodeCanvasFrameDrawn
 } from "../../src/vscode/surfaceFeedbackProtocol";
 import {
   vscodeWebviewSurfaceDataAttribute,
@@ -154,6 +157,7 @@ import {
   type VscodeMultiDocumentDiagnosticSnapshot,
   type VscodeMultiDocumentDiagnosticsState
 } from "./multiDocumentHost";
+import type { VscodeMultiDocumentGraphPublication } from "../../src/vscode/multiDocumentGraphTransport";
 import type {
   DocumentQualifiedSourceLocation,
   DocumentSourceIdentity,
@@ -213,6 +217,9 @@ type DocumentSession = VscodeWebviewSessionBase & {
   document: vscode.TextDocument;
   panel: vscode.WebviewPanel;
   surfaceFeedbackSession: SurfaceFeedbackSession;
+  canvasGraphObservationKey?: string;
+  canvasGraphUpdateDocumentVersion?: number;
+  canvasCurrentGraphIdentityKey?: string;
   disposables: vscode.Disposable[];
   inFlightCanvasHistory: {
     direction: "undo" | "redo";
@@ -1392,6 +1399,124 @@ export const activate = (
     surfaceFeedbackDiagnostics.accept(session.surfaceFeedbackSession, { ...message, diagnostics });
   };
 
+  const canvasUpdateMessage = (): string =>
+    webviewPresentationFor(extensionDisplayLanguage()).strings["canvas.updateProgress"] ?? "Updating Canvas…";
+  const canvasUnavailableMessage = (): string =>
+    webviewPresentationFor(extensionDisplayLanguage()).strings["canvas.updateUnavailable"] ?? "Current Canvas geometry is unavailable.";
+  const beginCanvasUpdate = (
+    session: DocumentSession,
+    documentVersion: number,
+    forceNewGeneration = false
+  ) => {
+    const update = surfaceFeedbackDiagnostics.beginCanvasUpdate(session.surfaceFeedbackSession, {
+      documentVersion,
+      message: canvasUpdateMessage(),
+      ...(forceNewGeneration ? { forceNewGeneration: true } : {})
+    });
+    if (update) {
+      void session.panel.webview.postMessage({
+        type: "canvasUpdateProgress",
+        documentVersion: update.documentVersion,
+        generation: update.generation
+      } satisfies ExtensionToVscodeMessage);
+    }
+    return update;
+  };
+  const postCurrentCanvasUpdate = (session: DocumentSession): void => {
+    const update = surfaceFeedbackDiagnostics.currentCanvasUpdate(session.surfaceFeedbackSession);
+    if (!update) return;
+    void session.panel.webview.postMessage({
+      type: "canvasUpdateProgress",
+      documentVersion: update.documentVersion,
+      generation: update.generation
+    } satisfies ExtensionToVscodeMessage);
+  };
+  const terminateCanvasUpdate = (session: DocumentSession, documentVersion: number): void => {
+    const update = surfaceFeedbackDiagnostics.currentCanvasUpdate(session.surfaceFeedbackSession);
+    if (!update || update.documentVersion !== documentVersion) return;
+    surfaceFeedbackDiagnostics.terminateCanvasUpdate(session.surfaceFeedbackSession, {
+      generation: update.generation,
+      documentVersion,
+      diagnostic: { id: "canvas-update-unavailable", severity: "error", message: canvasUnavailableMessage() }
+    });
+  };
+  const observeCanvasGraphPublication = (
+    session: DocumentSession,
+    publication: VscodeMultiDocumentGraphPublication
+  ): void => {
+    if (publication.hostDocumentUri !== session.hostDocumentUri) return;
+    const observationKey = JSON.stringify({
+      documentVersion: publication.documentVersion,
+      status: publication.status,
+      graph: publication.status === "current" ? {
+        rootDocumentId: publication.graph.rootDocumentId,
+        revision: publication.graph.revision,
+        sourceRevision: publication.graph.rootSource.sourceRevision,
+        valid: publication.graph.valid
+      } : null
+    });
+    if (session.canvasGraphObservationKey === observationKey) return;
+    session.canvasGraphObservationKey = observationKey;
+
+    const documentVersion = publication.documentVersion ?? session.document.version;
+    if (documentVersion !== session.document.version) return;
+    if (publication.status === "invalidated" || publication.status === "building") {
+      if (session.canvasGraphUpdateDocumentVersion !== documentVersion) {
+        beginCanvasUpdate(session, documentVersion, true);
+        session.canvasGraphUpdateDocumentVersion = documentVersion;
+      }
+      return;
+    }
+    if (publication.status === "unavailable") {
+      session.canvasGraphUpdateDocumentVersion = undefined;
+      session.canvasCurrentGraphIdentityKey = undefined;
+      const current = surfaceFeedbackDiagnostics.currentCanvasUpdate(session.surfaceFeedbackSession);
+      if (!current || current.documentVersion !== documentVersion) beginCanvasUpdate(session, documentVersion, true);
+      terminateCanvasUpdate(session, documentVersion);
+      return;
+    }
+
+    session.canvasGraphUpdateDocumentVersion = undefined;
+    const graphIdentity: VscodeCanvasFeedbackGraphIdentity = {
+      hostDocumentUri: publication.graph.rootDocumentId,
+      graphRevision: publication.graph.revision,
+      sourceRevision: publication.graph.rootSource.sourceRevision
+    };
+    const graphIdentityKey = JSON.stringify([documentVersion, graphIdentity]);
+    let update = surfaceFeedbackDiagnostics.currentCanvasUpdate(session.surfaceFeedbackSession);
+    if (!update || update.documentVersion !== documentVersion) {
+      if (session.canvasCurrentGraphIdentityKey !== graphIdentityKey || !publication.graph.valid) {
+        update = beginCanvasUpdate(session, documentVersion, !publication.graph.valid);
+      }
+    }
+    session.canvasCurrentGraphIdentityKey = graphIdentityKey;
+    if (update && update.documentVersion === documentVersion) {
+      surfaceFeedbackDiagnostics.setCanvasUpdateGraphIdentity(session.surfaceFeedbackSession, update, graphIdentity);
+    }
+    if (!publication.graph.valid) {
+      session.canvasCurrentGraphIdentityKey = undefined;
+      terminateCanvasUpdate(session, documentVersion);
+    }
+  };
+  const acceptCanvasFrameDrawn = (session: DocumentSession, message: VscodeCanvasFrameDrawn): void => {
+    if (!isVscodeCanvasFrameDrawn(message) ||
+        sessions.get(session.documentUri, "canvas") !== session ||
+        !isOpenDocument(session.document) ||
+        session.authoritativeDocumentVersion !== message.documentVersion ||
+        session.document.version !== message.documentVersion) return;
+    const update = surfaceFeedbackDiagnostics.currentCanvasUpdate(session.surfaceFeedbackSession);
+    if (!update || update.documentVersion !== message.documentVersion || update.generation !== message.updateGeneration) return;
+    if (message.graphIdentity) {
+      const current = activeVscodeMultiDocumentHost()?.canvasOpenMeasurementAuthorityFor?.(session.document);
+      if (!current || message.graphIdentity.hostDocumentUri !== session.hostDocumentUri ||
+          current.documentVersion !== message.documentVersion ||
+          current.rootDocumentId !== message.graphIdentity.hostDocumentUri ||
+          current.graphRevision !== message.graphIdentity.graphRevision ||
+          current.sourceRevision !== message.graphIdentity.sourceRevision) return;
+    }
+    surfaceFeedbackDiagnostics.completeCanvasUpdate(session.surfaceFeedbackSession, message);
+  };
+
   const hoverFeature = registerNuiHoverFeature({
     rustProcessOwner,
     sessionFor: languageAnalysisSessionFor
@@ -2185,6 +2310,9 @@ export const activate = (
       document,
       panel,
       surfaceFeedbackSession: surfaceFeedbackDiagnostics.createSession("canvas", documentUri),
+      canvasGraphObservationKey: undefined,
+      canvasGraphUpdateDocumentVersion: undefined,
+      canvasCurrentGraphIdentityKey: undefined,
       disposables: [],
       inFlightCanvasHistory: null,
       webviewReady: false,
@@ -2197,6 +2325,7 @@ export const activate = (
       pendingCoordinatePointCreationStart: null,
       lastCanvasPointer: null
     };
+    beginCanvasUpdate(session, document.version);
     if (canvasOpenPanelConfig && canvasOpenStartedAt !== null) {
       const phaseRecorder = createCanvasOpenPhaseRecorder(canvasOpenPanelConfig, "extension-host", () => performance.now());
       phaseRecorder.record("panelOpenStarted", {}, canvasOpenStartedAt);
@@ -2221,15 +2350,17 @@ export const activate = (
         }, canvasOpenConfig?.panelTimeoutMs ?? 60_000),
         closingForNext: false
       };
-      session.observeMultiDocumentGraphPublication = (kind, publication) => {
-        const graph = publication.status === "current" ? publication.graph : null;
-        recordCanvasOpenHostPhase(session, kind === "replay" ? "graphPublicationReplayed" : "graphPublicationDispatched", {
-          documentVersion: publication.documentVersion,
-          sourceRevision: graph?.rootSource.sourceRevision ?? null,
-          graphRevision: graph?.revision ?? null
-        });
-      };
     }
+    session.observeMultiDocumentGraphPublication = (kind, publication) => {
+      observeCanvasGraphPublication(session, publication);
+      if (!session.canvasOpenCapture) return;
+      const graph = publication.status === "current" ? publication.graph : null;
+      recordCanvasOpenHostPhase(session, kind === "replay" ? "graphPublicationReplayed" : "graphPublicationDispatched", {
+        documentVersion: publication.documentVersion,
+        sourceRevision: graph?.rootSource.sourceRevision ?? null,
+        graphRevision: graph?.revision ?? null
+      });
+    };
     sessions.set(session);
     updateActiveCanvasTabContext();
     if (panel.active) rememberBakeCanvas(session);
@@ -2241,6 +2372,7 @@ export const activate = (
         if (sameDocument(event.document, session.document)) {
           if (event.contentChanges.length === 0) return;
 
+          beginCanvasUpdate(session, event.document.version);
           session.authoritativeDocumentVersion = null;
           updateCoordinatePointCreationContext();
           canvasThemeWarningFeature.invalidateCanvasSession({
@@ -2302,6 +2434,10 @@ export const activate = (
         acceptCanvasSurfaceDiagnostics(session, message);
         return;
       }
+      if (isVscodeCanvasFrameDrawn(message)) {
+        acceptCanvasFrameDrawn(session, message);
+        return;
+      }
       if (message.type === "webviewReady") {
         const webviewReadyAt = session.canvasOpenCapture ? performance.now() : null;
         session.webviewReady = true;
@@ -2322,6 +2458,7 @@ export const activate = (
         }
         postCanvasThemeGeneration(panel, activeCanvasThemeGeneration);
         postWebviewPresentation(panel);
+        postCurrentCanvasUpdate(session);
         if (session.canvasOpenCapture) {
           const authority = activeVscodeMultiDocumentHost()?.canvasOpenMeasurementAuthorityFor(session.document);
           recordCanvasOpenHostPhase(session, "authoritativeSourceDispatched", {
@@ -2486,6 +2623,7 @@ export const activate = (
           !isOpenDocument(session.document)
         ) return;
         session.authoritativeDocumentVersion = message.documentVersion;
+        postCurrentCanvasUpdate(session);
         if (documentReadyReceivedAt !== null) {
           session.canvasOpenCapture!.authoritativeDocumentAt = documentReadyReceivedAt;
           const authority = activeVscodeMultiDocumentHost()?.canvasOpenMeasurementAuthorityFor(session.document);

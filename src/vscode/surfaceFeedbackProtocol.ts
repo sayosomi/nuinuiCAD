@@ -13,6 +13,25 @@ export type VscodeCanvasFeedbackGraphIdentity = {
   sourceRevision: number;
 };
 
+export type VscodeCanvasFrameIdentity = {
+  documentVersion: number;
+  updateGeneration: number;
+  sourceRevision: number;
+  graphIdentity?: VscodeCanvasFeedbackGraphIdentity;
+  evaluationRevision: number;
+  evaluationRequestRevision: number;
+};
+
+export type VscodeCanvasUpdateProgressStart = {
+  type: "canvasUpdateProgress";
+  documentVersion: number;
+  generation: number;
+};
+
+export type VscodeCanvasFrameDrawn = VscodeCanvasFrameIdentity & {
+  type: "canvasFrameDrawn";
+};
+
 export type VscodeSurfaceDiagnosticsPublication = {
   type: "surfaceDiagnosticsPublication";
   surface: "canvas" | "outputPreview";
@@ -20,6 +39,11 @@ export type VscodeSurfaceDiagnosticsPublication = {
   presentationId: number;
   graphIdentity?: VscodeCanvasFeedbackGraphIdentity;
   graphAuthority?: VscodeOutputPreviewGraphAuthority;
+  canvasUpdate?: {
+    generation: number;
+    outcome?: "terminal";
+    frameIdentity?: VscodeCanvasFrameIdentity;
+  };
   outputIdentity?: {
     outputKey: string | null;
     kind?: "print" | "svg";
@@ -38,12 +62,35 @@ export type VscodeSurfaceOperationFailure = {
 
 export type VscodeSurfaceFeedbackToExtensionMessage =
   | VscodeSurfaceDiagnosticsPublication
-  | VscodeSurfaceOperationFailure;
+  | VscodeSurfaceOperationFailure
+  | VscodeCanvasFrameDrawn;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
 const isSafeInteger = (value: unknown): value is number =>
   typeof value === "number" && Number.isSafeInteger(value);
+
+const isNonNegativeSafeInteger = (value: unknown): value is number =>
+  isSafeInteger(value) && value >= 0;
+
+const isGraphIdentity = (value: unknown): value is VscodeCanvasFeedbackGraphIdentity =>
+  isRecord(value) && typeof value.hostDocumentUri === "string" && value.hostDocumentUri.length > 0 &&
+  isNonNegativeSafeInteger(value.graphRevision) && isNonNegativeSafeInteger(value.sourceRevision);
+
+const isCanvasFrameIdentity = (value: unknown): value is VscodeCanvasFrameIdentity =>
+  isRecord(value) && isNonNegativeSafeInteger(value.documentVersion) &&
+  isNonNegativeSafeInteger(value.updateGeneration) && value.updateGeneration > 0 &&
+  isNonNegativeSafeInteger(value.sourceRevision) &&
+  (value.graphIdentity === undefined || isGraphIdentity(value.graphIdentity)) &&
+  isNonNegativeSafeInteger(value.evaluationRevision) &&
+  isNonNegativeSafeInteger(value.evaluationRequestRevision);
+
+export const isVscodeCanvasFrameDrawn = (value: unknown): value is VscodeCanvasFrameDrawn =>
+  isRecord(value) && value.type === "canvasFrameDrawn" && isCanvasFrameIdentity(value);
+
+export const isVscodeCanvasUpdateProgressStart = (value: unknown): value is VscodeCanvasUpdateProgressStart =>
+  isRecord(value) && value.type === "canvasUpdateProgress" &&
+  isNonNegativeSafeInteger(value.documentVersion) && isNonNegativeSafeInteger(value.generation) && value.generation > 0;
 
 const isGraphAuthority = (value: unknown): value is VscodeOutputPreviewGraphAuthority => {
   if (!isRecord(value)) return false;
@@ -60,10 +107,18 @@ export const isVscodeSurfaceDiagnosticsPublication = (
       (value.surface !== "canvas" && value.surface !== "outputPreview") ||
       !isSafeInteger(value.documentVersion) || !isSafeInteger(value.presentationId) ||
       !Array.isArray(value.diagnostics)) return false;
+  if (value.canvasUpdate !== undefined) {
+    const update = value.canvasUpdate;
+    if (!isRecord(update) || !isNonNegativeSafeInteger(update.generation) || update.generation === 0 ||
+        (update.outcome !== undefined && update.outcome !== "terminal") ||
+        (update.frameIdentity !== undefined && !isCanvasFrameIdentity(update.frameIdentity)) ||
+        (update.outcome === "terminal" && update.frameIdentity !== undefined) ||
+        (update.frameIdentity !== undefined &&
+          (update.frameIdentity.documentVersion !== value.documentVersion ||
+           update.frameIdentity.updateGeneration !== update.generation))) return false;
+  }
   if (value.graphIdentity !== undefined) {
-    const identity = value.graphIdentity;
-    if (!isRecord(identity) || typeof identity.hostDocumentUri !== "string" ||
-        !isSafeInteger(identity.graphRevision) || !isSafeInteger(identity.sourceRevision)) return false;
+    if (!isGraphIdentity(value.graphIdentity)) return false;
   }
   if (value.graphAuthority !== undefined && !isGraphAuthority(value.graphAuthority)) return false;
   if (value.outputIdentity !== undefined) {

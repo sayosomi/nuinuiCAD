@@ -134,6 +134,7 @@ type TestRustProcess = {
 
 type TestDiagnosticCollection = {
   name: string;
+  entries: Map<string, readonly unknown[]>;
   set: ReturnType<typeof vi.fn>;
   delete: ReturnType<typeof vi.fn>;
   clear: ReturnType<typeof vi.fn>;
@@ -162,6 +163,7 @@ const mocks = vi.hoisted(() => ({
     diagnosticsStateFor: ReturnType<typeof vi.fn>;
     onDiagnosticsChanged: ReturnType<typeof vi.fn>;
     isCanvasGraphCommitAuthorityCurrent?: ReturnType<typeof vi.fn>;
+    canvasOpenMeasurementAuthorityFor?: ReturnType<typeof vi.fn>;
     isSavedGraphSnapshotCurrent?: ReturnType<typeof vi.fn>;
     languageSemanticSnapshotFor?: ReturnType<typeof vi.fn>;
     canvasSourceDefinitionFor?: ReturnType<typeof vi.fn>;
@@ -898,11 +900,13 @@ const setup = (
     return disposable();
   });
   mocks.createDiagnosticCollection.mockImplementation((name: string) => {
+    const entries = new Map<string, readonly unknown[]>();
     const collection: TestDiagnosticCollection = {
       name,
-      set: vi.fn(),
-      delete: vi.fn(),
-      clear: vi.fn(),
+      entries,
+      set: vi.fn((uri: { toString: () => string }, diagnostics: readonly unknown[]) => entries.set(uri.toString(), diagnostics)),
+      delete: vi.fn((uri: { toString: () => string }) => entries.delete(uri.toString())),
+      clear: vi.fn(() => entries.clear()),
       dispose: vi.fn()
     };
     mocks.diagnosticCollections.push(collection);
@@ -1250,6 +1254,418 @@ afterEach(() => {
 });
 
 describe("VS Code production document lifecycle", () => {
+  it("publishes Host update Information before Source synchronization and Webview acknowledgement", () => {
+    const document = documentFor("/tmp/canvas-progress.nui", "file:///tmp/canvas-progress.nui", "nui 1\npoint A = coordinate(x: 0, y: 0)");
+    setup(false, editorFor(document));
+    const panel = openPanelFor();
+    const collection = mocks.diagnosticCollections.find(item => item.name === "nuinuiCAD surface feedback");
+    expect(collection).toBeDefined();
+
+    const firstStart = panel.webview.postMessage.mock.calls
+      .map(([message]) => message)
+      .find((message) => message?.type === "canvasUpdateProgress") as { generation: number } | undefined;
+    expect(firstStart).toBeDefined();
+    expect([...collection!.entries.values()].flat()).toContainEqual(expect.objectContaining({
+      code: "canvas-updating",
+      message: "Updating Canvas…",
+      severity: 2,
+      source: "nuinuiCAD / Canvas"
+    }));
+
+    document.version = 2;
+    document.setSourceText("nui 1\npoint A = coordinate(x: 20, y: 0)");
+    emitDocumentChange(document);
+
+    const messages = panel.webview.postMessage.mock.calls.map(([message]) => message as { type?: string; documentVersion?: number; generation?: number });
+    const progressIndex = messages.findIndex(message => message.type === "canvasUpdateProgress" && message.documentVersion === 2);
+    const syncIndex = messages.findIndex(message => message.type === "commitText" && message.documentVersion === 2);
+    expect(progressIndex).toBeGreaterThanOrEqual(0);
+    expect(syncIndex).toBeGreaterThan(progressIndex);
+    expect(messages[progressIndex]!.generation).toBeGreaterThan(firstStart!.generation);
+    expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "rustEvaluationRequest" }));
+    expect([...collection!.entries.values()].flat()).toContainEqual(expect.objectContaining({
+      code: "canvas-updating",
+      message: "Updating Canvas…",
+      severity: 2
+    }));
+  });
+
+  it("keeps Source C updating when delayed Source B frame evidence arrives", async () => {
+    const document = documentFor("/tmp/canvas-progress-rapid.nui", "file:///tmp/canvas-progress-rapid.nui", "nui 1\npoint A = coordinate(x: 0, y: 0)");
+    setup(false, editorFor(document));
+    const panel = openPanelFor();
+    const handler = messageHandlerFor(panel);
+    const collection = mocks.diagnosticCollections.find(item => item.name === "nuinuiCAD surface feedback")!;
+    await handler({ type: "webviewReady" });
+    await handler({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+
+    document.version = 2;
+    document.setSourceText("nui 1\npoint A = coordinate(x: 20, y: 0)");
+    emitDocumentChange(document);
+    const generationB = panel.webview.postMessage.mock.calls
+      .map(([message]) => message as { type?: string; documentVersion?: number; generation?: number })
+      .filter(message => message.type === "canvasUpdateProgress" && message.documentVersion === 2).at(-1)!.generation!;
+
+    document.version = 3;
+    document.setSourceText("nui 1\npoint A = coordinate(x: 30, y: 0)");
+    emitDocumentChange(document);
+    const generationC = panel.webview.postMessage.mock.calls
+      .map(([message]) => message as { type?: string; documentVersion?: number; generation?: number })
+      .filter(message => message.type === "canvasUpdateProgress" && message.documentVersion === 3).at(-1)!.generation!;
+    expect(generationC).toBeGreaterThan(generationB);
+    await handler({ type: "webviewAuthoritativeDocumentReady", documentVersion: 3 });
+
+    const staleBFrame = {
+      documentVersion: 2,
+      updateGeneration: generationB,
+      sourceRevision: 2,
+      evaluationRevision: 2,
+      evaluationRequestRevision: 20
+    };
+    await handler({ type: "canvasFrameDrawn", ...staleBFrame });
+    const staleGenerationFrame = {
+      documentVersion: 3,
+      updateGeneration: generationB,
+      sourceRevision: 3,
+      evaluationRevision: 3,
+      evaluationRequestRevision: 30
+    };
+    await handler({
+      type: "surfaceDiagnosticsPublication",
+      surface: "canvas",
+      documentVersion: 3,
+      presentationId: 1,
+      canvasUpdate: { generation: generationB, frameIdentity: staleGenerationFrame },
+      diagnostics: []
+    });
+    await handler({ type: "canvasFrameDrawn", ...staleGenerationFrame });
+    expect([...collection.entries.values()].flat()).toContainEqual(expect.objectContaining({
+      code: "canvas-updating",
+      severity: 2
+    }));
+
+    const currentFrame = {
+      documentVersion: 3,
+      updateGeneration: generationC,
+      sourceRevision: 3,
+      evaluationRevision: 3,
+      evaluationRequestRevision: 31
+    };
+    await handler({
+      type: "surfaceDiagnosticsPublication",
+      surface: "canvas",
+      documentVersion: 3,
+      presentationId: 2,
+      canvasUpdate: { generation: generationC, frameIdentity: currentFrame },
+      diagnostics: []
+    });
+    await handler({ type: "canvasFrameDrawn", ...currentFrame });
+    expect([...collection.entries.values()].flat()).not.toContainEqual(expect.objectContaining({ code: "canvas-updating" }));
+  });
+
+  it("starts one update generation for a replayed same-version graph invalidation", async () => {
+    const document = documentFor("/tmp/canvas-graph-replay.nui", "file:///tmp/canvas-graph-replay.nui", "nui 1\npoint A = coordinate(x: 0, y: 0)");
+    const hostDocumentUri = String(canonicalVscodeDocumentId(document.uri));
+    setup(false, editorFor(document));
+    const panel = openPanelFor();
+    const handler = messageHandlerFor(panel);
+    await handler({ type: "webviewReady" });
+    await handler({ type: "webviewAuthoritativeDocumentReady", documentVersion: document.version });
+
+    const initialMessages = panel.webview.postMessage.mock.calls.map(([message]) => message as { type?: string; documentVersion?: number; generation?: number });
+    const initialGeneration = initialMessages.find(message => message.type === "canvasUpdateProgress")?.generation;
+    expect(initialGeneration).toBeDefined();
+    const initialFrame = {
+      documentVersion: document.version,
+      updateGeneration: initialGeneration!,
+      sourceRevision: 0,
+      evaluationRevision: 0,
+      evaluationRequestRevision: 1
+    };
+    await handler({
+      type: "surfaceDiagnosticsPublication",
+      surface: "canvas",
+      documentVersion: document.version,
+      presentationId: 1,
+      canvasUpdate: { generation: initialGeneration!, frameIdentity: initialFrame },
+      diagnostics: []
+    });
+    await handler({ type: "canvasFrameDrawn", ...initialFrame });
+    const beforeInvalidation = initialMessages.filter(message => message.type === "canvasUpdateProgress" && message.documentVersion === document.version);
+
+    publishVscodeMultiDocumentGraphPublication(document.uri.toString(), {
+      type: "multiDocumentGraphPublication",
+      status: "invalidated",
+      documentVersion: document.version,
+      hostDocumentUri,
+      graph: null
+    });
+    const afterInvalidation = panel.webview.postMessage.mock.calls
+      .map(([message]) => message as { type?: string; generation?: number; documentVersion?: number })
+      .filter(message => message.type === "canvasUpdateProgress" && message.documentVersion === document.version);
+    expect(afterInvalidation).toHaveLength(beforeInvalidation.length + 1);
+    expect(afterInvalidation.at(-1)!.generation).toBeGreaterThan(initialGeneration!);
+
+    await handler({ type: "webviewAuthoritativeDocumentReady", documentVersion: document.version });
+    const afterReplay = panel.webview.postMessage.mock.calls
+      .map(([message]) => message as { type?: string; generation?: number; documentVersion?: number })
+      .filter(message => message.type === "canvasUpdateProgress" && message.documentVersion === document.version);
+    expect(afterReplay).toHaveLength(afterInvalidation.length + 1);
+    expect(afterReplay.at(-1)).toEqual(afterInvalidation.at(-1));
+    const collection = mocks.diagnosticCollections.find(item => item.name === "nuinuiCAD surface feedback");
+    expect([...collection!.entries.values()].flat()).toContainEqual(expect.objectContaining({
+      code: "canvas-updating",
+      severity: 2,
+      source: "nuinuiCAD / Canvas"
+    }));
+  });
+
+  it("rejects the preceding same-version graph frame across invalidation and completes only the new graph", async () => {
+    const source = "nui 1\npoint A = coordinate(x: 0, y: 0)";
+    const document = documentFor("/tmp/canvas-graph-generation.nui", "file:///tmp/canvas-graph-generation.nui", source);
+    const hostDocumentUri = String(canonicalVscodeDocumentId(document.uri));
+    let authority = {
+      documentVersion: document.version,
+      rootDocumentId: hostDocumentUri,
+      sourceRevision: 7,
+      graphRevision: 11
+    };
+    mocks.multiDocumentHost = {
+      diagnosticsStateFor: vi.fn(() => null),
+      onDiagnosticsChanged: vi.fn(),
+      canvasOpenMeasurementAuthorityFor: vi.fn(() => authority)
+    };
+    setup(false, editorFor(document));
+    const panel = openPanelFor();
+    const handler = messageHandlerFor(panel);
+    const collection = mocks.diagnosticCollections.find(item => item.name === "nuinuiCAD surface feedback")!;
+    const currentProblems = () => [...collection.entries.values()].flat();
+    const generationMessages = () => panel.webview.postMessage.mock.calls
+      .map(([message]) => message as { type?: string; documentVersion?: number; generation?: number })
+      .filter(message => message.type === "canvasUpdateProgress" && message.documentVersion === document.version);
+    const graphFor = (graphRevision: number, sourceRevision: number) => ({
+      revision: graphRevision,
+      rootDocumentId: hostDocumentUri,
+      rootSource: { kind: "root-current" as const, documentId: hostDocumentUri, normalizedSource: source, sourceRevision },
+      valid: true,
+      nodes: [],
+      edges: [],
+      dependencyFingerprints: [],
+      diagnostics: []
+    });
+    const frameFor = (generation: number, graphRevision: number, sourceRevision: number) => ({
+      documentVersion: document.version,
+      updateGeneration: generation,
+      sourceRevision,
+      graphIdentity: { hostDocumentUri, graphRevision, sourceRevision },
+      evaluationRevision: graphRevision,
+      evaluationRequestRevision: graphRevision + 100
+    });
+    const publishFrame = async (presentationId: number, generation: number, graphRevision: number, sourceRevision: number) => {
+      const frameIdentity = frameFor(generation, graphRevision, sourceRevision);
+      await handler({
+        type: "surfaceDiagnosticsPublication",
+        surface: "canvas",
+        documentVersion: document.version,
+        presentationId,
+        graphIdentity: frameIdentity.graphIdentity,
+        canvasUpdate: { generation, frameIdentity },
+        diagnostics: []
+      });
+      return frameIdentity;
+    };
+
+    await handler({ type: "webviewReady" });
+    await handler({ type: "webviewAuthoritativeDocumentReady", documentVersion: document.version });
+    const initialGeneration = generationMessages()[0]!.generation!;
+    const rootFrame = {
+      documentVersion: document.version,
+      updateGeneration: initialGeneration,
+      sourceRevision: 0,
+      evaluationRevision: 0,
+      evaluationRequestRevision: 1
+    };
+    await handler({
+      type: "surfaceDiagnosticsPublication",
+      surface: "canvas",
+      documentVersion: document.version,
+      presentationId: 1,
+      canvasUpdate: { generation: initialGeneration, frameIdentity: rootFrame },
+      diagnostics: []
+    });
+    await handler({ type: "canvasFrameDrawn", ...rootFrame });
+
+    publishVscodeMultiDocumentGraphPublication(document.uri.toString(), {
+      type: "multiDocumentGraphPublication",
+      status: "current",
+      documentVersion: document.version,
+      hostDocumentUri,
+      graph: graphFor(authority.graphRevision, authority.sourceRevision)
+    });
+    const graphOneGeneration = generationMessages().at(-1)!.generation!;
+    const previousFrame = await publishFrame(2, graphOneGeneration, authority.graphRevision, authority.sourceRevision);
+
+    publishVscodeMultiDocumentGraphPublication(document.uri.toString(), {
+      type: "multiDocumentGraphPublication",
+      status: "invalidated",
+      documentVersion: document.version,
+      hostDocumentUri,
+      graph: null
+    });
+    const afterInvalidation = generationMessages();
+    const invalidatedGeneration = afterInvalidation.at(-1)!.generation!;
+    expect(invalidatedGeneration).toBeGreaterThan(graphOneGeneration);
+    expect(currentProblems()).toContainEqual(expect.objectContaining({ code: "canvas-updating", severity: 2 }));
+
+    await handler({ type: "webviewAuthoritativeDocumentReady", documentVersion: document.version });
+    expect(generationMessages().at(-1)!.generation).toBe(invalidatedGeneration);
+    await handler({ type: "canvasFrameDrawn", ...previousFrame });
+    expect(currentProblems()).toContainEqual(expect.objectContaining({ code: "canvas-updating", severity: 2 }));
+
+    authority = { ...authority, sourceRevision: 8, graphRevision: 12 };
+    publishVscodeMultiDocumentGraphPublication(document.uri.toString(), {
+      type: "multiDocumentGraphPublication",
+      status: "current",
+      documentVersion: document.version,
+      hostDocumentUri,
+      graph: graphFor(authority.graphRevision, authority.sourceRevision)
+    });
+    const newFrame = await publishFrame(3, invalidatedGeneration, authority.graphRevision, authority.sourceRevision);
+    await handler({ type: "canvasFrameDrawn", ...frameFor(invalidatedGeneration, 11, 7) });
+    expect(currentProblems()).toContainEqual(expect.objectContaining({ code: "canvas-updating", severity: 2 }));
+    await handler({ type: "canvasFrameDrawn", ...newFrame });
+    expect(currentProblems()).not.toContainEqual(expect.objectContaining({ code: "canvas-updating" }));
+    const completedProgressCount = generationMessages().length;
+    publishVscodeMultiDocumentGraphPublication(document.uri.toString(), {
+      type: "multiDocumentGraphPublication",
+      status: "current",
+      documentVersion: document.version,
+      hostDocumentUri,
+      graph: graphFor(authority.graphRevision, authority.sourceRevision)
+    });
+    await handler({ type: "webviewAuthoritativeDocumentReady", documentVersion: document.version });
+    expect(generationMessages()).toHaveLength(completedProgressCount);
+    expect(currentProblems()).not.toContainEqual(expect.objectContaining({ code: "canvas-updating" }));
+  });
+
+  it("restarts a recovered graph after terminal unavailability and clears its Problems state on draw", async () => {
+    const source = "nui 1\npoint A = coordinate(x: 0, y: 0)";
+    const document = documentFor("/tmp/canvas-graph-recovery.nui", "file:///tmp/canvas-graph-recovery.nui", source);
+    const hostDocumentUri = String(canonicalVscodeDocumentId(document.uri));
+    const authority = {
+      documentVersion: document.version,
+      rootDocumentId: hostDocumentUri,
+      sourceRevision: 8,
+      graphRevision: 16
+    };
+    mocks.multiDocumentHost = {
+      diagnosticsStateFor: vi.fn(() => null),
+      onDiagnosticsChanged: vi.fn(),
+      canvasOpenMeasurementAuthorityFor: vi.fn(() => authority)
+    };
+    setup(false, editorFor(document));
+    const panel = openPanelFor();
+    const handler = messageHandlerFor(panel);
+    const collection = mocks.diagnosticCollections.find(item => item.name === "nuinuiCAD surface feedback")!;
+    const currentProblems = () => [...collection.entries.values()].flat();
+    const progress = () => panel.webview.postMessage.mock.calls
+      .map(([message]) => message as { type?: string; documentVersion?: number; generation?: number })
+      .filter(message => message.type === "canvasUpdateProgress" && message.documentVersion === document.version);
+    const graph = {
+      revision: authority.graphRevision,
+      rootDocumentId: hostDocumentUri,
+      rootSource: { kind: "root-current" as const, documentId: hostDocumentUri, normalizedSource: source, sourceRevision: authority.sourceRevision },
+      valid: true,
+      nodes: [],
+      edges: [],
+      dependencyFingerprints: [],
+      diagnostics: []
+    };
+    await handler({ type: "webviewReady" });
+    await handler({ type: "webviewAuthoritativeDocumentReady", documentVersion: document.version });
+    const initialGeneration = progress()[0]!.generation!;
+
+    publishVscodeMultiDocumentGraphPublication(document.uri.toString(), {
+      type: "multiDocumentGraphPublication",
+      status: "unavailable",
+      documentVersion: document.version,
+      hostDocumentUri,
+      graph: null
+    });
+    expect(currentProblems()).toContainEqual(expect.objectContaining({
+      code: "canvas-update-unavailable",
+      severity: 0,
+      message: "Current Canvas geometry is unavailable."
+    }));
+    expect(currentProblems()).not.toContainEqual(expect.objectContaining({ code: "canvas-updating" }));
+
+    publishVscodeMultiDocumentGraphPublication(document.uri.toString(), {
+      type: "multiDocumentGraphPublication",
+      status: "current",
+      documentVersion: document.version,
+      hostDocumentUri,
+      graph
+    });
+    const recoveredGeneration = progress().at(-1)!.generation!;
+    expect(recoveredGeneration).toBeGreaterThan(initialGeneration!);
+    expect(currentProblems()).not.toContainEqual(expect.objectContaining({ code: "canvas-update-unavailable" }));
+    expect(currentProblems()).toContainEqual(expect.objectContaining({ code: "canvas-updating", severity: 2 }));
+
+    const frameIdentity = {
+      documentVersion: document.version,
+      updateGeneration: recoveredGeneration,
+      sourceRevision: authority.sourceRevision,
+      graphIdentity: { hostDocumentUri, graphRevision: authority.graphRevision, sourceRevision: authority.sourceRevision },
+      evaluationRevision: authority.graphRevision,
+      evaluationRequestRevision: 24
+    };
+    await handler({
+      type: "surfaceDiagnosticsPublication",
+      surface: "canvas",
+      documentVersion: document.version,
+      presentationId: 1,
+      graphIdentity: frameIdentity.graphIdentity,
+      canvasUpdate: { generation: recoveredGeneration, frameIdentity },
+      diagnostics: []
+    });
+    await handler({ type: "canvasFrameDrawn", ...frameIdentity });
+    expect(currentProblems()).toEqual([]);
+
+    publishVscodeMultiDocumentGraphPublication(document.uri.toString(), {
+      type: "multiDocumentGraphPublication",
+      status: "unavailable",
+      documentVersion: document.version,
+      hostDocumentUri,
+      graph: null
+    });
+    expect(currentProblems()).toContainEqual(expect.objectContaining({ code: "canvas-update-unavailable", severity: 0 }));
+    const terminalGeneration = progress().at(-1)!.generation!;
+    expect(terminalGeneration).toBeGreaterThan(recoveredGeneration);
+
+    publishVscodeMultiDocumentGraphPublication(document.uri.toString(), {
+      type: "multiDocumentGraphPublication",
+      status: "current",
+      documentVersion: document.version,
+      hostDocumentUri,
+      graph
+    });
+    const retriedGeneration = progress().at(-1)!.generation!;
+    expect(retriedGeneration).toBeGreaterThan(terminalGeneration);
+    expect(currentProblems()).toEqual([expect.objectContaining({ code: "canvas-updating", severity: 2 })]);
+    const retriedFrame = { ...frameIdentity, updateGeneration: retriedGeneration };
+    await handler({
+      type: "surfaceDiagnosticsPublication",
+      surface: "canvas",
+      documentVersion: document.version,
+      presentationId: 2,
+      graphIdentity: retriedFrame.graphIdentity,
+      canvasUpdate: { generation: retriedGeneration, frameIdentity: retriedFrame },
+      diagnostics: []
+    });
+    await handler({ type: "canvasFrameDrawn", ...retriedFrame });
+    expect(currentProblems()).toEqual([]);
+  });
+
   it("sends Canvas-open config before the source snapshot and ignores foreign frame acknowledgements", async () => {
     const directory = await mkdtemp(join(tmpdir(), "nuinui-canvas-open-extension-test-"));
     const document = documentFor("/tmp/canvas-open.nui", "file:///tmp/canvas-open.nui", "nui 1\npoint A = coordinate(x: 0, y: 0)");
@@ -1950,10 +2366,14 @@ describe("VS Code production document lifecycle", () => {
     await handle(publication);
     const [uri, diagnostics] = feedbackCollection.set.mock.calls.at(-1)!;
     expect((uri as { scheme?: string }).scheme).toBe("nuinui-surface-feedback");
-    expect(diagnostics).toEqual([expect.objectContaining({
+    expect(diagnostics).toEqual(expect.arrayContaining([expect.objectContaining({
       source: "nuinuiCAD / Canvas",
       message: "stale Canvas geometry"
-    })]);
+    }), expect.objectContaining({
+      code: "canvas-updating",
+      message: "Updating Canvas…",
+      severity: 2
+    })]));
     await handle({
       ...publication,
       presentationId: 2,
@@ -1966,7 +2386,12 @@ describe("VS Code production document lifecycle", () => {
     });
     expect(feedbackCollection.delete).not.toHaveBeenCalledWith(uri);
     await handle({ ...publication, presentationId: 2, diagnostics: [] });
-    expect(feedbackCollection.delete).toHaveBeenCalledWith(uri);
+    expect(feedbackCollection.delete).not.toHaveBeenCalledWith(uri);
+    expect(feedbackCollection.set.mock.calls.at(-1)?.[1]).toEqual([expect.objectContaining({
+      code: "canvas-updating",
+      message: "Updating Canvas…",
+      severity: 2
+    })]);
     expect(sourceCollection.set.mock.calls).toHaveLength(sourceWriteCount);
   });
 
@@ -2043,8 +2468,15 @@ describe("VS Code production document lifecycle", () => {
       }]
     });
 
-    expect(feedbackCollection.set).not.toHaveBeenCalled();
-    expect(feedbackCollection.delete).toHaveBeenCalled();
+    expect(feedbackCollection.set.mock.calls.at(-1)?.[1]).toEqual([expect.objectContaining({
+      code: "canvas-updating",
+      message: "Updating Canvas…",
+      severity: 2
+    })]);
+    expect(feedbackCollection.set.mock.calls.flatMap(([, diagnostics]) => diagnostics).some((diagnostic) =>
+      (diagnostic as { message?: string }).message === runtimeDiagnostic.message
+    )).toBe(false);
+    expect(feedbackCollection.delete).not.toHaveBeenCalled();
     expect(mocks.diagnosticCollections.find(({ name }) => name === "nuinuiCAD")!.set).toHaveBeenCalledWith(
       editor.document.uri,
       expect.arrayContaining([expect.objectContaining({ message: runtimeDiagnostic.message })])
@@ -4136,15 +4568,16 @@ describe("VS Code production document lifecycle", () => {
     commandHandlerFor("nuinuiCAD.openOutputPreview")?.();
     const outputPreviewPanel = mocks.panels[2]!;
 
+    const priorMessageCounts = [panelA, panelB, outputPreviewPanel].map(panel => panel.webview.postMessage.mock.calls.length);
     expect(mocks.activeColorThemeListeners).toHaveLength(1);
     mocks.activeColorThemeListeners[0]!();
 
     expect(panelA.webview.postMessage).toHaveBeenCalledWith({ type: "canvasThemeChanged", generation: 1 });
     expect(panelB.webview.postMessage).toHaveBeenCalledWith({ type: "canvasThemeChanged", generation: 1 });
     expect(outputPreviewPanel.webview.postMessage).toHaveBeenCalledWith({ type: "canvasThemeChanged", generation: 1 });
-    expect(panelA.webview.postMessage).toHaveBeenCalledTimes(1);
-    expect(panelB.webview.postMessage).toHaveBeenCalledTimes(1);
-    expect(outputPreviewPanel.webview.postMessage).toHaveBeenCalledTimes(1);
+    expect(panelA.webview.postMessage).toHaveBeenCalledTimes(priorMessageCounts[0]! + 1);
+    expect(panelB.webview.postMessage).toHaveBeenCalledTimes(priorMessageCounts[1]! + 1);
+    expect(outputPreviewPanel.webview.postMessage).toHaveBeenCalledTimes(priorMessageCounts[2]! + 1);
   });
 
   it("adds directory context to all sessions when basenames collide", () => {
@@ -5260,10 +5693,22 @@ describe("VS Code production document lifecycle", () => {
     mocks.activeTabInput = new mocks.TabInputText(editorB.document.uri);
     commandHandlerFor("nuinuiCAD.openCanvas")?.();
     const panelB = mocks.panels[1]!;
+    const handlerA = messageHandlerFor(panelA);
+    const handlerB = messageHandlerFor(panelB);
+    await handlerA({ type: "webviewReady" });
+    await handlerA({ type: "webviewAuthoritativeDocumentReady", documentVersion: documentA.version });
+    await handlerB({ type: "webviewReady" });
+    await handlerB({ type: "webviewAuthoritativeDocumentReady", documentVersion: documentB.version });
+    const feedbackCollection = mocks.diagnosticCollections.find(item => item.name === "nuinuiCAD surface feedback")!;
+    const [feedbackUriA, feedbackUriB] = [...feedbackCollection.entries.keys()];
+    expect(feedbackUriA).toBeDefined();
+    expect(feedbackUriB).toBeDefined();
 
     emitDocumentClose(documentA);
     expect(panelA.dispose).toHaveBeenCalledTimes(1);
     expect(panelB.dispose).not.toHaveBeenCalled();
+    expect(feedbackCollection.entries.has(feedbackUriA!)).toBe(false);
+    expect(feedbackCollection.entries.has(feedbackUriB!)).toBe(true);
 
     documentA.version = 4;
     documentA.setSourceText("nui 1\n// reopened\n");
@@ -5273,7 +5718,8 @@ describe("VS Code production document lifecycle", () => {
     mocks.activeTabInput = new mocks.TabInputText(editorA.document.uri);
     commandHandlerFor("nuinuiCAD.openCanvas")?.();
     const reopened = mocks.panels[2]!;
-    await messageHandlerFor(reopened)({ type: "webviewReady" });
+    const reopenedHandler = messageHandlerFor(reopened);
+    await reopenedHandler({ type: "webviewReady" });
     expect(reopened).not.toBe(panelA);
     expect(reopened.webview.postMessage).toHaveBeenCalledWith({
       type: "replaceTextDocument",
@@ -5282,6 +5728,18 @@ describe("VS Code production document lifecycle", () => {
       documentVersion: 4,
       hostDocumentUri: String(canonicalVscodeDocumentId(documentA.uri))
     });
+    const reopenedFeedbackUri = [...feedbackCollection.entries.keys()].find(uri => uri !== feedbackUriB);
+    expect(reopenedFeedbackUri).toBeDefined();
+    await handlerA({
+      type: "surfaceDiagnosticsPublication",
+      surface: "canvas",
+      documentVersion: documentA.version,
+      presentationId: 99,
+      diagnostics: [{ id: "late", severity: "error", message: "late disposed session message" }]
+    });
+    expect(feedbackCollection.entries.has(feedbackUriA!)).toBe(false);
+    expect(feedbackCollection.entries.has(reopenedFeedbackUri!)).toBe(true);
+    expect(feedbackCollection.entries.has(feedbackUriB!)).toBe(true);
   });
 
   it("reopens a fresh panel after panel-only disposal and hydrates current document text and version", async () => {

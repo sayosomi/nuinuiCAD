@@ -309,6 +309,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
     webviewUserAgent: "unknown"
   });
   const [imageResources, setImageResources] = useState<VscodeCanvasImageResources>({});
+  const [canvasUpdateProgress, setCanvasUpdateProgress] = useState<{ documentVersion: number; generation: number } | null>(null);
   const [canvasTheme, setCanvasTheme] = useState(LEGACY_CANVAS_THEME);
   const [canvasGridSettings, setCanvasGridSettings] = useState<CanvasGridSettings>(DEFAULT_CANVAS_GRID_SETTINGS);
   const [canvasRibbonPositions, setCanvasRibbonPositions] = useState<VscodeCanvasRibbonPositions>({});
@@ -612,6 +613,30 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
     localEvaluationState.evaluationRevision === compiledDocumentRevision &&
     evaluationStateIsCurrentFor(localEvaluationState, compiledDocumentRevision)
   );
+  const verifiedLocalFrameGraphAssociation = useMemo(() => {
+    if (!currentHostGraph || !currentHostGraph.hostDocumentUri ||
+        (currentHostGraph.canvasRuntime
+          ? currentHostGraph.canvasRuntime.identityOnly !== true
+          : currentHostGraph.graph.nodes.length !== 1) ||
+        runtimeSnapshot || !graphCurrent || !sourceMatchesCurrentDocument || !graphSnapshot?.valid ||
+        !authoritativeHostSourceSnapshot || !localEvaluationIsCurrent) return null;
+    return {
+      normalizedSource: authoritativeHostSourceSnapshot.normalizedSource,
+      graphIdentity: {
+        hostDocumentUri: currentHostGraph.hostDocumentUri,
+        graphRevision: currentHostGraph.graph.revision,
+        sourceRevision: currentHostGraph.graph.rootSource.sourceRevision
+      }
+    };
+  }, [
+    authoritativeHostSourceSnapshot,
+    currentHostGraph,
+    graphCurrent,
+    graphSnapshot,
+    localEvaluationIsCurrent,
+    runtimeSnapshot,
+    sourceMatchesCurrentDocument
+  ]);
   const graphMatchesRuntime = Boolean(
     runtimeSnapshot
       ? graphCurrent &&
@@ -2371,7 +2396,14 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
     const onMessage = (event: MessageEvent<ExtensionToVscodeMessage>) => {
       const message = event.data;
       if (rustTransport.handleMessage(message)) return;
-      if (message.type === "canvasCoordinatePointCreationStart") {
+      if (message.type === "canvasUpdateProgress") {
+        setCanvasUpdateProgress(current => {
+          if (current && message.generation < current.generation) return current;
+          if (current && message.generation === current.generation) return current;
+          return { documentVersion: message.documentVersion, generation: message.generation };
+        });
+        return;
+      } else if (message.type === "canvasCoordinatePointCreationStart") {
         startCoordinatePointCreation(message.requestId, message.documentVersion, message.hostDocumentUri);
         return;
       } else if (message.type === "multiDocumentGraphPublication") {
@@ -3103,6 +3135,20 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
     };
   }, [api, applyPendingCoordinatePointConversionSelection, canvasAuthorityRejectionErrorFor, canvasModalMode, canvasPickModeActive, completeCanvasHistoryResult, completePendingCanvasSourceCommit, currentAuthoritativeCanvasSourceDocument, currentAuthoritativeDocument, currentHostSourceAuthorityFor, deferCoordinatePointConversionSelection, discardDeferredSourceBake, invalidateCanvasHistory, measureCanvasTextWidth, moveCanvasSourceHistory, postCanvasCommit, publishCanvasObservation, publishCanonicalRuntimeDiagnostics, publishCurrentCanvasTheme, publishInlineModuleCanvasTargets, pumpCanvasHistory, refreshCanvasTheme, requestCanvasHistory, recordCanvasOpenWebviewPhase, resetCanvasHistoryChronology, restoreCanvasFocus, rustTransport, selectActiveCanvasInstance, setMultiDocumentGraphPublication, sourceInsertionError, startCoordinatePointCreation, staleSourceAnchorError, syncCanvasHistoryChronologyToSelection, canvasPointerError, tryApplyPendingCanvasSelectionRestore, tryCompleteCanvasFocus]);
 
+  const canvasUpdateGraphIsTerminal = Boolean(
+    canvasUpdateProgress &&
+    multiDocumentGraphPublication &&
+    authoritativeHostSourceSnapshot &&
+    multiDocumentGraphPublication?.hostDocumentUri === authoritativeHostSourceSnapshot?.hostDocumentUri &&
+    (
+      (multiDocumentGraphPublication.status === "unavailable" &&
+        (multiDocumentGraphPublication.documentVersion === canvasUpdateProgress.documentVersion ||
+         (multiDocumentGraphPublication.documentVersion === null && latestHostDocumentVersion === null))) ||
+      (multiDocumentGraphPublication.status === "current" &&
+        multiDocumentGraphPublication.documentVersion === canvasUpdateProgress.documentVersion &&
+        !multiDocumentGraphPublication.graph.valid)
+    )
+  );
   const surfaceStyle = benchmarkConfig?.expectedRenderSurface
     ? {
         width: `${benchmarkConfig.expectedRenderSurface.cssWidthPx}px`,
@@ -3124,6 +3170,8 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           : evaluationState}
         multiDocumentRuntimePresentation={multiDocumentRuntimePresentation ?? staleMultiDocumentRuntimePresentation}
         staleCanvasPresentation={staleCanvasPresentation}
+        canvasUpdateProgress={canvasUpdateProgress}
+        canvasUpdateTerminal={canvasUpdateGraphIsTerminal ? "unavailable" : null}
         documentVersion={latestHostDocumentVersion}
         feedbackGraphIdentity={multiDocumentGraphPublication?.status === "current" &&
           multiDocumentGraphPublication.hostDocumentUri
@@ -3133,6 +3181,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
               sourceRevision: multiDocumentGraphPublication.graph.rootSource.sourceRevision
             }
           : null}
+        verifiedLocalFrameGraphAssociation={verifiedLocalFrameGraphAssociation}
         hostRootDocumentId={
           multiDocumentGraphPublication?.status === "unavailable" ||
           (multiDocumentGraphPublication &&

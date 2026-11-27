@@ -11,6 +11,9 @@ describe("Webview presentation localization", () => {
 
     expect(presentation.locale).toBe("ja");
     expect(presentation.strings["canvas.ariaLabel"]).toBe("CAD作図キャンバス");
+    expect(presentation.strings["canvas.updateProgress"]).toBe("Canvasを更新中…");
+    expect(presentation.strings["canvas.updateUnavailable"]).toBe("現在のCanvas図形は利用できません。");
+    expect(presentation.strings["canvas.updateStale"]).toContain("最後に有効だったフレーム");
     expect(presentation.strings["canvas.commandError.staleSourceAnchor"]).toBe("現在のSource位置が古くなっています。現在のSourceでキャレットを再確定してから再試行してください。");
     expect(presentation.strings["canvas.commandError.pointer"]).toBe("Canvas上にポインターを置いてから実行してください。");
     expect(webviewPresentationTextFor(
@@ -85,6 +88,8 @@ describe("Webview presentation localization", () => {
     expect(unsupported.locale).toBe("en");
     expect(missing.locale).toBe("en");
     expect(english.strings["canvas.ariaLabel"]).toBe("CAD drawing canvas");
+    expect(english.strings["canvas.updateProgress"]).toBe("Updating Canvas…");
+    expect(english.strings["canvas.updateUnavailable"]).toBe("Current Canvas geometry is unavailable.");
     expect(english.strings["canvas.ribbon.viewport"]).toBe("Viewport");
     expect(english.strings["canvas.ribbon.display"]).toBe("Display");
     expect(english.strings["canvas.ribbon.grid"]).toBe("Grid");

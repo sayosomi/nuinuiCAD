@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  isVscodeCanvasFrameDrawn,
   isVscodeSurfaceDiagnosticsPublication,
   isVscodeSurfaceOperationFailure
 } from "./surfaceFeedbackProtocol";
@@ -46,5 +47,26 @@ describe("surface feedback protocol", () => {
     expect(isVscodeSurfaceOperationFailure(first)).toBe(true);
     expect(isVscodeSurfaceOperationFailure(second)).toBe(true);
     expect(isVscodeSurfaceOperationFailure({ ...first, message: "" })).toBe(false);
+  });
+
+  it("accepts only complete frame-draw evidence bound to one Host update generation", () => {
+    const drawn = {
+      type: "canvasFrameDrawn",
+      documentVersion: 9,
+      updateGeneration: 4,
+      sourceRevision: 12,
+      graphIdentity: {
+        hostDocumentUri: "file:///pattern.nui",
+        graphRevision: 21,
+        sourceRevision: 12
+      },
+      evaluationRevision: 21,
+      evaluationRequestRevision: 33
+    };
+
+    expect(isVscodeCanvasFrameDrawn(drawn)).toBe(true);
+    expect(isVscodeCanvasFrameDrawn({ ...drawn, updateGeneration: -1 })).toBe(false);
+    expect(isVscodeCanvasFrameDrawn({ ...drawn, evaluationRequestRevision: Number.NaN })).toBe(false);
+    expect(isVscodeCanvasFrameDrawn({ ...drawn, graphIdentity: { ...drawn.graphIdentity, graphRevision: "21" } })).toBe(false);
   });
 });

@@ -33,7 +33,10 @@ import type {
   VscodeReferencePickToExtensionMessage
 } from "./referencePickProtocol";
 import type { VscodeRuntimeDiagnosticsToExtensionMessage } from "./runtimeDiagnosticsProtocol";
-import type { VscodeSurfaceFeedbackToExtensionMessage } from "./surfaceFeedbackProtocol";
+import type {
+  VscodeCanvasUpdateProgressStart,
+  VscodeSurfaceFeedbackToExtensionMessage
+} from "./surfaceFeedbackProtocol";
 import type {
   VscodeInlineModuleCanvasTargetsPublication,
   VscodeInlineModuleSelectionResult,
@@ -110,6 +113,9 @@ export type {
 } from "./runtimeDiagnosticsProtocol";
 export type {
   VscodeCanvasFeedbackGraphIdentity,
+  VscodeCanvasFrameDrawn,
+  VscodeCanvasFrameIdentity,
+  VscodeCanvasUpdateProgressStart,
   VscodeSurfaceDiagnosticsPublication,
   VscodeSurfaceFeedbackDiagnostic,
   VscodeSurfaceFeedbackToExtensionMessage,
@@ -437,6 +443,7 @@ export type VscodeCanvasImageResources = Readonly<Record<string, string>>;
 
 export type ExtensionToVscodeMessage =
   | { type: "webviewPresentation"; presentation: VscodeWebviewPresentation }
+  | VscodeCanvasUpdateProgressStart
   | {
       type: "canvasCoordinatePointCreationStart";
       requestId: number;

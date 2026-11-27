@@ -27,6 +27,7 @@ import { observeVscodeMultiDocumentGraphPhases } from "../vscode-extension/src/m
 import { VscodeWebviewSessionRegistry } from "../src/vscode/vscodeWebviewSession";
 import { setVscodeWebviewApi } from "../src/vscode/vscodeWebviewApiContext";
 import type { CanvasHostAdapter } from "../src/components/canvasHostAdapter";
+import { SurfaceFeedbackDiagnostics } from "../vscode-extension/src/surfaceFeedbackDiagnostics";
 import { compileModulePreviewRoot } from "../src/dsl/modulePreviewRoot";
 import { queryModulePreviewTarget } from "../src/dsl/modulePreviewTarget";
 import { buildModulePreviewEvaluationOptions } from "../src/vscode/modulePreviewEvaluation";
@@ -58,6 +59,13 @@ type HostTestDocument = {
 const vscodeHost = vi.hoisted(() => ({
   documents: [] as HostTestDocument[],
   files: new Map<string, Uint8Array>(),
+  surfaceDiagnosticCollections: [] as Array<{
+    entries: Map<string, readonly unknown[]>;
+    set: (uri: HostTestUri, diagnostics: readonly unknown[]) => void;
+    delete: (uri: HostTestUri) => void;
+    clear: () => void;
+    dispose: () => void;
+  }>,
   openListeners: [] as Array<(document: HostTestDocument) => void>,
   changeListeners: [] as Array<(event: { document: HostTestDocument; contentChanges?: readonly unknown[] }) => void>,
   saveListeners: [] as Array<(document: HostTestDocument) => void>,
@@ -78,12 +86,45 @@ vi.mock("vscode", () => {
     return { scheme: "file", fsPath: normalized, toString: () => `file://${normalized}` };
   };
   class Position { constructor(public readonly line: number, public readonly character: number) {} }
-  class Range { constructor(public readonly start: Position, public readonly end: Position) {} }
+  class Range {
+    readonly start: Position;
+    readonly end: Position;
+    constructor(start: Position | number, second: Position | number, endLine?: number, endCharacter?: number) {
+      if (typeof start === "number") {
+        this.start = new Position(start, Number(second));
+        this.end = new Position(endLine ?? start, endCharacter ?? Number(second));
+      } else {
+        this.start = start;
+        this.end = second as Position;
+      }
+    }
+  }
+  class Diagnostic {
+    source?: string;
+    code?: string | number;
+    constructor(public readonly range: Range, public readonly message: string, public readonly severity: number) {}
+  }
+  class EventEmitter {
+    event = () => disposable();
+    fire = vi.fn();
+    dispose = vi.fn();
+  }
   class CompletionItem { constructor(public readonly label: string, public readonly kind: number) {} }
   class Location { constructor(public readonly uri: HostTestUri, public readonly range: Range) {} }
   class WorkspaceEdit { replace(): void {} }
   class FileSystemError extends Error { constructor(message: string, public readonly code?: string) { super(message); } }
   const disposable = () => ({ dispose: () => undefined });
+  const createDiagnosticCollection = () => {
+    const collection = {
+      entries: new Map<string, readonly unknown[]>(),
+      set: vi.fn((uri: HostTestUri, diagnostics: readonly unknown[]) => collection.entries.set(uri.toString(), diagnostics)),
+      delete: vi.fn((uri: HostTestUri) => collection.entries.delete(uri.toString())),
+      clear: vi.fn(() => collection.entries.clear()),
+      dispose: vi.fn()
+    };
+    vscodeHost.surfaceDiagnosticCollections.push(collection);
+    return collection;
+  };
   return {
     workspace: {
       get textDocuments() { return vscodeHost.documents; },
@@ -93,6 +134,7 @@ vi.mock("vscode", () => {
         return bytes;
       } },
       findFiles: async () => [],
+      registerTextDocumentContentProvider: () => disposable(),
       onDidOpenTextDocument: (listener: (document: HostTestDocument) => void) => { vscodeHost.openListeners.push(listener); return disposable(); },
       onDidChangeTextDocument: (listener: (event: { document: HostTestDocument; contentChanges?: readonly unknown[] }) => void) => { vscodeHost.changeListeners.push(listener); return disposable(); },
       onDidSaveTextDocument: (listener: (document: HostTestDocument) => void) => { vscodeHost.saveListeners.push(listener); return disposable(); },
@@ -112,6 +154,10 @@ vi.mock("vscode", () => {
     },
     Position,
     Range,
+    Diagnostic,
+    EventEmitter,
+    DiagnosticSeverity: { Error: 0, Warning: 1, Information: 2 },
+    languages: { createDiagnosticCollection },
     CompletionItem,
     CompletionItemKind: { Property: 1, Function: 2, Value: 3 },
     env: { language: "en" },
@@ -225,6 +271,7 @@ describe("Issue #1541 VS Code dependency forwarding into production Rust", () =>
     vi.unstubAllEnvs();
     vscodeHost.documents = [];
     vscodeHost.files.clear();
+    vscodeHost.surfaceDiagnosticCollections = [];
     vscodeHost.openListeners = [];
     vscodeHost.changeListeners = [];
     vscodeHost.saveListeners = [];
@@ -235,6 +282,266 @@ describe("Issue #1541 VS Code dependency forwarding into production Rust", () =>
     drawingSurface.props = null;
     canvas.props = null;
   });
+
+  it.each([
+    ["root-only", false],
+    ["identity-only", true]
+  ] as const)("clears Host Canvas progress after reopening with %s local evaluation", async (caseName, identityOnly) => {
+    vi.stubEnv("VITE_EVALUATION_ENGINE", "rust");
+    useCadDocumentStore.setState(initialCadDocumentState());
+    useCadUiStore.setState(initialCadUiState());
+    canvas.evaluation = null;
+
+    const rootPath = `/tmp/issue-1700-${caseName}/root.nui`;
+    const libraryPath = `/tmp/issue-1700-${caseName}/empty_lib.nui`;
+    const rootUri = vscode.Uri.file(rootPath) as unknown as HostTestUri;
+    const sourceFor = (x: number) => [
+      "nui 1",
+      ...(identityOnly ? ['import "./empty_lib.nui" as unused'] : []),
+      `point Probe = coordinate(x: ${x}, y: 8)`
+    ].join("\n");
+    let sourceText = sourceFor(12);
+    const document: HostTestDocument = {
+      uri: rootUri,
+      fileName: rootPath,
+      version: 1,
+      isDirty: false,
+      getText: () => sourceText,
+      offsetAt: ({ line, character }) => sourceText.split("\n").slice(0, line)
+        .reduce((total, value) => total + value.length + 1, 0) + character,
+      positionAt: offset => {
+        const prefix = sourceText.slice(0, offset).split("\n");
+        return { line: prefix.length - 1, character: prefix.at(-1)!.length };
+      }
+    };
+    vscodeHost.documents = [document];
+    if (identityOnly) {
+      vscodeHost.files.set(libraryPath, new TextEncoder().encode(
+        readFileSync(join(process.cwd(), "test/fixtures/issue-1710/empty_lib.nui"), "utf8")
+      ));
+    }
+
+    const registry = new VscodeWebviewSessionRegistry();
+    const publications: VscodeMultiDocumentGraphPublication[] = [];
+    let app: ReturnType<typeof render> | null = null;
+    let receiveGraphPublication = true;
+    let feedbackSession: ReturnType<SurfaceFeedbackDiagnostics["createSession"]> | null = null;
+    const feedback = new SurfaceFeedbackDiagnostics();
+    const completions: Array<{ message: Record<string, unknown>; accepted: boolean }> = [];
+    const acceptedPublications: boolean[] = [];
+    const renderedViews: Array<ReturnType<typeof render>> = [];
+    const restoreCanvasMocks: Array<() => void> = [];
+    const api = { postMessage: vi.fn((message: VscodeToExtensionMessage) => {
+      if (message.type === "rustEvaluationRequest") {
+        void rust.evaluateInput(message.input).then(
+          payload => act(() => window.dispatchEvent(new MessageEvent("message", {
+            data: { type: "rustEvaluationResponse", id: message.id, payload }
+          }))),
+          error => act(() => window.dispatchEvent(new MessageEvent("message", {
+            data: { type: "rustEvaluationError", id: message.id, error: String(error) }
+          })))
+        );
+      } else if (message.type === "surfaceDiagnosticsPublication" && feedbackSession) {
+        acceptedPublications.push(feedback.accept(feedbackSession, message));
+      } else if (message.type === "canvasFrameDrawn") {
+        completions.push({
+          message: message as unknown as Record<string, unknown>,
+          accepted: feedbackSession ? feedback.completeCanvasUpdate(feedbackSession, message) : false
+        });
+      }
+    }) };
+    setVscodeWebviewApi(api);
+    const host = createVscodeModuleMultiDocumentHost();
+    const canvasSession = () => ({
+      documentUri: rootUri.toString(),
+      surfaceKind: "canvas" as const,
+      receiveMultiDocumentGraphPublication: (publication: VscodeMultiDocumentGraphPublication) => {
+        publications.push(publication);
+        if (receiveGraphPublication) {
+          act(() => window.dispatchEvent(new MessageEvent("message", { data: publication })));
+        }
+      }
+    });
+    const sendReplacement = async (version: number) => {
+      await act(async () => window.dispatchEvent(new MessageEvent("message", { data: {
+        type: "replaceTextDocument", sourceText, documentVersion: version, hostDocumentUri: rootUri.toString()
+      } })));
+    };
+
+    try {
+      registry.set(canvasSession());
+      app = render(<VSCodeApp api={api} />);
+      await sendReplacement(1);
+      host.start();
+      await waitFor(() => expect(publications.at(-1)).toMatchObject({
+        status: "current", documentVersion: 1, graph: { rootSource: { normalizedSource: sourceText } }
+      }));
+      await waitFor(() => {
+        expect(canvas.evaluation?.errors).toEqual([]);
+        expect([...canvas.evaluation!.computedGeometry.values()].find(value => value.name === "Probe"))
+          .toMatchObject({ kind: "point", x: 12, y: 8 });
+      });
+      const initialPublication = publications.at(-1);
+      if (initialPublication?.status !== "current") throw new Error("Initial Host graph was not current");
+      expect(initialPublication.graph.valid).toBe(true);
+      expect(initialPublication.graph.dependencyFingerprints).toHaveLength(identityOnly ? 1 : 0);
+      expect(initialPublication.canvasRuntime?.identityOnly ?? false).toBe(identityOnly);
+
+      // Close Canvas before the edit. The Host keeps its document compiler alive;
+      // a reopened Webview starts from replaceTextDocument's fresh compiler lineage.
+      app.unmount();
+      app = null;
+      registry.delete(rootUri.toString(), "canvas");
+      receiveGraphPublication = false;
+      sourceText = sourceFor(24);
+      document.version = 2;
+      await act(async () => {
+        for (const listener of vscodeHost.changeListeners) {
+          listener({ document, contentChanges: [{ text: sourceText }] });
+        }
+      });
+      await waitFor(() => {
+        const state = host.diagnosticsStateFor(document as unknown as vscode.TextDocument);
+        expect(state.status).toBe("current");
+        if (state.status === "current" && state.owner === "multi-document") {
+          expect(state.snapshot.documentVersion).toBe(2);
+          expect(state.snapshot.compiled?.spans.sourceMap.source).toBe(sourceText);
+          expect(state.snapshot.compiled?.diagnostics.filter(diagnostic => diagnostic.severity === "error")).toEqual([]);
+        }
+      });
+
+      useCadDocumentStore.setState(initialCadDocumentState());
+      useCadUiStore.setState(initialCadUiState());
+      canvas.props = null;
+      canvas.evaluation = null;
+      receiveGraphPublication = true;
+      app = render(<VSCodeApp api={api} />);
+      await sendReplacement(2);
+      registry.set(canvasSession());
+      await waitFor(() => expect(canvas.props?.evaluationState).toMatchObject({ status: "ready", source: "rust" }));
+      await waitFor(() => {
+        expect(canvas.evaluation?.errors).toEqual([]);
+        expect([...canvas.evaluation!.computedGeometry.values()].find(value => value.name === "Probe"))
+          .toMatchObject({ kind: "point", x: 24, y: 8 });
+      });
+      const currentPublication = publications.at(-1);
+      if (currentPublication?.status !== "current") throw new Error("Reopened Host graph was not current");
+      const hostGraphIdentity = {
+        hostDocumentUri: currentPublication.hostDocumentUri,
+        graphRevision: currentPublication.graph.revision,
+        sourceRevision: currentPublication.graph.rootSource.sourceRevision
+      };
+      expect(currentPublication.graph.rootSource.normalizedSource).toBe(sourceText);
+      expect(currentPublication.graph.valid).toBe(true);
+
+      feedbackSession = feedback.createSession("canvas", rootUri.toString());
+      const update = feedback.beginCanvasUpdate(feedbackSession, {
+        documentVersion: 2,
+        message: "Updating Canvas…",
+        graphIdentity: hostGraphIdentity
+      });
+      if (!update) throw new Error("Host did not begin Canvas update progress");
+      const collection = vscodeHost.surfaceDiagnosticCollections.at(-1);
+      if (!collection) throw new Error("Host surface DiagnosticCollection was not created");
+      expect(collection.entries.get(feedbackSession.uri.toString())).toContainEqual(
+        expect.objectContaining({ code: "canvas-updating", severity: 2, message: "Updating Canvas…" })
+      );
+      await act(async () => window.dispatchEvent(new MessageEvent("message", { data: {
+        type: "canvasUpdateProgress", documentVersion: update.documentVersion, generation: update.generation
+      } })));
+
+      const realCanvasModule = await vi.importActual<typeof import("../src/vscode/VSCodeDrawingCanvas")>(
+        "../src/vscode/VSCodeDrawingCanvas"
+      );
+      const reopenedCanvas = render(<realCanvasModule.VSCodeDrawingCanvas {...canvas.props as never} />);
+      renderedViews.push(reopenedCanvas);
+      const realDrawingCanvas = await vi.importActual<typeof import("../src/components/DrawingCanvas")>(
+        "../src/components/DrawingCanvas"
+      );
+      const drawProps = drawingSurface.props;
+      if (!drawProps) throw new Error("VSCodeDrawingCanvas did not provide the production DrawingCanvas props");
+      const calls = new Map<PropertyKey, ReturnType<typeof vi.fn>>();
+      const drawingContext = new Proxy({}, {
+        get: (_target, key) => {
+          let call = calls.get(key);
+          if (!call) {
+            call = key === "measureText"
+              ? vi.fn((value: string) => ({ width: value.length * 6 }))
+              : vi.fn();
+            calls.set(key, call);
+          }
+          return call;
+        },
+        set: () => true
+      }) as CanvasRenderingContext2D;
+      const width = vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(500);
+      const height = vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(400);
+      const bounds = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({
+        x: 0, y: 0, width: 500, height: 400, top: 0, right: 500, bottom: 400, left: 0, toJSON: () => ({})
+      } as DOMRect);
+      const getContext = vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(drawingContext);
+      restoreCanvasMocks.push(
+        () => width.mockRestore(),
+        () => height.mockRestore(),
+        () => bounds.mockRestore(),
+        () => getContext.mockRestore()
+      );
+      vi.stubGlobal("ResizeObserver", class { observe() {} disconnect() {} });
+      const drawingView = render(<realDrawingCanvas.DrawingCanvas {...drawProps as never} />);
+      renderedViews.push(drawingView);
+      await waitFor(() => expect(completions).toHaveLength(1));
+      const completion = completions[0]!;
+      const completionMessage = completion.message;
+      const readyPublication = api.postMessage.mock.calls.map(([message]) => message)
+        .filter(message => message.type === "surfaceDiagnosticsPublication" &&
+          message.surface === "canvas" && message.documentVersion === 2 &&
+          message.canvasUpdate?.generation === update.generation)
+        .at(-1);
+      const expectedFrameIdentity = {
+        documentVersion: update.documentVersion,
+        updateGeneration: update.generation,
+        sourceRevision: useCadDocumentStore.getState().sourceRevision,
+        graphIdentity: hostGraphIdentity,
+        evaluationRevision: completionMessage.evaluationRevision,
+        evaluationRequestRevision: completionMessage.evaluationRequestRevision
+      };
+      const observed = {
+        hostSourceRevision: hostGraphIdentity.sourceRevision,
+        localSourceRevision: completionMessage.sourceRevision,
+        sourceAndGeometryValid: currentPublication.graph.rootSource.normalizedSource === sourceText &&
+          currentPublication.graph.valid && canvas.evaluation?.errors.length === 0 &&
+          [...canvas.evaluation.computedGeometry.values()].some(value => value.name === "Probe" &&
+            value.kind === "point" && value.x === 24 && value.y === 8),
+        identityOnlyPublication: currentPublication.canvasRuntime?.identityOnly ?? false,
+        completionGraphIdentity: completionMessage.graphIdentity ?? null,
+        readyFrameIdentity: readyPublication?.canvasUpdate?.frameIdentity ?? null,
+        completionAcceptedByHost: completion.accepted,
+        updatingDiagnosticRemains: (collection.entries.get(feedbackSession.uri.toString()) ?? [])
+          .some(diagnostic => (diagnostic as { code?: string }).code === "canvas-updating"),
+        actualCanvasDraw: (calls.get("clearRect")?.mock.calls.length ?? 0) > 0
+      };
+      process.stdout.write(`[HIGH-01 reopen ${caseName}] ${JSON.stringify(observed)}\n`);
+
+      expect(completionMessage.sourceRevision).toBe(useCadDocumentStore.getState().sourceRevision);
+      expect(completionMessage.sourceRevision).not.toBe(hostGraphIdentity.sourceRevision);
+      expect(observed.sourceAndGeometryValid).toBe(true);
+      expect(observed.identityOnlyPublication).toBe(identityOnly);
+      expect(completionMessage).toMatchObject(expectedFrameIdentity);
+      expect(readyPublication?.canvasUpdate?.frameIdentity).toEqual(expectedFrameIdentity);
+      expect(completion.accepted).toBe(true);
+      await waitFor(() => expect(collection.entries.has(feedbackSession!.uri.toString())).toBe(false));
+      expect(acceptedPublications).toContain(true);
+      expect(observed.actualCanvasDraw).toBe(true);
+    } finally {
+      for (const view of renderedViews.reverse()) view.unmount();
+      for (const restore of restoreCanvasMocks.reverse()) restore();
+      vi.unstubAllGlobals();
+      host.dispose();
+      registry.clear();
+      app?.unmount();
+      feedback.dispose();
+    }
+  }, 30000);
 
   it("reopens Stage 8 with current Source diagnostics and a coherent graph-backed Canvas frame", async () => {
     vi.stubEnv("VITE_EVALUATION_ENGINE", "rust");

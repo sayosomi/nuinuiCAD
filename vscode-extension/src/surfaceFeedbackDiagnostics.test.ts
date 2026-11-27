@@ -72,6 +72,20 @@ const publication = (
   diagnostics: readonly { id: string; severity: "error" | "warning" | "info"; message: string }[]
 ) => ({ type: "surfaceDiagnosticsPublication" as const, surface, documentVersion: 5, presentationId, diagnostics });
 
+const frameIdentity = (updateGeneration: number, overrides: Record<string, unknown> = {}) => ({
+  documentVersion: 5,
+  updateGeneration,
+  sourceRevision: 8,
+  graphIdentity: {
+    hostDocumentUri: "file:///a.nui",
+    graphRevision: 14,
+    sourceRevision: 8
+  },
+  evaluationRevision: 14,
+  evaluationRequestRevision: 29,
+  ...overrides
+});
+
 describe("session scoped surface Problems", () => {
   beforeEach(() => {
     mocks.collection?.entries.clear();
@@ -133,6 +147,130 @@ describe("session scoped surface Problems", () => {
     feedback.disposeSession(session);
     expect(feedback.accept(session, publication("outputPreview", 9, []))).toBe(false);
     expect(mocks.collection?.entries.has(session.uri.toString())).toBe(false);
+    feedback.dispose();
+  });
+
+  it("composes Host-owned updating state with current Webview diagnostics and clears only progress after a draw", () => {
+    const feedback = new SurfaceFeedbackDiagnostics();
+    const session = feedback.createSession("canvas", "file:///a.nui");
+    const update = feedback.beginCanvasUpdate(session, { documentVersion: 5, message: "Updating Canvas…" });
+    expect(feedback.beginCanvasUpdate(session, { documentVersion: 5, message: "Updating Canvas…" })).toEqual(update);
+
+    expect(feedback.accept(session, {
+      ...publication("canvas", 1, [{ id: "warning", severity: "warning", message: "Unresolved geometry" }]),
+      canvasUpdate: { generation: update.generation, frameIdentity: frameIdentity(update.generation) }
+    })).toBe(true);
+    let problems = mocks.collection?.entries.get(session.uri.toString()) as Array<{ code: string; severity: number; message: string }>;
+    expect(problems.map(({ code }) => code)).toEqual(["warning", "canvas-updating"]);
+    expect(problems.find(({ code }) => code === "canvas-updating")).toMatchObject({
+      severity: 2,
+      message: "Updating Canvas…"
+    });
+
+    expect(feedback.completeCanvasUpdate(session, {
+      type: "canvasFrameDrawn",
+      ...frameIdentity(update.generation)
+    })).toBe(true);
+    problems = mocks.collection?.entries.get(session.uri.toString()) as Array<{ code: string; severity: number; message: string }>;
+    expect(problems).toEqual([expect.objectContaining({ code: "warning", message: "Unresolved geometry" })]);
+    expect(mocks.provider?.provideTextDocumentContent(session.uri)).toContain("Unresolved geometry");
+    expect(mocks.provider?.provideTextDocumentContent(session.uri)).not.toContain("Updating Canvas");
+    feedback.dispose();
+  });
+
+  it("rejects stale Source, graph, generation, evaluation, and request draw evidence", () => {
+    const feedback = new SurfaceFeedbackDiagnostics();
+    const session = feedback.createSession("canvas", "file:///a.nui");
+    const update = feedback.beginCanvasUpdate(session, { documentVersion: 5, message: "Updating Canvas…" });
+    const current = frameIdentity(update.generation);
+    expect(feedback.accept(session, {
+      ...publication("canvas", 1, []),
+      canvasUpdate: { generation: update.generation, frameIdentity: current }
+    })).toBe(true);
+
+    const staleCandidates = [
+      { ...current, documentVersion: 4 },
+      { ...current, updateGeneration: update.generation - 1 },
+      { ...current, sourceRevision: current.sourceRevision - 1 },
+      { ...current, graphIdentity: { ...current.graphIdentity, graphRevision: 13 } },
+      { ...current, graphIdentity: { ...current.graphIdentity, sourceRevision: current.graphIdentity.sourceRevision - 1 } },
+      { ...current, evaluationRevision: 13 },
+      { ...current, evaluationRequestRevision: 28 }
+    ];
+    for (const candidate of staleCandidates) {
+      expect(feedback.completeCanvasUpdate(session, { type: "canvasFrameDrawn", ...candidate })).toBe(false);
+    }
+    expect(mocks.collection?.entries.get(session.uri.toString())).toContainEqual(
+      expect.objectContaining({ code: "canvas-updating" })
+    );
+    expect(feedback.completeCanvasUpdate(session, { type: "canvasFrameDrawn", ...current })).toBe(true);
+    expect(mocks.collection?.entries.has(session.uri.toString())).toBe(false);
+    feedback.dispose();
+  });
+
+  it("restarts a same-version dependency update and rejects the preceding frame", () => {
+    const feedback = new SurfaceFeedbackDiagnostics();
+    const session = feedback.createSession("canvas", "file:///a.nui");
+    const graphOne = { hostDocumentUri: "file:///a.nui", graphRevision: 14, sourceRevision: 8 };
+    const graphTwo = { ...graphOne, graphRevision: 15 };
+    const first = feedback.beginCanvasUpdate(session, { documentVersion: 5, message: "Updating Canvas…", graphIdentity: graphOne });
+    const firstFrame = frameIdentity(first.generation);
+    expect(feedback.accept(session, {
+      ...publication("canvas", 1, []),
+      canvasUpdate: { generation: first.generation, frameIdentity: firstFrame }
+    })).toBe(true);
+
+    const second = feedback.beginCanvasUpdate(session, {
+      documentVersion: 5,
+      message: "Updating Canvas…",
+      forceNewGeneration: true
+    });
+    expect(second.generation).toBeGreaterThan(first.generation);
+    expect(feedback.setCanvasUpdateGraphIdentity(session, second, graphTwo)).toBe(true);
+    expect(feedback.completeCanvasUpdate(session, { type: "canvasFrameDrawn", ...firstFrame })).toBe(false);
+    expect(mocks.collection?.entries.get(session.uri.toString())).toContainEqual(
+      expect.objectContaining({ code: "canvas-updating" })
+    );
+    feedback.dispose();
+  });
+
+  it("replaces terminal unavailable state on recovery and clears only progress after the recovered draw", () => {
+    const feedback = new SurfaceFeedbackDiagnostics();
+    const session = feedback.createSession("canvas", "file:///a.nui");
+    const update = feedback.beginCanvasUpdate(session, { documentVersion: 5, message: "Updating Canvas…" });
+    const warning = { id: "retained-frame", severity: "warning" as const, message: "Showing last valid geometry" };
+    expect(feedback.terminateCanvasUpdate(session, {
+      generation: update.generation,
+      documentVersion: 5,
+      diagnostic: warning
+    })).toBe(true);
+    expect(mocks.collection?.entries.get(session.uri.toString())).toContainEqual(
+      expect.objectContaining({ code: "retained-frame", severity: 1, message: warning.message })
+    );
+    expect(mocks.collection?.entries.get(session.uri.toString())).not.toContainEqual(
+      expect.objectContaining({ code: "canvas-updating" })
+    );
+
+    const recovered = feedback.beginCanvasUpdate(session, { documentVersion: 6, message: "Updating Canvas…" });
+    const recoveredFrame = {
+      documentVersion: 6,
+      updateGeneration: recovered.generation,
+      sourceRevision: 9,
+      evaluationRevision: 16,
+      evaluationRequestRevision: 30
+    };
+    expect(mocks.collection?.entries.get(session.uri.toString())).not.toContainEqual(
+      expect.objectContaining({ code: "retained-frame" })
+    );
+    expect(feedback.accept(session, {
+      ...publication("canvas", 1, [{ id: "current-warning", severity: "warning", message: "Current geometry warning" }]),
+      documentVersion: 6,
+      canvasUpdate: { generation: recovered.generation, frameIdentity: recoveredFrame }
+    })).toBe(true);
+    expect(feedback.completeCanvasUpdate(session, { type: "canvasFrameDrawn", ...recoveredFrame })).toBe(true);
+    expect(mocks.collection?.entries.get(session.uri.toString())).toEqual([
+      expect.objectContaining({ code: "current-warning", message: "Current geometry warning" })
+    ]);
     feedback.dispose();
   });
 });
