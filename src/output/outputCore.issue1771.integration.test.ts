@@ -54,6 +54,71 @@ const matrix: MatrixCase[] = [
   { id: "unmapped-u0378", label: "\u0378", basePdf: null, expectedPdf: "REJECT", expectedSvg: false, expectedError: "PDF text character U+0378 is not mapped by /UniJIS-UCS2-H" }
 ];
 
+type JapaneseLineContract = {
+  hex: string[];
+  advancesMm: number[];
+  tjAdjustments: number[];
+};
+
+const japaneseLineContracts: Record<string, JapaneseLineContract> = {
+  "AB 日本": {
+    hex: ["0041", "0042", "0020", "65E5", "672C"],
+    advancesMm: [2.48, 2.48, 2.48, 4, 4],
+    tjAdjustments: [380, 380, 380, 0, 0]
+  },
+  "妖精 手": {
+    hex: ["5996", "7CBE", "0020", "624B"],
+    advancesMm: [4, 4, 2.48, 4],
+    tjAdjustments: [0, 0, 380, 0]
+  },
+  "後頭部・襟足・体前": {
+    hex: ["5F8C", "982D", "90E8", "30FB", "895F", "8DB3", "30FB", "4F53", "524D"],
+    advancesMm: [4, 4, 4, 4, 4, 4, 4, 4, 4],
+    tjAdjustments: [0, 0, 0, 0, 0, 0, 0, 0, 0]
+  },
+  "縫い代10mm（右）": {
+    hex: ["7E2B", "3044", "4EE3", "0031", "0030", "006D", "006D", "FF08", "53F3", "FF09"],
+    advancesMm: [4, 4, 4, 2.48, 2.48, 2.48, 2.48, 4, 4, 4],
+    tjAdjustments: [0, 0, 0, 380, 380, 380, 380, 0, 0, 0]
+  },
+  "裁断型紙": {
+    hex: ["88C1", "65AD", "578B", "7D19"],
+    advancesMm: [4, 4, 4, 4],
+    tjAdjustments: [0, 0, 0, 0]
+  },
+  "袖": { hex: ["8896"], advancesMm: [4], tjAdjustments: [0] },
+  "肩": { hex: ["80A9"], advancesMm: [4], tjAdjustments: [0] },
+  "髙": { hex: ["9AD9"], advancesMm: [4], tjAdjustments: [0] },
+  "﨑": { hex: ["FA11"], advancesMm: [4], tjAdjustments: [0] }
+};
+
+const expectedPages = [
+  { originMm: { x: -10, y: -10 }, column: 0 },
+  { originMm: { x: 180, y: -10 }, column: 1 }
+] as const;
+const cos30 = Math.sqrt(3) / 2;
+const expectedTextPlacements = [
+  { anchorMm: { x: 28, y: 110 }, rotationDeg: 0, mirrorX: false },
+  {
+    anchorMm: { x: 260 - 8 * cos30 - 40, y: 70 - 4 + 80 * cos30 },
+    rotationDeg: 30,
+    mirrorX: true
+  }
+] as const;
+const expectedReferenceSegmentsMm = [
+  { start: { x: 20, y: 30 }, end: { x: 120, y: 30 } },
+  { start: { x: 260, y: 70 }, end: { x: 260 - 100 * cos30, y: 20 } }
+] as const;
+
+const lineContractsFor = (label: string): JapaneseLineContract[] => label.split("\n").map((line) => {
+  const contract = japaneseLineContracts[line];
+  if (!contract) throw new Error("Missing independent Japanese fixture contract for " + JSON.stringify(line));
+  return contract;
+});
+
+const expectedTjValues = (contract: JapaneseLineContract): (string | number)[] =>
+  contract.hex.flatMap((hex, index) => ["<" + hex + ">", contract.tjAdjustments[index]!]);
+
 const buildSource = (label: string) => {
   expect(fixture).toContain(fixtureLabelLiteral);
   return canonicalRegressionSource(fixture.replace(fixtureLabelLiteral, JSON.stringify(label)));
@@ -162,7 +227,6 @@ const validatePlan = (plan: OutputPlan, label: string) => {
   const lines = plan.drawables.filter((drawable) => drawable.name === "Reference");
   expect(lines).toHaveLength(2);
   expect(lines[0]).toMatchObject({ kind: "line", start: { x: 20, y: 30 }, end: { x: 120, y: 30 }, stroke: { colorHex: "#31322f" } });
-  const cos30 = Math.sqrt(3) / 2;
   expect(lines[1]?.kind).toBe("line");
   if (lines[1]?.kind !== "line") throw new Error("second reference must be a line");
   near(lines[1].start.x, 260);
@@ -176,8 +240,8 @@ const validatePlan = (plan: OutputPlan, label: string) => {
   expect(texts.map((text) => text.fontSizeMm)).toEqual([4, 4]);
   expect(texts.map((text) => text.colorHex)).toEqual(["#31322f", "#31322f"]);
   expect(texts[0]?.anchor).toEqual({ x: 28, y: 110 });
-  near(texts[1]!.anchor.x, 260 - 8 * cos30 - (80 - 20) * 0.5 - 10);
-  near(texts[1]!.anchor.y, 70 - 4 + 80 * cos30);
+  near(texts[1]!.anchor.x, expectedTextPlacements[1].anchorMm.x);
+  near(texts[1]!.anchor.y, expectedTextPlacements[1].anchorMm.y);
   for (const text of texts) {
     expect(text.lineHeightMm).toBe(4.8);
     expect(text.lineAdvancesMm.map((line) => line.length)).toEqual(label.split("\n").map((line) => [...line].length));
@@ -216,9 +280,18 @@ const extractPdfText = (pdf: ReturnType<typeof parsePdf>) => pdf.pages.flatMap((
   })
 );
 
-const verifyPdf = (bytes: Buffer, plan: OutputPlan, label: string) => {
+const validateJapanesePlanAdvances = (plan: OutputPlan, label: string) => {
+  const contracts = lineContractsFor(label);
+  const texts = plan.drawables.filter((drawable): drawable is OutputText => drawable.kind === "text");
+  expect(texts).toHaveLength(2);
+  for (const text of texts) {
+    expect(text.lineHeightMm).toBe(4.8);
+    expect(text.lineAdvancesMm).toEqual(contracts.map((contract) => contract.advancesMm));
+  }
+};
+
+const verifyPdf = (bytes: Buffer, label: string) => {
   const pdf = parsePdf(bytes);
-  const expectedPages = plan.print!.pages;
   expect(pdf.pages).toHaveLength(expectedPages.length);
   const fontObjects = [...pdf.objects.values()].join("\n");
   expect(fontObjects).toContain("/BaseFont /HeiseiKakuGo-W5 /Encoding /UniJIS-UCS2-H");
@@ -226,8 +299,8 @@ const verifyPdf = (bytes: Buffer, plan: OutputPlan, label: string) => {
 
   const pt = pointsPerMm;
   const textRecords = extractPdfText(pdf);
-  const expectedLines = label.split("\n").map((line) => [...line].map((character) => character.codePointAt(0)!));
-  const textDrawables = plan.drawables.filter((drawable): drawable is OutputText => drawable.kind === "text");
+  const lineContracts = lineContractsFor(label);
+  const expectedSequences = lineContracts.map((contract) => JSON.stringify(contract.hex.map((hex) => Number.parseInt(hex, 16))));
 
   for (const [pageIndex, page] of pdf.pages.entries()) {
     near(page.box[0]!, 0);
@@ -243,44 +316,44 @@ const verifyPdf = (bytes: Buffer, plan: OutputPlan, label: string) => {
     expect(page.ops[clipIndex + 1]?.op).toBe("W");
     expect(page.ops[clipIndex + 2]?.op).toBe("n");
 
-    const origin = expectedPages[pageIndex]!.origin;
-    for (const line of plan.drawables.filter((drawable) => drawable.name === "Reference")) {
-      if (line.kind !== "line") continue;
-      const start = [(line.start.x - origin.x) * pt, (line.start.y - origin.y) * pt];
-      const end = [(line.end.x - origin.x) * pt, (line.end.y - origin.y) * pt];
+    const origin = expectedPages[pageIndex]!.originMm;
+    for (const segment of expectedReferenceSegmentsMm) {
+      const start = [(segment.start.x - origin.x) * pt, (segment.start.y - origin.y) * pt];
+      const end = [(segment.end.x - origin.x) * pt, (segment.end.y - origin.y) * pt];
       const hasLine = page.ops.some((operation, index) => operation.op === "m" &&
         page.ops[index + 1]?.op === "l" && page.ops[index + 2]?.op === "S" &&
         Math.abs(Number(operation.args[0]) - start[0]!) < pageTolerance &&
         Math.abs(Number(operation.args[1]) - start[1]!) < pageTolerance &&
         Math.abs(Number(page.ops[index + 1]!.args[0]) - end[0]!) < pageTolerance &&
         Math.abs(Number(page.ops[index + 1]!.args[1]) - end[1]!) < pageTolerance);
-      expect(hasLine, `page ${pageIndex} retains the independent reference line`).toBe(true);
+      expect(hasLine, "page " + pageIndex + " retains the independent reference line").toBe(true);
     }
 
-    for (const text of textDrawables) {
-      for (const [lineIndex, expectedCodepoints] of expectedLines.entries()) {
-        const angle = text.rotationDeg * Math.PI / 180;
-        const sign = text.mirrorX ? -1 : 1;
+    for (const [lineIndex, contract] of lineContracts.entries()) {
+      const expectedCodepoints = contract.hex.map((hex) => Number.parseInt(hex, 16));
+      const localY = -lineIndex * 4.8;
+      for (const placement of expectedTextPlacements) {
+        const angle = placement.rotationDeg * Math.PI / 180;
+        const sign = placement.mirrorX ? -1 : 1;
         const a = Math.cos(angle) * sign;
         const b = Math.sin(angle) * sign;
         const c = -Math.sin(angle);
         const d = Math.cos(angle);
-        const localY = -lineIndex * text.lineHeightMm;
         const expectedMatrix = [
           a, b, c, d,
-          (text.anchor.x + c * localY - origin.x) * pt,
-          (text.anchor.y + d * localY - origin.y) * pt
+          (placement.anchorMm.x + c * localY - origin.x) * pt,
+          (placement.anchorMm.y + d * localY - origin.y) * pt
         ];
-        const record = textRecords.find((candidate) => candidate.pageIndex === pageIndex &&
+        const records = textRecords.filter((candidate) => candidate.pageIndex === pageIndex &&
           JSON.stringify(candidate.codepoints) === JSON.stringify(expectedCodepoints) &&
           candidate.matrix?.length === 6 && candidate.matrix.every((value, index) => Math.abs(value - expectedMatrix[index]!) < pageTolerance));
-        expect(record, `page ${pageIndex} carries ${JSON.stringify(expectedCodepoints)} with the independent text matrix`).toBeDefined();
-        expect(record!.color).toEqual([0.192, 0.196, 0.184]);
-        near(record!.fontSizePt!, 4 * pt);
+        expect(records, "page " + pageIndex + " has one independently placed line " + lineIndex).toHaveLength(1);
+        expect(records[0]!.values).toEqual(expectedTjValues(contract));
+        expect(records[0]!.color).toEqual([0.192, 0.196, 0.184]);
+        near(records[0]!.fontSizePt!, 4 * pt);
       }
     }
 
-    const expectedSequences = expectedLines.map((line) => JSON.stringify(line));
     const observedSequences = textRecords
       .filter((record) => record.pageIndex === pageIndex && expectedSequences.includes(JSON.stringify(record.codepoints)))
       .map((record) => JSON.stringify(record.codepoints));
@@ -432,8 +505,9 @@ describe("Issue 1771 Adobe Japanese PDF text support", () => {
         expect(actual).toEqual(sentinel);
       } else {
         expect(pdfError).toBeUndefined();
+        validateJapanesePlanAdvances(pdfPlan, entry.label);
         const bytes = readFileSync(pdfPath);
-        record.pdf = { status: "PASS", bytes: bytes.length, sha256: sha256(bytes), artifact: verifyPdf(bytes, pdfPlan, entry.label) };
+        record.pdf = { status: "PASS", bytes: bytes.length, sha256: sha256(bytes), artifact: verifyPdf(bytes, entry.label) };
       }
 
       if (entry.expectedSvg) {
@@ -465,7 +539,7 @@ describe("Issue 1771 Adobe Japanese PDF text support", () => {
     expect(pdfPlan.renderedBounds).toEqual(svgPlan.renderedBounds);
 
     const firstText = pdfPlan.drawables.find((drawable): drawable is OutputText => drawable.kind === "text")!;
-    expect(firstText.lineAdvancesMm.slice(0, 2)).toEqual([[2.48, 2.48, 2.48, 4, 4], [4, 4, 2.48, 4]]);
+    validateJapanesePlanAdvances(pdfPlan, label);
     expect(firstText.lineWidthsMm.slice(0, 2)).toEqual([15.44, 14.48]);
     expect(firstText.widthMm).toBe(Math.max(...firstText.lineWidthsMm));
     expect(pdfPlan.print?.pages.flatMap((page) => page.guides).filter((guide) => guide.label)).toHaveLength(2);
@@ -474,9 +548,7 @@ describe("Issue 1771 Adobe Japanese PDF text support", () => {
     const pdfResponse = await bounded(rust!.exportOutput({ path: pdfPath, payload: pdfPlan.rustPayload }), "multiline PDF export");
     expect(pdfResponse).toEqual({ exported: true });
     const pdfBytes = readFileSync(pdfPath);
-    record.pdf = { status: "PASS", bytes: pdfBytes.length, sha256: sha256(pdfBytes), artifact: verifyPdf(pdfBytes, pdfPlan, label) };
-    const firstLine = extractPdfText(parsePdf(pdfBytes)).find((text) => text.pageIndex === 0 && text.codepoints.join(",") === "65,66,32,26085,26412");
-    expect(firstLine?.values).toEqual(["<0041>", 380, "<0042>", 380, "<0020>", 380, "<65E5>", 0, "<672C>", 0]);
+    record.pdf = { status: "PASS", bytes: pdfBytes.length, sha256: sha256(pdfBytes), artifact: verifyPdf(pdfBytes, label) };
 
     const svgPath = join(artifactDirectory, "multiline-transformed-layout.svg");
     const svgResponse = await bounded(rust!.exportOutput({ path: svgPath, payload: svgPlan.rustPayload }), "multiline SVG export");
