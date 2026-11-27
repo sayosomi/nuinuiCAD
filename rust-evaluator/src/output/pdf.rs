@@ -31,22 +31,18 @@ fn page_point(point: OutputPoint, origin: OutputPoint) -> (String, String) {
     )
 }
 
-// This is a deliberately conservative subset of the code points mapped by the
-// fixed /UniJIS-UCS2-H path used below. Keep this table encoder-owned and do
-// not widen a range without verifying that the corresponding CMap entry exists.
-const PDF_UCS2_SUPPORTED_RANGES: &[(u32, u32)] = &[
-    (0x0020, 0x007E), // printable ASCII
-    (0x3041, 0x3094), // hiragana
-    (0x309B, 0x309E), // hiragana iteration marks and voiced marks
-    (0x30A1, 0x30FE), // katakana and iteration marks
-    (0x65E5, 0x65E5), // 日
-    (0x672C, 0x672C), // 本
-];
+// Generated from the pinned Adobe UniJIS-UCS2-H CMap. This bitmap contains
+// only ordinary BMP mappings whose CID is present in the declared Japan1
+// Supplement 2 font. See the adjacent source and generator for provenance.
+const PDF_UCS2_SUPPORTED_BITMAP: &[u8; 8_192] = include_bytes!("pdf_cmap/ucs2_supplement2.bin");
 
 fn pdf_ucs2_cmap_supports(code: u32) -> bool {
-    PDF_UCS2_SUPPORTED_RANGES
-        .iter()
-        .any(|&(start, end)| (start..=end).contains(&code))
+    if code > u16::MAX as u32 {
+        return false;
+    }
+    let byte = (code >> 3) as usize;
+    let bit = 1 << (code & 7);
+    PDF_UCS2_SUPPORTED_BITMAP[byte] & bit != 0
 }
 
 fn pdf_ucs2_hex(character: char) -> Result<String, String> {
@@ -787,6 +783,137 @@ mod tests {
         text_bounds_relative, OutputBounds, OutputGuide, OutputJoiningLabel, OutputPrintPage,
     };
 
+    fn cmap_mappings(source: &str) -> Vec<Option<u32>> {
+        let mut mappings = vec![None; 0x1_0000];
+        let mut active_block: Option<&str> = None;
+        let mut declared_rows = 0usize;
+        let mut actual_rows = 0usize;
+        let mut blocks = [0usize; 2];
+        let mut rows = [0usize; 2];
+        let mut mapped_codepoints = 0usize;
+
+        for line in source.lines() {
+            let line = line.trim();
+            if active_block.is_none() {
+                if let Some(count) = line.strip_suffix(" begincidrange") {
+                    declared_rows = count.parse().expect("cidrange row count should be numeric");
+                    actual_rows = 0;
+                    active_block = Some("cidrange");
+                    blocks[0] += 1;
+                } else if let Some(count) = line.strip_suffix(" begincidchar") {
+                    declared_rows = count.parse().expect("cidchar row count should be numeric");
+                    actual_rows = 0;
+                    active_block = Some("cidchar");
+                    blocks[1] += 1;
+                }
+                continue;
+            }
+
+            let block = active_block.expect("block was set above");
+            if line.strip_prefix("end") == Some(block) {
+                assert_eq!(actual_rows, declared_rows, "CMap block row count changed");
+                active_block = None;
+                continue;
+            }
+
+            if line.is_empty() {
+                continue;
+            }
+
+            let fields: Vec<_> = line.split_whitespace().collect();
+            let (start, end, first_cid) = match block {
+                "cidrange" => {
+                    assert_eq!(fields.len(), 3, "unsupported cidrange row");
+                    (
+                        u32::from_str_radix(fields[0].trim_matches(['<', '>']), 16)
+                            .expect("cidrange start should be hexadecimal"),
+                        u32::from_str_radix(fields[1].trim_matches(['<', '>']), 16)
+                            .expect("cidrange end should be hexadecimal"),
+                        fields[2]
+                            .parse::<u32>()
+                            .expect("cidrange CID should be numeric"),
+                    )
+                }
+                "cidchar" => {
+                    assert_eq!(fields.len(), 2, "unsupported cidchar row");
+                    let codepoint = u32::from_str_radix(fields[0].trim_matches(['<', '>']), 16)
+                        .expect("cidchar code should be hexadecimal");
+                    (
+                        codepoint,
+                        codepoint,
+                        fields[1]
+                            .parse::<u32>()
+                            .expect("cidchar CID should be numeric"),
+                    )
+                }
+                _ => unreachable!("only ordinary cidrange/cidchar blocks are parsed"),
+            };
+            assert!(start <= end, "CMap range should be ordered");
+            for codepoint in start..=end {
+                let slot = &mut mappings[codepoint as usize];
+                assert!(slot.is_none(), "duplicate ordinary CMap mapping");
+                *slot = Some(first_cid + codepoint - start);
+                mapped_codepoints += 1;
+            }
+            actual_rows += 1;
+            rows[if block == "cidrange" { 0 } else { 1 }] += 1;
+        }
+
+        assert!(active_block.is_none(), "CMap block should be terminated");
+        assert_eq!(blocks, [86, 0]);
+        assert_eq!(rows, [8_533, 0]);
+        assert_eq!(mapped_codepoints, 9_772);
+        mappings
+    }
+
+    fn independent_cmap_supports(codepoint: u32, mappings: &[Option<u32>]) -> bool {
+        let Some(cid) = mappings[codepoint as usize] else {
+            return false;
+        };
+        codepoint >= 0x0020
+            && !(0x007f..=0x009f).contains(&codepoint)
+            && !(0xd800..=0xdfff).contains(&codepoint)
+            && (1..=8_719).contains(&cid)
+    }
+
+    #[test]
+    fn generated_bitmap_matches_the_independently_parsed_adobe_cmap_for_every_bmp_codepoint() {
+        let source = include_str!("pdf_cmap/UniJIS-UCS2-H");
+        assert!(source.contains("%%Version: 12.006"));
+        assert!(source.contains("/Registry (Adobe) def"));
+        assert!(source.contains("/Ordering (Japan1) def"));
+        assert!(source.contains("/Supplement 4 def"));
+        let mappings = cmap_mappings(source);
+        assert_eq!(mappings[0x5996], Some(3_887));
+        assert_eq!(mappings[0x7cbe], Some(2_654));
+        assert_eq!(mappings[0x20ac], Some(9_354));
+
+        let mut supported_count = 0;
+        for codepoint in 0..=u16::MAX as u32 {
+            let expected = independent_cmap_supports(codepoint, &mappings);
+            assert_eq!(
+                pdf_ucs2_cmap_supports(codepoint),
+                expected,
+                "bitmap mismatch for U+{codepoint:04X}"
+            );
+            supported_count += usize::from(expected);
+        }
+        assert_eq!(supported_count, 8_175);
+
+        for &(start, end) in &[
+            (0x0020, 0x007e),
+            (0x3041, 0x3094),
+            (0x309b, 0x309e),
+            (0x30a1, 0x30fe),
+            (0x65e5, 0x65e5),
+            (0x672c, 0x672c),
+        ] {
+            for codepoint in start..=end {
+                assert!(pdf_ucs2_cmap_supports(codepoint));
+            }
+        }
+    }
+
     fn joining_label(text: &str, center: OutputPoint, rotation_deg: f64) -> OutputJoiningLabel {
         OutputJoiningLabel {
             text: text.to_owned(),
@@ -1282,6 +1409,24 @@ mod tests {
         assert!(error.contains("U+0627"));
         assert!(error.contains("not mapped"));
         assert!(error.contains("UniJIS-UCS2-H"));
+    }
+
+    #[test]
+    fn rejects_supplement_four_mappings_outside_the_declared_font_supplement() {
+        let error = pdf_ucs2_hex('\u{20ac}').expect_err("CID 9354 is outside Supplement 2");
+        assert_eq!(
+            error,
+            "PDF text character U+20AC is not mapped by /UniJIS-UCS2-H"
+        );
+        assert!(pdf_ucs2_hex('\u{0378}').is_err());
+        for codepoint in [0x0001, 0x001f, 0x007f, 0x0085, 0x009f] {
+            let character = char::from_u32(codepoint).expect("test codepoint is a scalar");
+            assert_eq!(
+                pdf_ucs2_hex(character).expect_err("C0/C1 controls are not PDF text"),
+                format!("PDF text character U+{codepoint:04X} is not mapped by /UniJIS-UCS2-H")
+            );
+        }
+        assert!(!pdf_ucs2_cmap_supports(0x1_0000));
     }
 
     #[test]
