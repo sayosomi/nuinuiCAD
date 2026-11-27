@@ -2,12 +2,20 @@ import { afterEach, describe, expect, inject, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
+import { panViewportByScreenDelta, VIEWPORT_ZOOM_STEP } from "../geometry/viewport";
 import { CanvasLayerPanel } from "../components/CanvasLayerPanel";
 import type { OutputPlan } from "../output/outputCore";
 import { evaluateElementsReferencePayload } from "../geometry/evaluationEngine";
 import { OutputPreviewApp } from "./OutputPreviewApp";
 import { outputPreviewDiagnosticSourceRangeFor } from "./outputPreviewDiagnostics";
-import { fitOutputPreviewViewport, outputPreviewFitBoundsFor, outputPreviewScreenToWorld, outputPreviewWorldToScreen } from "./outputPreviewViewport";
+import { outputPreviewPathDataFor } from "./outputPreviewRendering";
+import {
+  fitOutputPreviewViewport,
+  outputPreviewFitBoundsFor,
+  outputPreviewScreenToWorld,
+  outputPreviewWorldToScreen,
+  zoomOutputPreviewViewportAt
+} from "./outputPreviewViewport";
 import type { DslDiagnostic } from "@nuinuicad/nui-language";
 import { compileDslDocument, createModuleRuntimeContext } from "@nuinuicad/nui-language";
 import {
@@ -342,6 +350,30 @@ const importedTwoPlacePrintOutputRoot = [
 ].join("\n");
 const importedTwoPlaceTwoSvgOutputRoot = importedTwoPlaceOutputRoot + "\nsvg Backup(layout: L, layers: [default], margin: 2)";
 
+const drawableIdentityDependency = [
+  "nui 1",
+  "export module DartCenter() {",
+  "  export line centerline = segment(start: (0, 0), end: (0, 10))",
+  "  export line segmented = polyline(points: [(5, 0), (5, 10), (10, 10)])",
+  "  export text notch = label(text: \"notch\", anchor: (0, 5), size: 3)",
+  "}"
+].join("\n");
+
+const overlappingOutputRoot = [
+  "nui 1",
+  'import "./dart_seam.nui" as dart_seam',
+  "group G {",
+  "  instance center = dart_seam::DartCenter()",
+  "}",
+  "layout L {",
+  "  place G(at: (20, 30), mirror: false)",
+  "  place G(at: (20, 30), mirror: false)",
+  "  place G(at: (20, 30), mirror: true)",
+  "}",
+  "print Pages(layout: L, layers: [default], paper: a4, orientation: portrait, overlap: 10)",
+  "svg Preview(layout: L, layers: [default], margin: 1)"
+].join("\n");
+
 const standaloneTwoPlaceOutputSource = [
   "nui 1",
   "group G {",
@@ -443,6 +475,43 @@ const planForImportedTwoPlaceRoot = async (rootSource: string, outputKind: "svg"
   return { compiled, publication, plan };
 };
 
+const planForOverlappingPlacements = async (outputKind: "svg" | "print") => {
+  const { compiled, publication } = await importedGraphPublication(
+    overlappingOutputRoot,
+    1,
+    1,
+    drawableIdentityDependency
+  );
+  if (!isLastGoodDslDocument(compiled)) throw new Error("missing current overlapping-placement graph compile");
+  const actual = await vi.importActual<typeof import("../output/outputCore")>("../output/outputCore");
+  const output = outputKind === "svg"
+    ? compiled.document.svgOutputs[0]
+    : compiled.document.printOutputs[0];
+  if (!output) throw new Error(`missing ${outputKind} overlapping-placement output`);
+  const plan = await actual.evaluateOutputPlan({ compiledDocument: compiled, output });
+  return { compiled, publication, plan };
+};
+
+const renderPublishedOutputPlan = async (
+  rootSource: string,
+  publication: VscodeMultiDocumentGraphPublication,
+  plan: OutputPlan
+) => {
+  render(<OutputPreviewApp api={api} />);
+  sendImportedSource(rootSource);
+  sendGraphPublication(publication);
+  await waitFor(() => expect(outputPreviewPlanRequests()).toHaveLength(1));
+  const request = outputPreviewPlanRequests()[0]!;
+  postWindowMessage({
+    type: "outputPreviewPlanResult",
+    requestId: request.requestId,
+    graphAuthority: request.graphAuthority,
+    plan
+  });
+  expect(await screen.findByLabelText("Output preview")).toBeInTheDocument();
+  return screen.getByLabelText("Output preview");
+};
+
 const renderImportedPlan = async (rootSource: string, outputKind: "svg" | "print" = "svg") => {
   const accepted = await planForImportedTwoPlaceRoot(rootSource, outputKind);
   render(<OutputPreviewApp api={api} />);
@@ -474,7 +543,7 @@ const sourceAfterPlaceCommit = (
   .reduce((text, patch) => text.slice(0, patch.range.from) + patch.replacement + text.slice(patch.range.to), sourceText);
 
 const geometryPathData = () => [...screen.getByLabelText("Output preview").querySelectorAll<SVGPathElement>(
-  '[data-output-preview-layer="geometry"]'
+  'path[data-output-preview-layer="geometry"]'
 )].map((path) => path.getAttribute("d"));
 
 const visibleGeometryPathData = () => [...document.querySelectorAll<SVGPathElement>(
@@ -515,6 +584,435 @@ const createControlledRustApi = () => {
 };
 
 describe("Output Preview application", () => {
+  it("keeps canonical overlapping geometry identity stable across pan and zoom updates", async () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(viewportRect);
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { compiled, publication, plan } = await planForOverlappingPlacements("print");
+    expect(compiled.diagnostics).toEqual([]);
+    expect(publication.graph.valid).toBe(true);
+    expect(plan.placements).toHaveLength(3);
+    expect(plan.placements.map(({ mirror }) => mirror)).toEqual([false, false, true]);
+    expect(plan.placements.map(({ drawables }) => drawables.length)).toEqual([3, 3, 3]);
+    expect(plan.drawables.map(({ kind }) => kind)).toEqual([
+      "line", "polyline", "text",
+      "line", "polyline", "text",
+      "line", "polyline", "text"
+    ]);
+    expect(plan.rustPayload.drawables).toEqual(plan.drawables);
+
+    const centerlines = plan.drawables.filter((drawable) => drawable.kind === "line");
+    expect(centerlines).toHaveLength(3);
+    expect(new Set(centerlines.map(({ elementId }) => elementId)).size).toBe(1);
+    expect(centerlines.map(({ start, end }) => [start, end])).toEqual([
+      [{ x: 20, y: 30 }, { x: 20, y: 40 }],
+      [{ x: 20, y: 30 }, { x: 20, y: 40 }],
+      [{ x: 20, y: 30 }, { x: 20, y: 40 }]
+    ]);
+    const segmentedPaths = plan.drawables.filter((drawable) => drawable.kind === "polyline");
+    expect(segmentedPaths).toHaveLength(3);
+    expect(segmentedPaths.map(({ elementId }) => elementId)).toEqual([
+      segmentedPaths[0]!.elementId,
+      segmentedPaths[0]!.elementId,
+      segmentedPaths[0]!.elementId
+    ]);
+    expect(segmentedPaths.map(({ segments }) => segments)).toEqual([
+      expect.arrayContaining([expect.objectContaining({ kind: "line" }), expect.objectContaining({ kind: "line" })]),
+      expect.arrayContaining([expect.objectContaining({ kind: "line" }), expect.objectContaining({ kind: "line" })]),
+      expect.arrayContaining([expect.objectContaining({ kind: "line" }), expect.objectContaining({ kind: "line" })])
+    ]);
+    const labels = plan.drawables.filter((drawable) => drawable.kind === "text");
+    expect(labels).toHaveLength(3);
+    expect(new Set(labels.map(({ elementId }) => elementId)).size).toBe(1);
+    expect(labels.map(({ anchor }) => anchor)).toEqual([
+      { x: 20, y: 35 },
+      { x: 20, y: 35 },
+      { x: 20, y: 35 }
+    ]);
+
+    const svg = await renderPublishedOutputPlan(overlappingOutputRoot, publication, plan);
+    const currentPreviewSvg = () => screen.getByLabelText("Output preview");
+    const initialGeometryNodes = [...svg.querySelectorAll('[data-output-preview-layer="geometry"]')];
+    const initialPathNodes = [...svg.querySelectorAll<SVGPathElement>('path[data-output-preview-layer="geometry"]')];
+    const initialTextNodes = [...svg.querySelectorAll<SVGTextElement>('text[data-output-preview-layer="geometry"]')];
+    const fitBounds = outputPreviewFitBoundsFor(plan);
+    if (!fitBounds) throw new Error("missing SVG fit bounds for identity fixture");
+    postWindowMessage({ type: "outputPreviewFit" });
+    const fitViewport = fitOutputPreviewViewport(fitBounds, {
+      width: viewportRect.width,
+      height: viewportRect.height
+    });
+    const viewport = document.querySelector(".output-preview-viewport");
+    if (!(viewport instanceof HTMLElement)) throw new Error("missing output preview viewport");
+    const deltaY = -100;
+    fireEvent.wheel(viewport, { deltaY, clientX: 250, clientY: 150 });
+    const afterZoomViewport = zoomOutputPreviewViewportAt(
+      fitViewport,
+      Math.pow(VIEWPORT_ZOOM_STEP, -deltaY / 100),
+      { x: 250, y: 150, width: viewportRect.width, height: viewportRect.height }
+    );
+    const size = { width: viewportRect.width, height: viewportRect.height };
+    const expectedPathData = plan.drawables
+      .filter((drawable) => drawable.kind !== "text")
+      .map((drawable) => outputPreviewPathDataFor(drawable, size, afterZoomViewport));
+    const expectedCenterlinePathData = centerlines.map((drawable) => outputPreviewPathDataFor(drawable, size, afterZoomViewport));
+    const expectedGeometryTagOrder = plan.drawables.map((drawable) => drawable.kind === "text" ? "text" : "path");
+    const expectedScreenPoints = expectedCenterlinePathData.map((path) => lineScreenPoints(path));
+    const afterGeometryNodes = [...svg.querySelectorAll('[data-output-preview-layer="geometry"]')];
+    const afterPathNodes = [...svg.querySelectorAll<SVGPathElement>('path[data-output-preview-layer="geometry"]')];
+    const afterTextNodes = [...svg.querySelectorAll<SVGTextElement>('text[data-output-preview-layer="geometry"]')];
+    const afterPathData = afterPathNodes.map((path) => path.getAttribute("d"));
+    const duplicateKeyWarnings = consoleError.mock.calls
+      .map((args) => args.map(String).join(" "))
+      .filter((message) => /same key/i.test(message));
+    const stalePathCount = afterPathData.filter((path) => !expectedPathData.includes(path)).length;
+    const observedCenterlineScreenPoints = afterPathNodes
+      .filter((_, index) => index % 2 === 0)
+      .map((path) => lineScreenPoints(path.getAttribute("d")));
+
+    expect({
+      duplicateKeyWarnings,
+      initialGeometryCount: initialGeometryNodes.length,
+      afterGeometryCount: afterGeometryNodes.length,
+      initialPathCount: initialPathNodes.length,
+      afterPathCount: afterPathNodes.length,
+      initialTextCount: initialTextNodes.length,
+      afterTextCount: afterTextNodes.length,
+      geometryTagOrder: afterGeometryNodes.map((node) => node.tagName.toLowerCase()),
+      pathNodeIdentityPreserved: afterPathNodes.every((path, index) => path === initialPathNodes[index]),
+      textNodeIdentityPreserved: afterTextNodes.every((text, index) => text === initialTextNodes[index]),
+      stalePathCount,
+      afterPathData,
+      expectedPathData,
+      centerlineScreenPoints: observedCenterlineScreenPoints,
+      expectedCenterlineScreenPoints: expectedScreenPoints
+    }).toEqual({
+      duplicateKeyWarnings: [],
+      initialGeometryCount: plan.drawables.length,
+      afterGeometryCount: plan.drawables.length,
+      initialPathCount: 6,
+      afterPathCount: 6,
+      initialTextCount: 3,
+      afterTextCount: 3,
+      geometryTagOrder: expectedGeometryTagOrder,
+      pathNodeIdentityPreserved: true,
+      textNodeIdentityPreserved: true,
+      stalePathCount: 0,
+      afterPathData: expectedPathData,
+      expectedPathData,
+      centerlineScreenPoints: expectedScreenPoints,
+      expectedCenterlineScreenPoints: expectedScreenPoints
+    });
+
+    const assertViewportProjection = (
+      activePlan: OutputPlan,
+      expectedViewport: ReturnType<typeof fitOutputPreviewViewport>,
+      stablePaths: readonly SVGPathElement[],
+      stableTexts: readonly SVGTextElement[]
+    ) => {
+      const previewSvg = currentPreviewSvg();
+      const currentGeometryNodes = [...previewSvg.querySelectorAll('[data-output-preview-layer="geometry"]')];
+      const currentPaths = [...previewSvg.querySelectorAll<SVGPathElement>('path[data-output-preview-layer="geometry"]')];
+      const currentTexts = [...previewSvg.querySelectorAll<SVGTextElement>('text[data-output-preview-layer="geometry"]')];
+      const expectedPaths = activePlan.drawables
+        .filter((drawable) => drawable.kind !== "text")
+        .map((drawable) => outputPreviewPathDataFor(drawable, size, expectedViewport));
+      const pathCenterlineOccurrences = activePlan.drawables.filter((drawable) => drawable.kind === "line");
+      const currentCenterlinePaths: SVGPathElement[] = [];
+      let pathIndex = 0;
+      for (const drawable of activePlan.drawables) {
+        if (drawable.kind === "text") continue;
+        if (drawable.kind === "line") currentCenterlinePaths.push(currentPaths[pathIndex]!);
+        pathIndex += 1;
+      }
+      const expectedTextTransforms = activePlan.drawables
+        .filter((drawable) => drawable.kind === "text")
+        .map((drawable) => {
+          if (drawable.kind !== "text") throw new Error("expected text drawable");
+          const anchor = outputPreviewWorldToScreen(drawable.anchor, size, expectedViewport);
+          const scaleX = drawable.mirrorX ? -expectedViewport.zoom : expectedViewport.zoom;
+          return `translate(${anchor.x} ${anchor.y}) rotate(${-drawable.rotationDeg}) scale(${scaleX} ${expectedViewport.zoom})`;
+        });
+      const centerlineScreenPoints = currentCenterlinePaths.map((path) => lineScreenPoints(path.getAttribute("d")));
+      const expectedCenterlineScreenPoints = pathCenterlineOccurrences.map((drawable) => {
+        if (drawable.kind !== "line") throw new Error("expected centerline occurrence");
+        return [
+          outputPreviewWorldToScreen(drawable.start, size, expectedViewport),
+          outputPreviewWorldToScreen(drawable.end, size, expectedViewport)
+        ];
+      });
+
+      expect(currentGeometryNodes).toHaveLength(activePlan.drawables.length);
+      expect(currentGeometryNodes.map((node) => node.tagName.toLowerCase())).toEqual(
+        activePlan.drawables.map((drawable) => drawable.kind === "text" ? "text" : "path")
+      );
+      expect(currentPaths.map((path) => path.getAttribute("d"))).toEqual(expectedPaths);
+      expect(geometryPathData()).toEqual(expectedPaths);
+      expect(currentPaths).toEqual(stablePaths);
+      expect(currentTexts).toEqual(stableTexts);
+      expect(currentTexts.map((text) => text.getAttribute("transform"))).toEqual(expectedTextTransforms);
+      expect(centerlineScreenPoints).toEqual(expectedCenterlineScreenPoints);
+      expect(consoleError.mock.calls
+        .map((args) => args.map(String).join(" "))
+        .filter((message) => /same key/i.test(message))).toEqual([]);
+    };
+
+    const planSnapshot = structuredClone(plan);
+    const payloadSnapshot = structuredClone(plan.rustPayload);
+    const sourceBeforeViewportUpdates = useCadDocumentStore.getState().sourceText;
+    const compileCountBeforeViewportUpdates = vi.spyOn(documentCompiler, "compileCanonicalText").mock.calls.length;
+    const localPlanCountBeforeViewportUpdates = mocks.evaluateOutputPlan.mock.calls.length;
+    const rustRequestCountBeforeViewportUpdates = vi.mocked(api.postMessage).mock.calls
+      .filter(([message]) => message.type === "rustEvaluationRequest").length;
+    const sourceCommitCountBeforeViewportUpdates = placeCommitMessages().length;
+    let viewportUpdateCount = 1;
+    let expectedViewport = afterZoomViewport;
+    let pointerX = 300;
+    let pointerY = 250;
+    let pointerId = 17640;
+
+    const runViewportUpdates = (
+      activePlan: OutputPlan,
+      stablePaths: readonly SVGPathElement[],
+      stableTexts: readonly SVGTextElement[],
+      count: number,
+      firstUpdateIndex: number
+    ) => {
+      for (let index = 0; index < count; index += 1) {
+        const updateIndex = firstUpdateIndex + index;
+        if (updateIndex % 2 === 0) {
+          const deltaY = updateIndex % 4 === 0 ? -100 : 100;
+          const clientX = 300 + updateIndex % 7;
+          const clientY = 250 + updateIndex % 5;
+          fireEvent.wheel(viewport, { deltaY, clientX, clientY });
+          expectedViewport = zoomOutputPreviewViewportAt(
+            expectedViewport,
+            Math.pow(VIEWPORT_ZOOM_STEP, -deltaY / 100),
+            { x: clientX, y: clientY, width: size.width, height: size.height }
+          );
+        } else {
+          const deltaX = 1;
+          const deltaY = -1;
+          fireEvent.pointerDown(viewport, {
+            button: 1,
+            buttons: 4,
+            pointerId,
+            clientX: pointerX,
+            clientY: pointerY
+          });
+          fireEvent.pointerMove(viewport, {
+            button: 1,
+            buttons: 4,
+            pointerId,
+            clientX: pointerX + deltaX,
+            clientY: pointerY + deltaY
+          });
+          fireEvent.pointerUp(viewport, {
+            button: 1,
+            buttons: 0,
+            pointerId,
+            clientX: pointerX + deltaX,
+            clientY: pointerY + deltaY
+          });
+          expectedViewport = panViewportByScreenDelta(expectedViewport, deltaX, deltaY);
+          pointerX += deltaX;
+          pointerY += deltaY;
+          pointerId += 1;
+        }
+        viewportUpdateCount += 1;
+        assertViewportProjection(activePlan, expectedViewport, stablePaths, stableTexts);
+      }
+    };
+
+    const printExportCount = outputExportRequestMessages().length;
+    runViewportUpdates(plan, initialPathNodes, initialTextNodes, 49, 1);
+    expect(viewportUpdateCount).toBe(50);
+    expect(outputPreviewPlanRequests()).toHaveLength(1);
+    expect(mocks.evaluateOutputPlan).toHaveBeenCalledTimes(localPlanCountBeforeViewportUpdates);
+    expect(vi.mocked(documentCompiler.compileCanonicalText)).toHaveBeenCalledTimes(compileCountBeforeViewportUpdates);
+    expect(vi.mocked(api.postMessage).mock.calls.filter(([message]) => message.type === "rustEvaluationRequest"))
+      .toHaveLength(rustRequestCountBeforeViewportUpdates);
+    expect(useCadDocumentStore.getState().sourceText).toBe(sourceBeforeViewportUpdates);
+    expect(placeCommitMessages()).toHaveLength(sourceCommitCountBeforeViewportUpdates);
+    expect(plan).toEqual(planSnapshot);
+    expect(plan.rustPayload).toEqual(payloadSnapshot);
+    expect(outputExportRequestMessages()).toHaveLength(printExportCount);
+    postWindowMessage({ type: "outputPreviewExport" });
+    await waitFor(() => expect(outputExportRequestMessages()).toHaveLength(printExportCount + 1));
+    expect(outputExportRequestMessages().at(-1)?.payload).toEqual(payloadSnapshot);
+    postWindowMessage({
+      type: "outputPreviewExportResult",
+      requestId: outputExportRequestMessages().at(-1)!.requestId,
+      status: "saved"
+    });
+
+    const actualOutputCore = await vi.importActual<typeof import("../output/outputCore")>("../output/outputCore");
+    const svgOutput = compiled.document.svgOutputs[0];
+    if (!svgOutput) throw new Error("missing SVG output for the published overlapping-placement graph");
+    const svgAcceptedPlan = await actualOutputCore.evaluateOutputPlan({ compiledDocument: compiled, output: svgOutput });
+    const selector = screen.getByRole("combobox");
+    const svgOutputKey = [...(selector as HTMLSelectElement).options]
+      .find((option) => option.textContent?.includes("Preview"))?.value;
+    if (!svgOutputKey) throw new Error("missing SVG output option");
+    fireEvent.change(selector, { target: { value: svgOutputKey } });
+    await waitFor(() => expect(outputPreviewPlanRequests()).toHaveLength(2));
+    const svgRequest = outputPreviewPlanRequests().at(-1)!;
+    expect(svgRequest.outputKey).toBe(svgOutputKey);
+    postWindowMessage({
+      type: "outputPreviewPlanResult",
+      requestId: svgRequest.requestId,
+      graphAuthority: svgRequest.graphAuthority,
+      plan: svgAcceptedPlan
+    });
+    await waitFor(() => expect(outputExportAvailabilityMessages().at(-1)?.outputKey).toBe(svgOutputKey));
+    const activePreviewSvg = currentPreviewSvg();
+    const svgStablePaths = [...activePreviewSvg.querySelectorAll<SVGPathElement>('path[data-output-preview-layer="geometry"]')];
+    const svgStableTexts = [...activePreviewSvg.querySelectorAll<SVGTextElement>('text[data-output-preview-layer="geometry"]')];
+    const svgFitBounds = outputPreviewFitBoundsFor(svgAcceptedPlan);
+    if (!svgFitBounds) throw new Error("missing SVG fit bounds for the accepted overlapping-placement plan");
+    const svgFitViewport = fitOutputPreviewViewport(svgFitBounds, size);
+    await waitFor(() => assertViewportProjection(svgAcceptedPlan, svgFitViewport, svgStablePaths, svgStableTexts));
+    expectedViewport = svgFitViewport;
+    const svgPlanSnapshot = structuredClone(svgAcceptedPlan);
+    const svgPayloadSnapshot = structuredClone(svgAcceptedPlan.rustPayload);
+    const svgSourceBeforeViewportUpdates = useCadDocumentStore.getState().sourceText;
+    const compileCountBeforeSvgUpdates = vi.mocked(documentCompiler.compileCanonicalText).mock.calls.length;
+    const localPlanCountBeforeSvgUpdates = mocks.evaluateOutputPlan.mock.calls.length;
+    const rustRequestCountBeforeSvgUpdates = vi.mocked(api.postMessage).mock.calls
+      .filter(([message]) => message.type === "rustEvaluationRequest").length;
+    const svgPlanRequestCountBeforeViewportUpdates = outputPreviewPlanRequests().length;
+    const svgSourceCommitCountBeforeViewportUpdates = placeCommitMessages().length;
+    const svgExportCount = outputExportRequestMessages().length;
+
+    runViewportUpdates(svgAcceptedPlan, svgStablePaths, svgStableTexts, 50, 50);
+    expect(viewportUpdateCount).toBe(100);
+    expect(outputPreviewPlanRequests()).toHaveLength(svgPlanRequestCountBeforeViewportUpdates);
+    expect(mocks.evaluateOutputPlan).toHaveBeenCalledTimes(localPlanCountBeforeSvgUpdates);
+    expect(vi.mocked(documentCompiler.compileCanonicalText)).toHaveBeenCalledTimes(compileCountBeforeSvgUpdates);
+    expect(vi.mocked(api.postMessage).mock.calls.filter(([message]) => message.type === "rustEvaluationRequest"))
+      .toHaveLength(rustRequestCountBeforeSvgUpdates);
+    expect(useCadDocumentStore.getState().sourceText).toBe(svgSourceBeforeViewportUpdates);
+    expect(placeCommitMessages()).toHaveLength(svgSourceCommitCountBeforeViewportUpdates);
+    expect(svgAcceptedPlan).toEqual(svgPlanSnapshot);
+    expect(svgAcceptedPlan.rustPayload).toEqual(svgPayloadSnapshot);
+    expect(outputExportRequestMessages()).toHaveLength(svgExportCount);
+    postWindowMessage({ type: "outputPreviewExport" });
+    await waitFor(() => expect(outputExportRequestMessages()).toHaveLength(svgExportCount + 1));
+    expect(outputExportRequestMessages().at(-1)?.payload).toEqual(svgPayloadSnapshot);
+
+    const highlightedElementIds = [...new Set(plan.placements[0]!.drawables.map(({ elementId }) => elementId))];
+    expect(highlightedElementIds).toHaveLength(3);
+    const planRequestCountBeforeReveal = outputPreviewPlanRequests().length;
+    postWindowMessage({
+      type: "outputPreviewReveal",
+      requestId: 17640,
+      documentVersion: publication.documentVersion,
+      graphAuthority: svgRequest.graphAuthority,
+      normalizedSourceOffset: 0,
+      runtimeTarget: {
+        kind: "geometry",
+        sourceStatementIndex: 0,
+        runtimeElementIds: highlightedElementIds
+      }
+    });
+    const answerRevealPlanRequest = async (expectedCount: number) => {
+      await waitFor(() => expect(outputPreviewPlanRequests()).toHaveLength(expectedCount));
+      const request = outputPreviewPlanRequests().at(-1)!;
+      const requestPlan = request.outputKey === svgOutputKey ? svgAcceptedPlan : plan;
+      postWindowMessage({
+        type: "outputPreviewPlanResult",
+        requestId: request.requestId,
+        graphAuthority: request.graphAuthority,
+        plan: requestPlan
+      });
+    };
+    await answerRevealPlanRequest(planRequestCountBeforeReveal + 1);
+    await answerRevealPlanRequest(planRequestCountBeforeReveal + 2);
+    await waitFor(() => expect(revealResultMessages()).toContainEqual(expect.objectContaining({
+      requestId: 17640,
+      status: "resolved",
+      outputKey: svgOutputKey
+    })));
+    const revealSvg = currentPreviewSvg();
+    const revealGeometryPaths = [...revealSvg.querySelectorAll<SVGPathElement>('path[data-output-preview-layer="geometry"]')];
+    const revealGeometryTexts = [...revealSvg.querySelectorAll<SVGTextElement>('text[data-output-preview-layer="geometry"]')];
+    const revealHighlightPaths = [...revealSvg.querySelectorAll<SVGPathElement>('path[data-output-preview-layer="reveal-highlight"]')];
+    const revealHighlightTexts = [...revealSvg.querySelectorAll<SVGTextElement>('text[data-output-preview-layer="reveal-highlight"]')];
+    expect(revealHighlightPaths).toHaveLength(6);
+    expect(revealHighlightTexts).toHaveLength(3);
+    expect(revealHighlightPaths.map((path) => path.getAttribute("d"))).toEqual(
+      revealGeometryPaths.map((path) => path.getAttribute("d"))
+    );
+    const revealSourceSnapshot = useCadDocumentStore.getState().sourceText;
+    const revealPlanRequestCount = outputPreviewPlanRequests().length;
+    const revealLocalPlanCount = mocks.evaluateOutputPlan.mock.calls.length;
+    const revealCompileCount = vi.mocked(documentCompiler.compileCanonicalText).mock.calls.length;
+    const revealRustRequestCount = vi.mocked(api.postMessage).mock.calls
+      .filter(([message]) => message.type === "rustEvaluationRequest").length;
+    const revealViewport = document.querySelector(".output-preview-viewport");
+    if (!(revealViewport instanceof HTMLElement)) throw new Error("missing Output Preview viewport during Reveal highlight test");
+    fireEvent.wheel(revealViewport, { deltaY: -100, clientX: 250, clientY: 150 });
+    fireEvent.pointerDown(revealViewport, { button: 1, buttons: 4, pointerId: 17641, clientX: 300, clientY: 250 });
+    fireEvent.pointerMove(revealViewport, { button: 1, buttons: 4, pointerId: 17641, clientX: 301, clientY: 249 });
+    fireEvent.pointerUp(revealViewport, { button: 1, buttons: 0, pointerId: 17641, clientX: 301, clientY: 249 });
+    const currentRevealSvg = currentPreviewSvg();
+    expect(currentRevealSvg.querySelectorAll('[data-output-preview-layer="geometry"]')).toHaveLength(9);
+    expect(currentRevealSvg.querySelectorAll('[data-output-preview-layer="reveal-highlight"]')).toHaveLength(9);
+    expect([...currentRevealSvg.querySelectorAll('path[data-output-preview-layer="geometry"]')]).toEqual(revealGeometryPaths);
+    expect([...currentRevealSvg.querySelectorAll('text[data-output-preview-layer="geometry"]')]).toEqual(revealGeometryTexts);
+    expect([...currentRevealSvg.querySelectorAll('path[data-output-preview-layer="reveal-highlight"]')]).toEqual(revealHighlightPaths);
+    expect([...currentRevealSvg.querySelectorAll('text[data-output-preview-layer="reveal-highlight"]')]).toEqual(revealHighlightTexts);
+    expect([...currentRevealSvg.querySelectorAll('path[data-output-preview-layer="reveal-highlight"]')]
+      .map((path) => path.getAttribute("d"))).toEqual(
+      [...currentRevealSvg.querySelectorAll('path[data-output-preview-layer="geometry"]')]
+        .map((path) => path.getAttribute("d"))
+    );
+    expect(useCadDocumentStore.getState().sourceText).toBe(revealSourceSnapshot);
+    expect(outputPreviewPlanRequests()).toHaveLength(revealPlanRequestCount);
+    expect(mocks.evaluateOutputPlan).toHaveBeenCalledTimes(revealLocalPlanCount);
+    expect(vi.mocked(documentCompiler.compileCanonicalText)).toHaveBeenCalledTimes(revealCompileCount);
+    expect(vi.mocked(api.postMessage).mock.calls.filter(([message]) => message.type === "rustEvaluationRequest"))
+      .toHaveLength(revealRustRequestCount);
+    expect(consoleError.mock.calls
+      .map((args) => args.map(String).join(" "))
+      .filter((message) => /same key/i.test(message))).toEqual([]);
+
+    postWindowMessage({ type: "outputPreviewClearFocus" });
+    await waitFor(() => expect(currentPreviewSvg().querySelectorAll('[data-output-preview-layer="reveal-highlight"]')).toHaveLength(0));
+    const placeHandles = [...document.querySelectorAll<HTMLButtonElement>("button[data-place-id]")];
+    expect(placeHandles).toHaveLength(3);
+    fireEvent.pointerEnter(placeHandles[0]!);
+    await waitFor(() => expect(currentPreviewSvg().querySelectorAll('[data-output-preview-layer="place-highlight"]')).toHaveLength(3));
+    const placeHighlightSvg = currentPreviewSvg();
+    const placeGeometryPaths = [...placeHighlightSvg.querySelectorAll<SVGPathElement>('path[data-output-preview-layer="geometry"]')];
+    const placeGeometryTexts = [...placeHighlightSvg.querySelectorAll<SVGTextElement>('text[data-output-preview-layer="geometry"]')];
+    const placeHighlightPaths = [...placeHighlightSvg.querySelectorAll<SVGPathElement>('path[data-output-preview-layer="place-highlight"]')];
+    const placeHighlightTexts = [...placeHighlightSvg.querySelectorAll<SVGTextElement>('text[data-output-preview-layer="place-highlight"]')];
+    expect(placeHighlightPaths).toHaveLength(2);
+    expect(placeHighlightTexts).toHaveLength(1);
+    const placeHighlightPathData = placeHighlightPaths.map((path) => path.getAttribute("d"));
+    const placeViewport = document.querySelector(".output-preview-viewport");
+    if (!(placeViewport instanceof HTMLElement)) throw new Error("missing Output Preview viewport during place highlight test");
+    fireEvent.wheel(placeViewport, { deltaY: 100, clientX: 250, clientY: 150 });
+    fireEvent.pointerDown(placeViewport, { button: 1, buttons: 4, pointerId: 17642, clientX: 301, clientY: 249 });
+    fireEvent.pointerMove(placeViewport, { button: 1, buttons: 4, pointerId: 17642, clientX: 302, clientY: 248 });
+    fireEvent.pointerUp(placeViewport, { button: 1, buttons: 0, pointerId: 17642, clientX: 302, clientY: 248 });
+    const currentPlaceHighlightSvg = currentPreviewSvg();
+    const currentPlaceHighlightPaths = [...currentPlaceHighlightSvg.querySelectorAll<SVGPathElement>('path[data-output-preview-layer="place-highlight"]')];
+    expect(currentPlaceHighlightSvg.querySelectorAll('[data-output-preview-layer="geometry"]')).toHaveLength(9);
+    expect(currentPlaceHighlightSvg.querySelectorAll('[data-output-preview-layer="place-highlight"]')).toHaveLength(3);
+    expect([...currentPlaceHighlightSvg.querySelectorAll<SVGPathElement>('path[data-output-preview-layer="geometry"]')])
+      .toEqual(placeGeometryPaths);
+    expect([...currentPlaceHighlightSvg.querySelectorAll<SVGTextElement>('text[data-output-preview-layer="geometry"]')])
+      .toEqual(placeGeometryTexts);
+    expect(currentPlaceHighlightPaths).toEqual(placeHighlightPaths);
+    expect([...currentPlaceHighlightSvg.querySelectorAll<SVGTextElement>('text[data-output-preview-layer="place-highlight"]')])
+      .toEqual(placeHighlightTexts);
+    expect(currentPlaceHighlightPaths.map((path) => path.getAttribute("d"))).not.toEqual(placeHighlightPathData);
+    expect(consoleError.mock.calls
+      .map((args) => args.map(String).join(" "))
+      .filter((message) => /same key/i.test(message))).toEqual([]);
+  });
+
   it("projects standalone placement while dragging without compiling or evaluating", async () => {
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(viewportRect);
     let acceptedStandalonePlan: OutputPlan | null = null;
