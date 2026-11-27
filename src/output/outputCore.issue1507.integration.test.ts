@@ -35,6 +35,22 @@ const fixturePath = "test/fixtures/issue-1507/manifest.json";
 const manifest = JSON.parse(readFileSync(fixturePath, "utf8")) as { base: string; units: Unit[]; extensions: Unit[]; reducers: Unit[] };
 const sha = (v: string | Buffer) => createHash("sha256").update(v).digest("hex");
 const units = [...manifest.units, ...manifest.extensions, ...manifest.reducers];
+const fixedOriginOracle = (oracle: Oracle): Oracle => {
+  const [paperWidthMm, paperHeightMm] = oracle.paperMm;
+  const strideXmm = paperWidthMm - 2 * oracle.overlap;
+  const strideYmm = paperHeightMm - 2 * oracle.overlap;
+  const columns = Math.max(1, Math.ceil(oracle.bounds.maxX / strideXmm));
+  const rowsOfPages = Math.max(1, Math.ceil(oracle.bounds.maxY / strideYmm));
+  const pageOrigins = Array.from({ length: columns * rowsOfPages }, (_, index) => ({
+    x: index % columns * strideXmm - oracle.overlap,
+    y: Math.floor(index / columns) * strideYmm - oracle.overlap
+  }));
+  return { ...oracle, stride: [strideXmm, strideYmm], columns, rowsOfPages, pageOrigins };
+};
+const projectedOracles = new WeakMap<Checkpoint, Oracle>();
+for (const unit of units) for (const checkpoint of unit.checkpoints) {
+  projectedOracles.set(checkpoint, fixedOriginOracle(checkpoint.oracle));
+}
 const validateOnly = process.env.ISSUE1507_VALIDATE_ONLY === "1";
 const observations: Record<string, unknown>[] = [];
 const counts = { spawns: 0, evaluations: 0, exports: 0, inspections: 0 };
@@ -243,6 +259,7 @@ describe("#1507 frozen source revisions through persistent Rust to physical arti
     const failures: string[] = [];
     const initialArtifacts = new Map<string, unknown>();
     for (const [index, cp] of unit.checkpoints.entries()) {
+      const printOracle = projectedOracles.get(cp)!;
       const source = canonicalRegressionSource(cp.source);
       const record: Record<string, unknown> = { id: unit.id, index, sourceSha256: sha(source), archivedSourceSha256: cp.sha256, oracleSha256: cp.oracleSha256, results: [], compilations: [], runtimes: [] };
       observations.push(record);
@@ -273,7 +290,7 @@ describe("#1507 frozen source revisions through persistent Rust to physical arti
                 generated: n.generated.map(r => ({ ...identityOf(r), geometry: r.geometry })),
                 lines: [...result.computedGeometry.values()].filter(g => g.kind === "line").map(g => ({ ...n.identity(g.elementId), geometry: g })) });
               check(`${engine} geometry`, () => checkGeometry(c, result, cp.oracle));
-              check(`${engine} plan`, () => checkPlan(buildOutputPlan({ compiledDocument: c.doc, output, evaluation: result }), c, result, cp.oracle));
+              check(`${engine} plan`, () => checkPlan(buildOutputPlan({ compiledDocument: c.doc, output, evaluation: result }), c, result, format === "pdf" ? printOracle : cp.oracle));
             }
             const plan = buildOutputPlan({ compiledDocument: c.doc, output, evaluation: actual });
             const path = join(directory, `${unit.id}-${index}-${mode}.${format}`);
@@ -286,7 +303,7 @@ describe("#1507 frozen source revisions through persistent Rust to physical arti
             (record.results as unknown[]).push(artifact);
             counts.inspections++;
             check("encoded artifact", () => {
-              const contents = checkArtifact(bytes, format, cp.oracle);
+              const contents = checkArtifact(bytes, format, format === "pdf" ? printOracle : cp.oracle);
               artifact.contents = contents; artifact.inspection = "PASS";
               const artifactKey = `${mode}/${format}`;
               if (index === 0) initialArtifacts.set(artifactKey, contents);

@@ -169,12 +169,28 @@ const checkSvg = (bytes: Buffer, c: Frozen) => {
   return { widthMm: parseFloat(svg.getAttribute("width")!), heightMm: parseFloat(svg.getAttribute("height")!), children: [...svg.children].map(n => ({ tag: n.tagName, attributes: Object.fromEntries([...n.attributes].map(a => [a.name, a.value])), text: n.textContent })) };
 };
 
-const checkPdf = (bytes: Buffer, c: Frozen) => {
+type FixedPrintLayout = { columns: number; rows: number; pageOrigins: Point[] };
+const fixedPrintLayout = (c: Frozen): FixedPrintLayout => {
+  const strideX = c.paper[0] - 2 * c.overlap;
+  const strideY = c.paper[1] - 2 * c.overlap;
+  const columns = Math.max(1, Math.ceil(c.bounds[2] / strideX));
+  const rows = Math.max(1, Math.ceil(c.bounds[3] / strideY));
+  return {
+    columns,
+    rows,
+    pageOrigins: Array.from({ length: columns * rows }, (_, index) => [
+      index % columns * strideX - c.overlap,
+      Math.floor(index / columns) * strideY - c.overlap
+    ] as Point)
+  };
+};
+
+const checkPdf = (bytes: Buffer, c: Frozen, layout = fixedPrintLayout(c)) => {
   const parsed = parsePdf(bytes);
-  expect(parsed.pages).toHaveLength(c.columns * c.rows);
+  expect(parsed.pages).toHaveLength(layout.columns * layout.rows);
   const pages = parsed.pages.map((page, index) => {
     eqNumbers(page.box, [0, 0, ...c.paper.map(n => n * pt)]);
-    const origin: Point = [c.bounds[0] - c.overlap + index % c.columns * (c.paper[0] - 2 * c.overlap), c.bounds[1] - c.overlap + Math.floor(index / c.columns) * (c.paper[1] - 2 * c.overlap)];
+    const origin: Point = [layout.pageOrigins[index]![0], layout.pageOrigins[index]![1]];
     const map = (p: Point): Point => [(p[0] - origin[0]) * pt, (p[1] - origin[1]) * pt];
     let depth = 0; let inDrawing = true;
     const drawing: Op[] = [], guides: Op[] = [];
@@ -283,14 +299,14 @@ const checkPdf = (bytes: Buffer, c: Frozen) => {
     }
     expect(guidePaths.map(o => o.op)).toEqual(wanted.map(o => o.op));
     guidePaths.forEach((o, i) => eqNumbers(o.args as number[], wanted[i].args as number[]));
-    const col = index % c.columns, row = Math.floor(index / c.columns);
+    const col = index % layout.columns, row = Math.floor(index / layout.columns);
     const alphaLabel = (n: number): string => n < 26 ? String.fromCharCode(65 + n) : alphaLabel(Math.floor(n / 26) - 1) + alphaLabel(n % 26);
     const labels: { value: string; vertical: boolean; center: Point }[] = [];
     if (c.overlap) {
-      if (col) labels.push({ value: String(row * (c.columns - 1) + col), vertical: true, center: [c.overlap / 2, c.paper[1] / 2] });
-      if (col < c.columns - 1) labels.push({ value: String(row * (c.columns - 1) + col + 1), vertical: true, center: [c.paper[0] - c.overlap / 2, c.paper[1] / 2] });
-      if (row) labels.push({ value: alphaLabel((row - 1) * c.columns + col), vertical: false, center: [c.paper[0] / 2, c.overlap / 2] });
-      if (row < c.rows - 1) labels.push({ value: alphaLabel(row * c.columns + col), vertical: false, center: [c.paper[0] / 2, c.paper[1] - c.overlap / 2] });
+      if (col) labels.push({ value: String(row * (layout.columns - 1) + col), vertical: true, center: [c.overlap / 2, c.paper[1] / 2] });
+      if (col < layout.columns - 1) labels.push({ value: String(row * (layout.columns - 1) + col + 1), vertical: true, center: [c.paper[0] - c.overlap / 2, c.paper[1] / 2] });
+      if (row) labels.push({ value: alphaLabel((row - 1) * layout.columns + col), vertical: false, center: [c.paper[0] / 2, c.overlap / 2] });
+      if (row < layout.rows - 1) labels.push({ value: alphaLabel(row * layout.columns + col), vertical: false, center: [c.paper[0] / 2, c.paper[1] - c.overlap / 2] });
     }
     const texts = guides.filter(o => o.op === "TJ");
     expect(texts.map(o => (o.args[0] as (number | string)[]).filter(x => typeof x === "string").map(x => String.fromCharCode(parseInt((x as string).slice(1, -1), 16))).join(""))).toEqual(labels.map(l => l.value));
@@ -339,7 +355,12 @@ const sensitivity = (bytes: Buffer, c: Frozen, kind: "svg" | "pdf") => {
     if (c.id === "X4") reject("lost blank-row baseline advance", () => xmlFault(svg => { svg.querySelectorAll("tspan")[1].setAttribute("dy", "0"); }));
   } else {
     if (c.id === "P2") {
-      reject("missing sheet", () => checkPdf(bytes, { ...c, columns: c.columns + 1 }));
+      const layout = fixedPrintLayout(c);
+      reject("missing sheet", () => checkPdf(bytes, c, { ...layout, columns: layout.columns + 1 }));
+      reject("wrong fixed first-page origin", () => checkPdf(bytes, c, {
+        ...layout,
+        pageOrigins: layout.pageOrigins.map((origin, index) => index === 0 ? [origin[0] + 1, origin[1]] as Point : origin)
+      }));
       reject("wrong mm to pt conversion", () => checkPdf(bytes, { ...c, paper: c.paper.map(n => n / pt) as Point }));
       reject("wrong overlap and tile origin", () => checkPdf(bytes, { ...c, overlap: c.overlap + 1 }));
     }
