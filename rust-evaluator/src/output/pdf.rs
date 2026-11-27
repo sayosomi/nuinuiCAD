@@ -899,6 +899,62 @@ mod tests {
     }
 
     #[test]
+    fn clips_to_physical_sheet_and_retains_overlap_band_geometry_in_actual_pdf() {
+        let mut negative_geometry = payload();
+        negative_geometry.bounds = OutputBounds {
+            min_x: -21.0,
+            min_y: 19.0,
+            max_x: 6.0,
+            max_y: 31.0,
+            width: 27.0,
+            height: 12.0,
+        };
+        negative_geometry.drawables = vec![
+            OutputDrawable::Line {
+                element_id: "overlap-band".to_owned(),
+                name: "overlap-band".to_owned(),
+                start: OutputPoint { x: -5.0, y: 20.0 },
+                end: OutputPoint { x: 5.0, y: 20.0 },
+                stroke: OutputStroke {
+                    width_mm: 0.18,
+                    style: "solid".to_owned(),
+                    color_hex: "#31322f".to_owned(),
+                },
+                fill: None,
+            },
+            OutputDrawable::Line {
+                element_id: "off-paper".to_owned(),
+                name: "off-paper".to_owned(),
+                start: OutputPoint { x: -20.0, y: 30.0 },
+                end: OutputPoint { x: -15.0, y: 30.0 },
+                stroke: OutputStroke {
+                    width_mm: 0.18,
+                    style: "solid".to_owned(),
+                    color_hex: "#31322f".to_owned(),
+                },
+                fill: None,
+            },
+        ];
+        negative_geometry.pages.truncate(1);
+        negative_geometry.pages[0].guides[1].label = None;
+
+        let pdf = encode_pdf(&negative_geometry).expect("negative geometry remains exportable");
+        let text = String::from_utf8_lossy(&pdf);
+        assert!(text.contains("/Count 1"));
+        assert!(text.contains("/MediaBox [0 0 595.276 841.89]"));
+        let physical_clip = text
+            .find("0 0 595.276 841.89 re W n")
+            .expect("the drawing stream must clip to the physical page rectangle");
+        let retained_overlap = text
+            .find("14.173 85.039 m 42.52 85.039 l")
+            .expect("negative geometry inside the physical overlap strip remains in the PDF");
+        let clipped_off_paper = text
+            .find("-28.346 113.386 m -14.173 113.386 l")
+            .expect("off-paper geometry uses the fixed (-10,-10) physical origin");
+        assert!(physical_clip < retained_overlap && retained_overlap < clipped_off_paper);
+    }
+
+    #[test]
     fn rejects_invalid_overlap() {
         let mut invalid = payload();
         invalid.overlap_mm = 200.0;
@@ -1200,10 +1256,7 @@ mod tests {
                 index: 0,
                 column: 0,
                 row: 0,
-                origin: OutputPoint {
-                    x: 10.0 + relative.min_x,
-                    y: 20.0 + relative.min_y,
-                },
+                origin: OutputPoint { x: -10.0, y: -10.0 },
                 guides: vec![
                     OutputGuide {
                         axis: "vertical".to_owned(),

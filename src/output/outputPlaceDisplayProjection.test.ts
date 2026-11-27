@@ -29,7 +29,7 @@ const outputPlan = (kind: "print" | "svg", placements: OutputPlacementPlan[]): O
   const drawables = placements.flatMap((placement) => placement.drawables);
   const renderedBounds = bounds(-1, -1, 31, 1);
   if (kind === "print") {
-    const pages = [{ index: 0, column: 0, row: 0, origin: { x: -11, y: -11 }, guides: [] }];
+    const pages = [{ index: 0, column: 0, row: 0, origin: { x: -10, y: -10 }, guides: [] }];
     const payload = {
       version: 1 as const,
       kind: "print" as const,
@@ -252,16 +252,17 @@ describe("Output Preview place display projection", () => {
       rows: 1
     });
     expect(print.print.pages.map((page) => page.origin)).toEqual([
-      { x: 9, y: -11 },
-      { x: 199, y: -11 }
+      { x: -10, y: -10 },
+      { x: 180, y: -10 }
     ]);
+    expect(print.print.warning).toEqual({ kind: "negative-rendered-bounds" });
     expect(print.print.pages[0]!.guides.find((guide) => guide.axis === "vertical" && guide.positionMm === 200)?.label)
       .toMatchObject({ text: "1", center: { x: 205, y: 148.5 } });
     expect(print.print.pages[1]!.guides.find((guide) => guide.axis === "vertical" && guide.positionMm === 10)?.label)
       .toMatchObject({ text: "1", center: { x: 5, y: 148.5 } });
     expect(print.rustPayload.kind === "print" && print.rustPayload.pages.map((page) => page.origin)).toEqual([
-      { x: 9, y: -11 },
-      { x: 199, y: -11 }
+      { x: -10, y: -10 },
+      { x: 180, y: -10 }
     ]);
 
     expect(svg.renderedBounds).toEqual({ minX: 19, minY: -1, maxX: 211, maxY: 1, width: 192, height: 2 });
@@ -278,12 +279,12 @@ describe("Output Preview place display projection", () => {
       "}",
       "layout L {",
       "  place G(at: (0, 0))",
-      "  place G(at: (20, 0))",
+      "  place G(at: (20, 5))",
       "}",
       "print Sheet(layout: L, layers: [default], paper: a4, overlap: 10)",
       "svg Preview(layout: L, layers: [default], margin: 3)"
     ].join("\n");
-    const movedSource = source.replace("place G(at: (0, 0))", "place G(at: (7, 0))");
+    const movedSource = source.replace("place G(at: (0, 0))", "place G(at: (7, 1))");
     const original = compileFreshCanonicalText(source);
     if (original.status === "fatal") throw new Error("invalid projection fixture");
     const moved = compileDslDocument(movedSource, {
@@ -297,9 +298,14 @@ describe("Output Preview place display projection", () => {
     const canonicalSvg = await evaluateOutputPlan({ compiledDocument: moved, output: moved.document.svgOutputs[0]! });
     const firstPlaceId = original.doc.document.layouts[0]!.placements[0]!.id;
 
-    expect(projectOutputPlanForPlaceTranslation({ acceptedPlan: print, placeId: firstPlaceId, delta: { x: 7, y: 0 } }))
-      .toEqual(canonicalPrint);
-    expect(projectOutputPlanForPlaceTranslation({ acceptedPlan: svg, placeId: firstPlaceId, delta: { x: 7, y: 0 } }))
+    const projectedPrint = projectOutputPlanForPlaceTranslation({
+      acceptedPlan: print,
+      placeId: firstPlaceId,
+      delta: { x: 7, y: 1 }
+    });
+    expect(projectedPrint).toEqual(canonicalPrint);
+    expect(projectedPrint?.print?.warning).toBeNull();
+    expect(projectOutputPlanForPlaceTranslation({ acceptedPlan: svg, placeId: firstPlaceId, delta: { x: 7, y: 1 } }))
       .toEqual(canonicalSvg);
   });
 

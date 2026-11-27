@@ -189,6 +189,10 @@ export const webviewPresentationTranslationCatalog = {
   "output.goToSource": { en: "Go to Source", ja: "Sourceへ移動" },
   "output.noOutputs": { en: "No print or SVG outputs", ja: "印刷またはSVGの出力がありません" },
   "output.emptySelection": { en: "There are no output targets.", ja: "出力対象がありません" },
+  "output.print.negativeBoundsWarning": {
+    en: "Geometry extends beyond the usable print origin. Portions outside the physical paper may be omitted from PDF output.",
+    ja: "図形が有効印刷範囲の原点より負方向に広がっています。物理用紙の外側にある部分はPDF出力から欠落する場合があります。"
+  },
   "output.addDeclaration": { en: "Add a print or svg declaration in the Source Editor.", ja: "Source Editorにprintまたはsvg宣言を追加してください。" },
   "output.insertTemplate": { en: "Insert Template…", ja: "テンプレートを挿入…" },
   "output.noValidPlan": { en: "The current source cannot produce a valid output plan.", ja: "現在のSourceから有効な出力プランを作成できません。" },

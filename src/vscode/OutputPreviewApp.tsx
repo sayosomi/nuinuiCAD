@@ -1836,6 +1836,15 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
               {pageRects.map((page, index) => <rect key={`page-boundary-${index}`} {...page} data-output-preview-layer="page-boundary" fill="none" stroke="#9aa0a6" strokeWidth={1} />)}
               {guideLines.map((guide, index) => <line key={`guide-${index}`} {...guide} data-output-preview-layer="overlap-guide" stroke="#70757a" strokeWidth={1} strokeDasharray="6 4" />)}
             </svg>
+            {plan.kind === "print" && plan.print?.warning?.kind === "negative-rendered-bounds" ? (
+              <div className="output-preview-warning" role="status" aria-live="polite">
+                {webviewPresentationTextFor(
+                  webviewPresentation,
+                  "output.print.negativeBoundsWarning",
+                  "Geometry extends beyond the usable print origin. Portions outside the physical paper may be omitted from PDF output."
+                )}
+              </div>
+            ) : null}
             <OutputPreviewPlaceOverlay
               projections={placeProjections}
               sourceText={effectiveSourceText}

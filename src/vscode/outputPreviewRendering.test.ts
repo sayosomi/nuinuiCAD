@@ -30,7 +30,7 @@ const plan = {
       index: 0,
       column: 0,
       row: 0,
-      origin: { x: 100, y: 200 },
+      origin: { x: -10, y: -10 },
       guides: [
         { axis: "vertical", positionMm: 10 },
         { axis: "vertical", positionMm: 200 },
@@ -47,18 +47,18 @@ describe("Output Preview rendering projection", () => {
 
   it("projects physical page rectangles and page-local guides", () => {
     expect(outputPreviewPageRectsFor(plan, size, viewport)[0]).toEqual({
-      x: 350,
-      y: -297,
+      x: 240,
+      y: -87,
       width: 210,
       height: 297
     });
     const guides = outputPreviewGuideLinesFor(plan, size, viewport);
     expect(guides).toHaveLength(4);
     expect(guides[0]).toEqual({
-      x1: 360,
-      y1: 0,
-      x2: 360,
-      y2: -297
+      x1: 250,
+      y1: 210,
+      x2: 250,
+      y2: -87
     });
   });
 
