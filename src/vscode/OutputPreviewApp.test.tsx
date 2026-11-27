@@ -1249,17 +1249,15 @@ describe("Output Preview application", () => {
     expect(acceptedPlan.placements[0]?.at).toEqual(committedCompiled.document.layouts[0]!.placements[0]!.at);
     expect(acceptedPlan.placements[0]!.at.x).toBeCloseTo(plan.placements[0]!.at.x + expectedWorldDeltaX, 8);
     expect(acceptedPlan.placements[1]?.at).toEqual(plan.placements[1]?.at);
-    const expectedColumns = Math.max(1, Math.ceil(acceptedPlan.renderedBounds.width / (210 - 2 * 10)));
-    const expectedRows = Math.max(1, Math.ceil(acceptedPlan.renderedBounds.height / (297 - 2 * 10)));
+    const expectedColumns = 2;
+    const expectedRows = 1;
     expect(acceptedPlan.print).toMatchObject({ columns: expectedColumns, rows: expectedRows });
     expect(expectedColumns).toBe(2);
     expect(expectedRows).toBe(1);
-    expect(acceptedPlan.print?.pages.map((page) => page.origin)).toEqual(
-      acceptedPlan.print?.pages.map((page, index) => ({
-        x: acceptedPlan.renderedBounds.minX - 10 + 190 * index,
-        y: acceptedPlan.renderedBounds.minY - 10
-      }))
-    );
+    expect(acceptedPlan.print?.pages.map((page) => page.origin)).toEqual([
+      { x: -10, y: -10 },
+      { x: 180, y: -10 }
+    ]);
     expect(acceptedPlan.print?.pages[0]?.guides.find((guide) =>
       guide.axis === "vertical" && guide.positionMm === 200
     )?.label).toMatchObject({ text: "1", center: { x: 205, y: 148.5 } });
@@ -1409,6 +1407,73 @@ describe("Output Preview application", () => {
     expect(screen.queryByText("Evaluating…")).toBeNull();
     postWindowMessage({ type: "outputPreviewExport" });
     expect(outputExportRequestMessages().at(-1)?.outputKey).toBe(request.outputKey);
+  });
+
+  it("tracks the print warning through drag, cancellation, pending commit, and canonical rejoin", async () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(viewportRect);
+    const warningSource = importedTwoPlacePrintOutputRoot.replace(
+      "place G(at: (0, 0))",
+      "place G(at: (-5, 0))"
+    );
+    const { compiled, publication, plan } = await planForImportedTwoPlaceRoot(warningSource, "print");
+    const warningText = "Geometry extends beyond the usable print origin. Portions outside the physical paper may be omitted from PDF output.";
+    expect(plan.print?.warning).toEqual({ kind: "negative-rendered-bounds" });
+
+    render(<OutputPreviewApp api={api} />);
+    sendImportedSource(warningSource);
+    sendGraphPublication(publication);
+    await waitFor(() => expect(outputPreviewPlanRequests()).toHaveLength(1));
+    const request = outputPreviewPlanRequests()[0]!;
+    postWindowMessage({
+      type: "outputPreviewPlanResult",
+      requestId: request.requestId,
+      graphAuthority: request.graphAuthority,
+      plan
+    });
+    expect(await screen.findByText(warningText)).toBeInTheDocument();
+
+    const firstPlaceId = compiled.document.layouts[0]!.placements[0]!.id;
+    const handleForFirstPlace = () => [...document.querySelectorAll<HTMLButtonElement>("button[data-place-id]")]
+      .find((candidate) => candidate.dataset.placeId === firstPlaceId);
+    const handle = handleForFirstPlace();
+    if (!handle) throw new Error("missing negative-coordinate place handle");
+
+    await act(async () => {
+      fireEvent.pointerDown(handle, { button: 0, buttons: 1, pointerId: 1749, clientX: 100, clientY: 100 });
+      fireEvent.pointerMove(handle, { buttons: 1, pointerId: 1749, clientX: 160, clientY: 100 });
+    });
+    await waitFor(() => expect(screen.queryByText(warningText)).toBeNull());
+    expect(outputPreviewPlanRequests()).toHaveLength(1);
+    fireEvent.pointerCancel(handleForFirstPlace() ?? handle, { pointerId: 1749 });
+    expect(await screen.findByText(warningText)).toBeInTheDocument();
+
+    const currentHandle = handleForFirstPlace();
+    if (!currentHandle) throw new Error("missing place handle after drag cancellation");
+    await act(async () => {
+      fireEvent.pointerDown(currentHandle, { button: 0, buttons: 1, pointerId: 1750, clientX: 100, clientY: 100 });
+      fireEvent.pointerMove(currentHandle, { buttons: 1, pointerId: 1750, clientX: 160, clientY: 100 });
+    });
+    await waitFor(() => expect(screen.queryByText(warningText)).toBeNull());
+    await act(async () => {
+      fireEvent.pointerUp(handleForFirstPlace() ?? currentHandle, {
+        button: 0, buttons: 0, pointerId: 1750, clientX: 160, clientY: 100
+      });
+    });
+    expect(vi.mocked(api.postMessage).mock.calls.some(([message]) => message.type === "outputPreviewPlaceCommit")).toBe(true);
+    postWindowMessage({ type: "outputPreviewExport" });
+    expect(outputExportRequestMessages()).toEqual([]);
+
+    sendImportedSource(warningSource, 1, importedRootUri);
+    expect(await screen.findByText(warningText)).toBeInTheDocument();
+    await waitFor(() => expect(outputExportAvailabilityMessages().at(-1)?.outputKey).toBe(request.outputKey));
+    postWindowMessage({ type: "outputPreviewExport" });
+    const settledExport = outputExportRequestMessages().at(-1);
+    expect(settledExport).toEqual(expect.objectContaining({
+      outputKey: request.outputKey,
+      format: "pdf",
+      payload: expect.objectContaining({ kind: "print" })
+    }));
+    expect(settledExport?.payload).not.toHaveProperty("warning");
   });
 
   it("renders and exports the populated plan evaluated from the exact Host compiler and Rust input", async () => {

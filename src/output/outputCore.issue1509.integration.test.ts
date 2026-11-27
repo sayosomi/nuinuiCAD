@@ -26,6 +26,21 @@ const fixturePath = "test/fixtures/issue-1509/manifest.json";
 const manifest = JSON.parse(readFileSync(fixturePath, "utf8")) as { base: string; units: Unit[]; extensions: Unit[]; reducers: Unit[] };
 const sha = (v: string | Buffer) => createHash("sha256").update(v).digest("hex");
 const units = [...manifest.units, ...manifest.extensions, ...manifest.reducers];
+const fixedOriginOracle = (oracle: Oracle): Oracle => {
+  const strideXmm = 210 - 2 * 10;
+  const strideYmm = 297 - 2 * 10;
+  const columns = Math.max(1, Math.ceil(oracle.bounds.maxX / strideXmm));
+  const rows = Math.max(1, Math.ceil(oracle.bounds.maxY / strideYmm));
+  const pageOrigins = Array.from({ length: columns * rows }, (_, index) => ({
+    x: index % columns * strideXmm - 10,
+    y: Math.floor(index / columns) * strideYmm - 10
+  }));
+  return { ...oracle, columns, rows, pageOrigins };
+};
+const projectedOracles = new WeakMap<Checkpoint, Oracle>();
+for (const unit of units) for (const checkpoint of unit.checkpoints) {
+  projectedOracles.set(checkpoint, fixedOriginOracle(checkpoint.oracle));
+}
 const validateOnly = process.env.ISSUE1509_VALIDATE_ONLY === "1";
 const observations: Record<string, unknown>[] = [];
 const counts = { spawns: 0, evaluations: 0, exports: 0, inspections: 0, negativeEvaluations: 0 };
@@ -246,6 +261,7 @@ describe("#1509 frozen curved-contour revisions through real persistent Rust and
   it.each(units)("$id V0/V1/V2/V0",async unit => {
     let current:TextCompileResult|undefined;const failures:string[]=[],initial=new Map<string,unknown>();let ids:Map<string,string>|undefined;
     for(const [index,cp] of unit.checkpoints.entries()) {
+      const printOracle=projectedOracles.get(cp)!;
       const source = canonicalRegressionSource(cp.source);
       const record:Record<string,unknown>={id:unit.id,index,sourceSha256:sha(source),archivedSourceSha256:cp.sha256,checks:[],compilations:[]};observations.push(record);
       current=current?compileCanonicalText(current,source):compileFreshCanonicalText(source);
@@ -269,12 +285,12 @@ describe("#1509 frozen curved-contour revisions through real persistent Rust and
             const ts=check("TS geometry",()=>geometry(c,reference,cp.oracle)),rs=check("Rust geometry",()=>geometry(c,actual,cp.oracle));
             check("parity",()=>compare(rs,ts,1e-7));
             check("fresh/incremental complete geometry",()=> {if(mode === "incremental") crossCompile.set(format,rs);else compare(rs,crossCompile.get(format),1e-7);});
-            for(const [engine,result] of [["TS",reference],["Rust",actual]] as const) check(`${engine} plan`,()=>planCheck(buildOutputPlan({compiledDocument:c.doc,output,evaluation:result}),c,cp.oracle));
+            for(const [engine,result] of [["TS",reference],["Rust",actual]] as const) check(`${engine} plan`,()=>planCheck(buildOutputPlan({compiledDocument:c.doc,output,evaluation:result}),c,format === "pdf" ? printOracle : cp.oracle));
             const plan=buildOutputPlan({compiledDocument:c.doc,output,evaluation:actual});
             const path=join(directory,`${unit.id}-${index}-${mode}.${format}`);counts.exports++;
             expect(await bounded(rust.exportOutput({path,payload:plan.rustPayload}))).toEqual({exported:true});expect(statSync(path).size).toBeLessThan(1024*1024);
             const bytes=readFileSync(path);counts.inspections++;
-            const inspected=check("file",()=>fileCheck(bytes,format,cp.oracle));
+            const inspected=check("file",()=>fileCheck(bytes,format,format === "pdf" ? printOracle : cp.oracle));
             if(unit.id === "C1" && index === 0 && mode === "incremental" && format === "svg") {
               const wrong=structuredClone(cp.oracle);wrong.points.Tip1.x+=.1;
               check("detector sensitivity current geometry",()=>expect(()=>geometry(c,actual,wrong)).toThrow());

@@ -30,6 +30,7 @@ import { canonicalRegressionSource } from "./canonicalRegressionSource";
 
 type Shape = Record<string, unknown>;
 type Checkpoint = (typeof manifest.units)[number]["checkpoints"][number];
+type OutputOracle = NonNullable<Checkpoint["output"]>;
 const state = () => useCadDocumentStore.getState();
 const sha = (s: string | Buffer) => createHash("sha256").update(s).digest("hex");
 const observations: Record<string, unknown>[] = [];
@@ -172,6 +173,26 @@ const compareTokens = (actual: (string | number)[], expected: (string | number)[
   expect(actual).toHaveLength(expected.length);
   actual.forEach((v, i) => compare(v, expected[i], tolerance, `encoded token ${i}`));
 };
+const fixedOriginOracle = (oracle: OutputOracle): OutputOracle => {
+  const [paperWidthMm, paperHeightMm] = oracle.paperMm;
+  const overlapMm = oracle.overlap;
+  const strideXmm = paperWidthMm - 2 * overlapMm;
+  const strideYmm = paperHeightMm - 2 * overlapMm;
+  const columns = Math.max(1, Math.ceil(oracle.bounds.maxX / strideXmm));
+  const rows = Math.max(1, Math.ceil(oracle.bounds.maxY / strideYmm));
+  const pageOrigins = Array.from({ length: columns * rows }, (_, index) => [
+    index % columns * strideXmm - overlapMm,
+    Math.floor(index / columns) * strideYmm - overlapMm
+  ]);
+  return { ...oracle, stride: [strideXmm, strideYmm], columns, rows, pageOrigins };
+};
+const fixedOriginOracles = new WeakMap<object, OutputOracle>();
+for (const unit of manifest.units) for (const checkpoint of unit.checkpoints) {
+  if (checkpoint.output) fixedOriginOracles.set(checkpoint, fixedOriginOracle(checkpoint.output));
+}
+for (const checkpoint of x1.checkpoints) {
+  if (checkpoint.output) fixedOriginOracles.set(checkpoint, fixedOriginOracle(checkpoint.output));
+}
 // The production PDF encoder uses uncompressed streams. Follow its actual xref
 // and page-tree references so page count/units are checked from encoded bytes.
 const parsePdf = (bytes: Buffer) => {
@@ -210,7 +231,7 @@ const expectedDrawOrder = (unit: string, cp: Checkpoint): string[] => {
   return [...Array<string>(front).fill("path"), "FRONT", "path", "BACK"];
 };
 const checkArtifacts = async (unit: string, cp: Checkpoint, plan: OutputPlan, format: "svg" | "pdf") => {
-  const oracle = cp.output!;
+  const oracle = format === "pdf" ? fixedOriginOracles.get(cp)! : cp.output!;
   const path = join(directory, `${unit}-${cp.sourceRevision}.${format}`);
   exports++;
   expect(await bounded(rust.exportOutput({ path, payload: plan.rustPayload }))).toEqual({ exported: true });
@@ -275,6 +296,7 @@ const checkArtifacts = async (unit: string, cp: Checkpoint, plan: OutputPlan, fo
 };
 const output = async (id: string, cp: Checkpoint) => {
   const oracle = cp.output!;
+  const printOracle = fixedOriginOracles.get(cp)!;
   const docs = state().doc;
   const records = [];
   for (const declaration of [docs.document.svgOutputs[0], docs.document.printOutputs[0]]) {
@@ -290,8 +312,8 @@ const output = async (id: string, cp: Checkpoint) => {
       compare(actual[i], outputShape);
     }
     if (plan.print) {
-      compare([plan.print.columns, plan.print.rows, plan.print.strideXmm, plan.print.strideYmm], [oracle.columns, oracle.rows, ...oracle.stride]);
-      compare(plan.print.pages.map(p => [p.origin.x,p.origin.y]), oracle.pageOrigins);
+      compare([plan.print.columns, plan.print.rows, plan.print.strideXmm, plan.print.strideYmm], [printOracle.columns, printOracle.rows, ...printOracle.stride]);
+      compare(plan.print.pages.map(p => [p.origin.x,p.origin.y]), printOracle.pageOrigins);
     }
     records.push(await checkArtifacts(id, cp, plan, plan.svg ? "svg" : "pdf"));
   }

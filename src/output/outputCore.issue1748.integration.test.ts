@@ -105,7 +105,11 @@ const expectIndependentPlan = (plan: OutputPlan, kind: "svg" | "print") => {
     expect(plan.svg?.widthMm).toBeCloseTo(202 + PX_TO_MM, 10);
     expect(plan.svg?.heightMm).toBeCloseTo(2 + PX_TO_MM, 10);
   } else {
-    expect(plan.print).toMatchObject({ columns: 1, rows: 1, pages: [expect.objectContaining({ column: 0, row: 0 })] });
+    expect(plan.print).toMatchObject({
+      columns: 1,
+      rows: 1,
+      pages: [expect.objectContaining({ column: 0, row: 0, origin: { x: 0, y: 0 } })]
+    });
   }
 };
 
@@ -178,8 +182,8 @@ describe("#1748 canonical live mirrorCopy output through Rust artifacts", () => 
     const pathOps = pdf.pages[0]!.ops.filter((operation) => ["m", "l", "S"].includes(operation.op));
     expect(pathOps.map((operation) => operation.op)).toEqual(["m", "l", "S", "m", "l", "S"]);
     const pointsToMm = 25.4 / 72;
-    const pageOriginX = -100 - halfStroke;
-    const pageOriginY = -halfStroke;
+    const pageOriginX = 0;
+    const pageOriginY = 0;
     const pageLines = [pathOps.slice(0, 3), pathOps.slice(3, 6)].map((line) => {
       const start = line[0]!.args as number[];
       const end = line[1]!.args as number[];

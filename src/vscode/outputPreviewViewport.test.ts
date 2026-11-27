@@ -20,8 +20,8 @@ const printPlan = {
     paperWidthMm: 210,
     paperHeightMm: 297,
     pages: [
-      { index: 0, column: 0, row: 0, origin: { x: 0, y: 0 }, guides: [] },
-      { index: 1, column: 1, row: 0, origin: { x: 200, y: 0 }, guides: [] }
+      { index: 0, column: 0, row: 0, origin: { x: -10, y: -10 }, guides: [] },
+      { index: 1, column: 1, row: 0, origin: { x: 180, y: -10 }, guides: [] }
     ]
   }
 } as unknown as OutputPlan;
@@ -61,9 +61,9 @@ describe("Output Preview viewport", () => {
     const bounds = outputPreviewFitBoundsFor(printPlan)!;
     const viewport = fitOutputPreviewViewport(bounds, { width: 1000, height: 800 });
 
-    expect(bounds).toEqual({ minX: 0, minY: 0, maxX: 410, maxY: 297 });
-    expect(viewport.panX).toBeCloseTo(-205 * viewport.zoom);
-    expect(viewport.panY).toBeCloseTo(148.5 * viewport.zoom);
+    expect(bounds).toEqual({ minX: -10, minY: -10, maxX: 390, maxY: 287 });
+    expect(viewport.panX).toBeCloseTo(-190 * viewport.zoom);
+    expect(viewport.panY).toBeCloseTo(138.5 * viewport.zoom);
   });
 
   it("keeps the wheel anchor fixed and clamps zoom to the shared safe limits", () => {

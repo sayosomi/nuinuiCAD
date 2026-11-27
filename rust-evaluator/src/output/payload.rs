@@ -700,8 +700,8 @@ pub fn validate_print_payload(payload: &ResolvedPrintOutputPayload) -> Result<()
         }
         validate_point(page.origin, "page origin")?;
         let expected_origin = OutputPoint {
-            x: payload.bounds.min_x + page.column as f64 * payload.stride.x - payload.overlap_mm,
-            y: payload.bounds.min_y + page.row as f64 * payload.stride.y - payload.overlap_mm,
+            x: page.column as f64 * payload.stride.x - payload.overlap_mm,
+            y: page.row as f64 * payload.stride.y - payload.overlap_mm,
         };
         if !close_enough(page.origin.x, expected_origin.x)
             || !close_enough(page.origin.y, expected_origin.y)
@@ -953,6 +953,25 @@ mod tests {
     #[test]
     fn accepts_unlabeled_outer_guides_and_matching_shared_labels() {
         assert!(validate_print_payload(&validation_payload()).is_ok());
+    }
+
+    #[test]
+    fn rejects_bounds_relative_page_origins() {
+        let mut old_convention = validation_payload();
+        old_convention.bounds = OutputBounds {
+            min_x: 40.0,
+            min_y: 30.0,
+            max_x: 140.0,
+            max_y: 110.0,
+            width: 100.0,
+            height: 80.0,
+        };
+        old_convention.pages[0].origin = OutputPoint { x: 30.0, y: 20.0 };
+        old_convention.pages[1].origin = OutputPoint { x: 220.0, y: 20.0 };
+
+        let error = validate_print_payload(&old_convention)
+            .expect_err("bounds-relative origins must not remain accepted");
+        assert!(error.contains("page origin does not match"));
     }
 
     #[test]

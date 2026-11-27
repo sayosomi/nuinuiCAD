@@ -191,6 +191,8 @@ export type OutputPrintPage = {
   guides: OutputGuide[];
 };
 
+export type OutputPrintWarning = { kind: "negative-rendered-bounds" };
+
 export type RustOutputPayloadBase = {
   version: 1;
   bounds: OutputBounds;
@@ -242,6 +244,7 @@ export type OutputPlan = {
     columns: number;
     rows: number;
     pages: OutputPrintPage[];
+    warning?: OutputPrintWarning | null;
   };
 };
 
@@ -1150,8 +1153,8 @@ const printPages = ({
   const strideXmm = usableWidthMm;
   const strideYmm = usableHeightMm;
   if (empty) return { strideXmm, strideYmm, columns: 0, rows: 0, pages: [] as OutputPrintPage[] };
-  const columns = Math.max(1, Math.ceil(bounds.width / usableWidthMm));
-  const rows = Math.max(1, Math.ceil(bounds.height / usableHeightMm));
+  const columns = Math.max(1, Math.ceil(bounds.maxX / strideXmm));
+  const rows = Math.max(1, Math.ceil(bounds.maxY / strideYmm));
   const pages: OutputPrintPage[] = [];
   const verticalBoundaryCount = Math.max(0, columns - 1);
   const verticalLabelFor = (row: number, boundary: number) => String(row * verticalBoundaryCount + boundary + 1);
@@ -1203,7 +1206,7 @@ const printPages = ({
         index: pages.length,
         column,
         row,
-        origin: { x: bounds.minX - overlapMm + column * strideXmm, y: bounds.minY - overlapMm + row * strideYmm },
+        origin: { x: column * strideXmm - overlapMm, y: row * strideYmm - overlapMm },
         guides
       });
     }
@@ -1307,7 +1310,10 @@ const outputPlanFromResolvedPlacements = (
       paperWidthMm: metadata.paperWidthMm,
       paperHeightMm: metadata.paperHeightMm,
       overlapMm: metadata.overlapMm,
-      ...tiling
+      ...tiling,
+      warning: !empty && (renderedBounds.minX < 0 || renderedBounds.minY < 0)
+        ? { kind: "negative-rendered-bounds" }
+        : null
     }
   };
 };

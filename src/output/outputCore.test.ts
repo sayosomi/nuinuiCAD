@@ -51,6 +51,30 @@ const evaluationFor = (doc: ReturnType<typeof simpleSource>) =>
     evaluationLimitIndex: doc.document.evaluationLimitIndex
   }));
 
+const printPlanForLine = (
+  start: { x: number; y: number },
+  end: { x: number; y: number },
+  overlap = 10,
+  paper: "a4" | "a3" = "a4",
+  orientation: "portrait" | "landscape" = "portrait"
+) => {
+  const doc = sourceFor([
+    "nui 1",
+    "group G {",
+    `  line Test = segment(start: (${start.x}, ${start.y}), end: (${end.x}, ${end.y}))`,
+    "}",
+    "layout L {",
+    "  place G(at: (0, 0))",
+    "}",
+    `print P(layout: L, layers: [default], paper: ${paper}, orientation: ${orientation}, overlap: ${overlap})`
+  ]);
+  return buildOutputPlan({
+    compiledDocument: doc,
+    output: doc.document.printOutputs[0]!,
+    evaluation: evaluationFor(doc)
+  });
+};
+
 const mirrorPaths = (drawables: readonly OutputDrawable[]) => drawables.filter(
   (drawable): drawable is Extract<OutputDrawable, { kind: "joinedPath" }> => drawable.kind === "joinedPath"
 );
@@ -373,7 +397,7 @@ describe("SAY-64 output core", () => {
 
     expect(print.renderedBounds.minX).toBeCloseTo(-190 - halfStroke, 10);
     expect(print.renderedBounds.maxX).toBeCloseTo(190 + halfStroke, 10);
-    expect(print.print).toMatchObject({ columns: 2, rows: 1, pages: [expect.anything(), expect.anything()] });
+    expect(print.print).toMatchObject({ columns: 1, rows: 1, pages: [expect.anything()] });
     expect(svg.svg?.widthMm).toBeCloseTo(380 + PX_TO_MM + 4, 10);
     expect(svg.svg?.heightMm).toBeCloseTo(PX_TO_MM + 4, 10);
     expect(svg.drawables.map((drawable) => drawable.kind)).toEqual(["line", "joinedPath"]);
@@ -1291,6 +1315,32 @@ describe("SAY-64 output core", () => {
     expect(svg.viewBox).toEqual({ x: 0, y: 0, width: svg.widthMm, height: svg.heightMm });
   });
 
+  it("starts print pagination at the fixed usable origin and counts positive extents", () => {
+    const doc = sourceFor([
+      "nui 1",
+      "group G {",
+      "  line Remote = segment(start: (500, 50), end: (1000, 50))",
+      "}",
+      "layout L {",
+      "  place G(at: (0, 0))",
+      "}",
+      "print P(layout: L, layers: [default], paper: a4, orientation: portrait, overlap: 10)"
+    ]);
+    const plan = buildOutputPlan({
+      compiledDocument: doc,
+      output: doc.document.printOutputs[0]!,
+      evaluation: evaluationFor(doc)
+    });
+
+    // The line reaches x=1000 mm, so six 190 mm strides are needed. These
+    // expectations are derived from the authored coordinates and A4 dimensions.
+    expect(plan.renderedBounds.minX).toBeGreaterThan(0);
+    expect(plan.print).toMatchObject({ strideXmm: 190, strideYmm: 277, columns: 6, rows: 1 });
+    expect(plan.print!.pages).toHaveLength(6);
+    expect(plan.print!.pages[0]!.origin).toEqual({ x: -10, y: -10 });
+    expect(plan.print!.pages[1]!.origin).toEqual({ x: 180, y: -10 });
+  });
+
   it("computes physical first-page areas, strides, and page counts for every A4/A3 orientation", () => {
     const cases = [
       { paper: "a4", orientation: "portrait", paperWidthMm: 210, paperHeightMm: 297, columns: 4, rows: 2 },
@@ -1316,8 +1366,8 @@ describe("SAY-64 output core", () => {
       const usableHeightMm = testCase.paperHeightMm - 20;
       const strideXmm = usableWidthMm;
       const strideYmm = usableHeightMm;
-      const expectedColumns = Math.max(1, Math.ceil(plan.renderedBounds.width / usableWidthMm));
-      const expectedRows = Math.max(1, Math.ceil(plan.renderedBounds.height / usableHeightMm));
+      const expectedColumns = testCase.columns;
+      const expectedRows = testCase.rows;
 
       expect(print).toMatchObject({
         paperWidthMm: testCase.paperWidthMm,
@@ -1335,18 +1385,18 @@ describe("SAY-64 output core", () => {
       expect(plan.rustPayload).not.toHaveProperty("stride.xMm");
       expect(plan.rustPayload).not.toHaveProperty("stride.yMm");
       expect(print.pages.map((page) => page.index)).toEqual(print.pages.map((_, index) => index));
-      expect(print.pages[0].origin).toEqual({ x: plan.renderedBounds.minX - 10, y: plan.renderedBounds.minY - 10 });
-      expect(print.pages[0].origin.x + 10).toBeCloseTo(plan.renderedBounds.minX);
-      expect(print.pages[0].origin.y + 10).toBeCloseTo(plan.renderedBounds.minY);
+      expect(print.pages[0].origin).toEqual({ x: -10, y: -10 });
       if (testCase.columns > 1) {
         const first = print.pages[0];
         const adjacent = print.pages[1];
+        expect(adjacent.origin.x).toBe(strideXmm - 10);
         expect(adjacent.origin.x - first.origin.x).toBe(strideXmm);
         expect(first.origin.x + testCase.paperWidthMm - adjacent.origin.x).toBe(20);
       }
       if (testCase.rows > 1) {
         const first = print.pages[0];
         const adjacent = print.pages[testCase.columns];
+        expect(adjacent.origin.y).toBe(strideYmm - 10);
         expect(adjacent.origin.y - first.origin.y).toBe(strideYmm);
         expect(first.origin.y + testCase.paperHeightMm - adjacent.origin.y).toBe(20);
       }
@@ -1492,7 +1542,7 @@ describe("SAY-64 output core", () => {
     const exactThresholdDoc = (epsilonMm: number) => sourceFor([
       "nui 1",
       "group G {",
-      `  line Large = segment(start: (0, 0), end: (${190 - PX_TO_MM + epsilonMm}, ${277 - PX_TO_MM + epsilonMm}))`,
+      `  line Large = segment(start: (0, 0), end: (${190 - PX_TO_MM / 2 + epsilonMm}, ${277 - PX_TO_MM / 2 + epsilonMm}))`,
       "}",
       "layout L {",
       "  place G(at: (0, 0))",
@@ -1505,10 +1555,20 @@ describe("SAY-64 output core", () => {
       output: exactThresholdSource.document.printOutputs[0],
       evaluation: evaluationFor(exactThresholdSource)
     });
-    expect(exactThreshold.renderedBounds.width).toBe(190);
-    expect(exactThreshold.renderedBounds.height).toBe(277);
+    expect(exactThreshold.renderedBounds.maxX).toBe(190);
+    expect(exactThreshold.renderedBounds.maxY).toBe(277);
     expect(exactThreshold.print).toMatchObject({ columns: 1, rows: 1, strideXmm: 190, strideYmm: 277 });
     expect(exactThreshold.print!.pages).toHaveLength(1);
+
+    const justBelowDoc = exactThresholdDoc(-1e-6);
+    const justBelow = buildOutputPlan({
+      compiledDocument: justBelowDoc,
+      output: justBelowDoc.document.printOutputs[0],
+      evaluation: evaluationFor(justBelowDoc)
+    });
+    expect(justBelow.renderedBounds.maxX).toBeLessThan(190);
+    expect(justBelow.renderedBounds.maxY).toBeLessThan(277);
+    expect(justBelow.print).toMatchObject({ columns: 1, rows: 1 });
 
     const justOverThresholdDoc = exactThresholdDoc(1e-6);
     const justOverThreshold = buildOutputPlan({
@@ -1516,12 +1576,101 @@ describe("SAY-64 output core", () => {
       output: justOverThresholdDoc.document.printOutputs[0],
       evaluation: evaluationFor(justOverThresholdDoc)
     });
-    expect(justOverThreshold.renderedBounds.width).toBeGreaterThan(190);
-    expect(justOverThreshold.renderedBounds.height).toBeGreaterThan(277);
+    expect(justOverThreshold.renderedBounds.maxX).toBeGreaterThan(190);
+    expect(justOverThreshold.renderedBounds.maxY).toBeGreaterThan(277);
     expect(justOverThreshold.print).toMatchObject({ columns: 2, rows: 2, strideXmm: 190, strideYmm: 277 });
     expect(justOverThreshold.print!.pages).toHaveLength(4);
     expect(justOverThreshold.print!.pages[1].origin.x - justOverThreshold.print!.pages[0].origin.x).toBe(190);
     expect(justOverThreshold.print!.pages[2].origin.y - justOverThreshold.print!.pages[0].origin.y).toBe(277);
+  });
+
+  it("keeps one fixed-origin page for negative geometry and warns only from selected rendered bounds", () => {
+    const negativeOnly = printPlanForLine({ x: -8, y: -8 }, { x: -2, y: -2 });
+    expect(negativeOnly.empty).toBe(false);
+    expect(negativeOnly.print).toMatchObject({ columns: 1, rows: 1, warning: { kind: "negative-rendered-bounds" } });
+    expect(negativeOnly.print!.pages).toHaveLength(1);
+    expect(negativeOnly.print!.pages[0]!.origin).toEqual({ x: -10, y: -10 });
+    expect(negativeOnly.drawables[0]).toMatchObject({ start: { x: -8, y: -8 }, end: { x: -2, y: -2 } });
+    expect(negativeOnly.rustPayload).not.toHaveProperty("warning");
+
+    const mixed = printPlanForLine({ x: -50, y: -60 }, { x: 200, y: 300 });
+    expect(mixed.print).toMatchObject({ columns: 2, rows: 2, warning: { kind: "negative-rendered-bounds" } });
+    expect(mixed.print!.pages.map((page) => page.origin)).toEqual([
+      { x: -10, y: -10 }, { x: 180, y: -10 }, { x: -10, y: 267 }, { x: 180, y: 267 }
+    ]);
+
+    const allOffPaper = printPlanForLine({ x: -30, y: -30 }, { x: -20, y: -20 });
+    expect(allOffPaper.empty).toBe(false);
+    expect(allOffPaper.drawables).toHaveLength(1);
+    expect(allOffPaper.print).toMatchObject({ columns: 1, rows: 1, pages: [{ origin: { x: -10, y: -10 } }] });
+    expect(allOffPaper.print?.warning).toEqual({ kind: "negative-rendered-bounds" });
+
+    const emptyDoc = sourceFor([
+      "nui 1",
+      "group Empty {",
+      "}",
+      "layout L {",
+      "  place Empty(at: (0, 0))",
+      "}",
+      "print P(layout: L, layers: [default], paper: a4, overlap: 10)"
+    ]);
+    const empty = buildOutputPlan({
+      compiledDocument: emptyDoc,
+      output: emptyDoc.document.printOutputs[0]!,
+      evaluation: evaluationFor(emptyDoc)
+    });
+    expect(empty).toMatchObject({ empty: true, drawables: [], print: { columns: 0, rows: 0, pages: [], warning: null } });
+  });
+
+  it("warns when stroke width crosses zero and clears at an exact zero rendered minimum", () => {
+    const strokeHalfWidthMm = PX_TO_MM / 2;
+    const strokeCrossing = printPlanForLine(
+      { x: strokeHalfWidthMm / 2, y: strokeHalfWidthMm / 2 },
+      { x: 5, y: 5 }
+    );
+    expect(strokeCrossing.drawables[0]).toMatchObject({ start: { x: strokeHalfWidthMm / 2, y: strokeHalfWidthMm / 2 } });
+    expect(strokeCrossing.renderedBounds.minX).toBeLessThan(0);
+    expect(strokeCrossing.renderedBounds.minY).toBeLessThan(0);
+    expect(strokeCrossing.print?.warning).toEqual({ kind: "negative-rendered-bounds" });
+
+    const exactlyAtOrigin = printPlanForLine(
+      { x: strokeHalfWidthMm, y: strokeHalfWidthMm },
+      { x: 5, y: 5 }
+    );
+    expect(exactlyAtOrigin.renderedBounds.minX).toBe(0);
+    expect(exactlyAtOrigin.renderedBounds.minY).toBe(0);
+    expect(exactlyAtOrigin.print?.warning).toBeNull();
+  });
+
+  it("does not warn for negative unselected drawables or translate origins when overlap changes", () => {
+    const doc = sourceFor([
+      "nui 1",
+      "layer selected",
+      "layer ignored",
+      "group G {",
+      "  line Good in selected = segment(start: (1, 1), end: (20, 20))",
+      "  line OffSheet in ignored = segment(start: (-30, -30), end: (-20, -20))",
+      "}",
+      "layout L {",
+      "  place G(at: (0, 0))",
+      "}",
+      "print P(layout: L, layers: [selected], paper: a4, overlap: 10)"
+    ]);
+    const selected = buildOutputPlan({
+      compiledDocument: doc,
+      output: doc.document.printOutputs[0]!,
+      evaluation: evaluationFor(doc)
+    });
+    expect(selected.drawables.map(({ name }) => name)).toEqual(["Good"]);
+    expect(selected.print?.warning).toBeNull();
+    expect(selected.print?.pages[0]?.origin).toEqual({ x: -10, y: -10 });
+
+    const noOverlap = printPlanForLine({ x: 300, y: 100 }, { x: 400, y: 200 }, 0);
+    const withOverlap = printPlanForLine({ x: 300, y: 100 }, { x: 400, y: 200 }, 10);
+    expect(noOverlap.print).toMatchObject({ strideXmm: 210, strideYmm: 297, warning: null });
+    expect(withOverlap.print).toMatchObject({ strideXmm: 190, strideYmm: 277, warning: null });
+    expect(noOverlap.print!.pages[0]!.origin).toEqual({ x: 0, y: 0 });
+    expect(withOverlap.print!.pages[0]!.origin).toEqual({ x: -10, y: -10 });
   });
 
   it("emits no joining guides or labels when physical overlap is zero", () => {

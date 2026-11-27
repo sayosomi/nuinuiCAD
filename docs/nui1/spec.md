@@ -1887,15 +1887,11 @@ produces an explicit empty output. Missing, malformed, empty, unresolved,
 inaccessible, ambiguous, and non-layer references are source errors. Legacy
 `profile:` output arguments are rejected. `print.overlap` is required and must
 be finite and non-negative. It is the safe-edge inset / retained glue-tab width
-for print assembly. Let `Bw` and `Bh` be the stroke-inclusive rendered bounds
-width and height:
+for print assembly. The stride uses the paper's usable dimensions:
 
 ```text
 usableWidth  = W - 2 * overlap
 usableHeight = H - 2 * overlap
-
-columns = max(1, ceil(Bw / usableWidth))
-rows    = max(1, ceil(Bh / usableHeight))
 
 strideX = usableWidth
 strideY = usableHeight
@@ -1904,11 +1900,40 @@ strideY = usableHeight
 When a valid layer selector matches no drawable, output bounds are zero and
 print produces no pages; no fallback layer or geometry is added.
 
-Both usable dimensions must be positive. Page 1 starts at
-`x = bounds.minX - overlap`, `y = bounds.minY - overlap`; later page origins
-advance by `strideX` and `strideY`. Adjacent physical sheet rectangles therefore
-overlap by `2 * overlap` mm; after one side is trimmed, the retained glue
-allowance is `overlap` mm.
+Both usable dimensions must be positive. For nonempty print output, positive
+rendered coordinates determine the page count; `bounds.minX` and `bounds.minY`
+never translate the page grid:
+
+```text
+columns = max(1, ceil(bounds.maxX / strideX))
+rows    = max(1, ceil(bounds.maxY / strideY))
+
+pageOriginX = column * strideX - overlap
+pageOriginY = row * strideY - overlap
+```
+
+Pages use zero-based column and row indices and remain ordered left-to-right,
+then bottom-to-top. The first usable-area origin is always global `(0, 0)`; its
+physical sheet origin is `(-overlap, -overlap)`. Later page origins advance by
+the corresponding stride. For A4 portrait with 10 mm overlap, the stride is
+`(190, 277)` mm, the first physical sheet starts at `(-10, -10)`, and the
+second column starts at `(180, -10)`. Negative coordinates never add pages in
+the negative direction. A nonempty output has at least one page on each axis,
+even when all geometry is negative. Empty output still has zero pages.
+
+For nonempty print output, Output Preview warns when the stroke-inclusive
+rendered minimum X or Y is below zero. This is a non-blocking placement warning:
+it does not create a Source diagnostic or evaluation failure and does not
+disable PDF export. Geometry is not clipped at the usable-area origin or the
+advisory inset guides. Negative geometry within a physical sheet, including its
+overlap strip, remains printable. The PDF encoder clips each page to the
+physical paper rectangle; geometry outside that rectangle may be omitted from
+PDF output. Output Preview continues to show off-paper geometry for placement
+correction. The warning clears when the selected output's rendered bounds no
+longer extend into negative X or Y.
+
+Adjacent physical sheet rectangles therefore overlap by `2 * overlap` mm;
+after one side is trimmed, the retained glue allowance is `overlap` mm.
 
 When `overlap > 0`, every physical page has four inset guide lines:
 `left x = overlap`, `right x = W - overlap`, `bottom y = overlap`, and

@@ -9,7 +9,7 @@ import { evaluateElementsReference } from "../geometry/evaluationEngine";
 import { buildEvaluationOptions } from "../geometry/productionEvaluationContext";
 import { prepareRustEvaluation } from "../geometry/rustEvaluationRunner";
 import { evaluationPayloadToResult, type EvaluationPayload } from "../geometry/evaluationPayload";
-import { buildOutputPlan, evaluateOutputPlan, type OutputPlan } from "./outputCore";
+import { buildOutputPlan, evaluateOutputPlan, type OutputJoiningLabel, type OutputPlan } from "./outputCore";
 
 const root = "test/fixtures/issue-1456/";
 
@@ -46,7 +46,8 @@ const projected = (plan: OutputPlan) => ({
   print: plan.print && { ...plan.print, pages: plan.print.pages.map(p => ({ ...p, guides: p.guides.map(g => ({ ...g, label: g.label ?? null })) })) }
 });
 const check = (plan: OutputPlan, c: Frozen) => {
-  const { critical: _critical, placements, error: _error, ...expected } = c.expected;
+  const expectedOutput = fixedOriginExpected(c);
+  const { critical: _critical, placements, error: _error, ...expected } = expectedOutput;
   void _critical; void _error;
   agrees(projected(plan), expected);
   for (const [i, p] of (placements as Record<string, unknown>[]).entries()) {
@@ -66,6 +67,47 @@ const check = (plan: OutputPlan, c: Frozen) => {
     agrees(plan.rustPayload.stride, { x: plan.print!.strideXmm, y: plan.print!.strideYmm });
     expect(plan.rustPayload.pages).toEqual(plan.print!.pages);
   }
+};
+type FrozenPrintExpectation = {
+  paperWidthMm: number;
+  paperHeightMm: number;
+  overlapMm: number;
+  strideXmm: number;
+  strideYmm: number;
+  columns: number;
+  rows: number;
+  pages: {
+    index: number;
+    column: number;
+    row: number;
+    origin: { x: number; y: number };
+    guides: { axis: "vertical" | "horizontal"; positionMm: number; label: OutputJoiningLabel | null }[];
+  }[];
+};
+const fixedOriginExpected = (c: Frozen): Record<string, unknown> => {
+  const expected = structuredClone(c.expected);
+  const frozenPrint = expected.print as FrozenPrintExpectation | null | undefined;
+  if (!frozenPrint) return expected;
+  const bounds = expected.renderedBounds as { maxX: number; maxY: number };
+  const strideXmm = frozenPrint.paperWidthMm - 2 * frozenPrint.overlapMm;
+  const strideYmm = frozenPrint.paperHeightMm - 2 * frozenPrint.overlapMm;
+  const columns = Math.max(1, Math.ceil(bounds.maxX / strideXmm));
+  const rows = Math.max(1, Math.ceil(bounds.maxY / strideYmm));
+  // Every frozen print case in this matrix has a single page under the
+  // fixed-origin rule. Its local guide positions stay fixed and no neighbor
+  // exists to receive a joining label.
+  expect(columns, `${c.id}/${c.variant} independent fixed-origin columns`).toBe(1);
+  expect(rows, `${c.id}/${c.variant} independent fixed-origin rows`).toBe(1);
+  const guides = frozenPrint.pages[0]!.guides.map(guide => ({ ...guide, label: null }));
+  expected.print = {
+    ...frozenPrint,
+    strideXmm,
+    strideYmm,
+    columns,
+    rows,
+    pages: [{ index: 0, column: 0, row: 0, origin: { x: -frozenPrint.overlapMm, y: -frozenPrint.overlapMm }, guides }]
+  } satisfies FrozenPrintExpectation;
+  return expected;
 };
 // Deliberately corrupt copies of observed plans: each listed contract must reject a plausible fault.
 const sensitivities = (plan: OutputPlan, c: Frozen) => {
@@ -99,15 +141,22 @@ const sensitivities = (plan: OutputPlan, c: Frozen) => {
     reject("margin omitted from dimensions", p => { p.svg!.widthMm -= 14; });
     reject("margin omitted from content origin", p => { if (p.rustPayload.kind === "svg") p.rustPayload.contentOrigin.x += 7; });
   }
-  if (c.id === "O9" && c.variant.endsWith("crossing")) reject("floor page count", p => { p.print!.columns = 1; p.print!.pages.length = 1; });
+  if (c.id === "O9" && c.variant.endsWith("crossing")) reject("extra fixed-origin page", p => {
+    p.print!.columns += 1;
+    p.print!.pages.push(structuredClone(p.print!.pages[0]!));
+  });
   if (c.id === "O10" && c.variant.endsWith("overlap10")) {
-    reject("tile origin missing inset", p => { p.print!.pages[0].origin.x += 10; });
+    reject("shifted fixed first-page origin", p => { p.print!.pages[0].origin.x += 1; });
     reject("single-inset overlap stride", p => { p.print!.strideXmm += 10; });
-    reject("unmatched neighboring labels", p => { p.print!.pages[1].guides[0].label!.text = "wrong"; });
-    reject("noncoincident shared guides", p => { p.print!.pages[0].guides[1].positionMm += 1; });
+    reject("orphaned joining label", p => {
+      const previousNeighborLabel = (c.expected.print as FrozenPrintExpectation).pages[0]!.guides[1]!.label;
+      if (!previousNeighborLabel || typeof previousNeighborLabel !== "object") throw new Error("missing frozen label sensitivity");
+      p.print!.pages[0]!.guides[1]!.label = structuredClone(previousNeighborLabel);
+    });
+    reject("misplaced inset guide", p => { p.print!.pages[0].guides[1].positionMm += 1; });
     const pr = plan.print!;
-    expect(pr.paperWidthMm - pr.strideXmm).toBe(20);
-    expect(pr.paperHeightMm - pr.strideYmm).toBe(20);
+    expect(pr.pages).toHaveLength(1);
+    expect(pr.pages[0]!.guides.map(guide => guide.label ?? null)).toEqual([null, null, null, null]);
     for (const page of pr.pages) {
       if (page.column < pr.columns - 1) {
         const neighbor = pr.pages[page.index + 1];
