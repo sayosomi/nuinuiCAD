@@ -163,6 +163,8 @@ import { createVscodeModuleMultiDocumentHost } from "./moduleMultiDocumentHost";
 import { createNuiRenameProvider } from "./renameProvider";
 import { createNuiCompletionProvider, normalizedOffsetAt, normalizedPositionAt } from "./completionProvider";
 import { evaluateElements } from "../../src/geometry/evaluate";
+import { evaluationPayloadToResult } from "../../src/geometry/evaluationPayload";
+import { createRustStdioParityClient } from "../../test/evaluationParitySupport";
 import { buildEvaluationOptions } from "../../src/geometry/productionEvaluationContext";
 import type { VscodeMultiDocumentGraphPublication } from "../../src/vscode/multiDocumentGraphTransport";
 
@@ -3711,6 +3713,81 @@ describe("VS Code multi-document host lifecycle", () => {
       host.dispose();
     }
   });
+
+  it.each(["local", "import-only", "unrelated-instances", "imported-parts"] as const)(
+    "#1757 evaluates named copies through the VS Code Host with %s",
+    async (variant) => {
+      const directory = realpathSync(mkdtempSync(join(tmpdir(), "nui-copy-host-")));
+      const rootPath = join(directory, "copy-root.nui");
+      const libraryPath = join(directory, "copy-lib.nui");
+      const librarySource = `nui 1
+export module Helper(x: number) {
+  export line Edge = segment(start: (x, 0), end: (x, 20))
+}`;
+      const imported = variant !== "local";
+      const instances = variant === "unrelated-instances" || variant === "imported-parts";
+      const importedParts = variant === "imported-parts";
+      const rootSource = [
+        "nui 1",
+        ...(imported ? ['import "./copy-lib.nui" as lib'] : []),
+        ...(instances ? ["instance I = lib::Helper(x: 10)", "instance J = lib::Helper(x: 40)"] : []),
+        "line L = segment(start: (0, 10), end: (20, 10))",
+        "transformCopy C(",
+        "  startPoint: (0, 0),",
+        "  endPoint: (100, 50),",
+        importedParts ? "  parts: [local: L, first: I::Edge, second: J::Edge]," : "  parts: [local: L],",
+        ")",
+        "point Probe = offset(from: C::local.start, dx: 1, dy: 0)",
+        ...(importedParts ? ["point Other = offset(from: C::first.end, dx: 1, dy: 0)"] : [])
+      ].join("\n");
+      writeFileSync(rootPath, rootSource);
+      writeFileSync(libraryPath, librarySource);
+      mocks.files.set(libraryPath, encoder.encode(readFileSync(libraryPath, "utf8")));
+      const root = documentFor(rootPath, readFileSync(rootPath, "utf8"));
+      mocks.textDocuments = [root];
+      const host = createVscodeModuleMultiDocumentHost();
+      host.start();
+      try {
+        if (imported) await vi.waitFor(() => {
+          const graph = latestCurrentGraphFor(root.uri.toString());
+          expect(graph?.valid, JSON.stringify(graph?.diagnostics)).toBe(true);
+        });
+        const semantic = await host.languageSemanticSnapshotFor(root);
+        const compiled = imported ? semantic?.compiled : compileFreshCanonicalText(rootSource).doc;
+        expect(compiled?.diagnostics.filter(diagnostic => diagnostic.severity === "error")).toEqual([]);
+        expect(compiled?.document?.elements.map(element => element.name)).toContain("local");
+        if (!imported || !compiled?.document) return;
+        const current = latestCurrentPublicationFor(root.uri.toString());
+        const prepared = current?.canvasRuntime?.preparedRustEvaluation;
+        expect(prepared?.rustEligible).toBe(true);
+        if (!prepared) throw new Error("Expected the current host's Rust input");
+        const rust = createRustStdioParityClient(process.cwd());
+        try {
+          const input = prepared.input;
+          const payload = await rust.evaluateInput(input);
+          expect(payload.errors).toEqual([]);
+          expect(payload.geometryValueErrors ?? []).toEqual([]);
+          const expected = {
+            local: { start: { x: 100, y: 60 }, end: { x: 120, y: 60 } },
+            ...(importedParts ? {
+              first: { start: { x: 110, y: 50 }, end: { x: 110, y: 70 } },
+              second: { start: { x: 140, y: 50 }, end: { x: 140, y: 70 } }
+            } : {})
+          };
+          for (const [name, endpoints] of Object.entries(expected)) {
+            const id = input.elements.find(element => element.name === name)?.id;
+            expect(id).toBeDefined();
+            expect(evaluationPayloadToResult(payload).computedGeometry.get(id!)).toMatchObject(endpoints);
+          }
+        } finally {
+          rust.dispose();
+        }
+      } finally {
+        host.dispose();
+        rmSync(directory, { recursive: true, force: true });
+      }
+    }
+  );
 
   it("#1711 prepares and plans extract Rename through the production multi-document Host/provider", async () => {
     const rootPath = "/workspace/rename-test.nui";

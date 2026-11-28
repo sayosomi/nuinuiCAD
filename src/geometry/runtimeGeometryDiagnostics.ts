@@ -149,9 +149,11 @@ export const runtimeGeometryDiagnostics = (input: {
     const part = statement?.kind === "element" ? statement.extractPart : undefined;
     const head = part && input.compiledDocument.statements[part.declarationIndex];
     const boundary = error.extract?.boundary;
-    const physicalSpan = head?.kind === "extract" && part
-      ? boundary === "left" ? head.parts[part.partIndex]?.leftPhysicalSpan
-        : boundary === "right" ? head.parts[part.partIndex]?.rightPhysicalSpan : statement.namePhysicalSpan
+    const authoredPart = head?.kind === "extract" && part ? head.parts[part.partIndex] : undefined;
+    const physicalSpan = authoredPart
+      ? authoredPart.kind === "interval" && boundary
+        ? boundary === "left" ? authoredPart.leftPhysicalSpan : authoredPart.rightPhysicalSpan
+        : statement.namePhysicalSpan
       : statement?.kind === "typedDeclaration" ? statement.namePhysicalSpan : undefined;
     if (!physicalSpan?.segments.length) return [];
     const prefix = input.compiledDocument.spans.sourceMap.source.slice(0, physicalSpan.segments[0]!.from);

@@ -94,7 +94,7 @@ import { arcGeometryKernel, bezierBulgePointGeometryKernel, bezierExtremePointGe
 import { buildOffsetLineGeometry } from "./offsetPaths";
 import { isFillEligibleClosedPath, isLineLikeGeometryInput, pointAtDistanceFromEndpoint } from "./linePaths";
 import { copyPathGeometry } from "./copyPathGeometry";
-import { connectSourceSegmentGroups, sourceSegmentsForGeometry } from "./offsetSourceSegments";
+import { sourceSegmentsForGeometry } from "./offsetSourceSegments";
 import { joinedPathGeometryValueKernel } from "./joinedPathGeometryValue";
 import { findLineIntersections, isSelfIntersectingClosedPath } from "./lineIntersections";
 import { evaluateTypedExpressionWithGeometryDemands, type GeometryBuiltinTargetLookupResult } from "../scalars/expressionEvaluator";
@@ -2060,7 +2060,9 @@ export const evaluateElements = (
         return;
       }
       const startPoint = structuralPointForProgramPoint(entry.construction.startPoint, sourceOrder);
-      const endPoint = structuralPointForProgramPoint(entry.construction.endPoint, sourceOrder);
+      const endPoint = entry.construction.endPoint === null
+        ? startPoint
+        : structuralPointForProgramPoint(entry.construction.endPoint, sourceOrder);
       const scale = evaluateGeometryValueScalar(entry.construction.scale, sourceOrder);
       const angleDeg = evaluateGeometryValueScalar(entry.construction.angleDeg, sourceOrder);
       const mirrorX = evaluateGeometryValueBoolean(entry.construction.mirrorX, sourceOrder);
@@ -2072,21 +2074,12 @@ export const evaluateElements = (
         appendGeometryValueError(entry, "transformCopy geometry value construction scale must be a finite positive number.");
         return;
       }
-      const sourceGroups = entry.construction.baseLines.map((source) => {
-        const geometry = resolveGeometryValueProgramTarget(source.target, sourceOrder);
-        if (!geometry || geometry.kind === "unavailable" || !isLineLikeGeometryInput(geometry)) return undefined;
-        const segments = sourceSegmentsForGeometry(geometry);
-        return segments.length > 0 ? segments : undefined;
-      });
-      if (sourceGroups.length === 0 || sourceGroups.some((group) => !group)) {
-        appendGeometryValueError(entry, "transformCopy geometry value construction inputs are unavailable, non-line-like, or contain no segments.");
+      const geometry = resolveGeometryValueProgramTarget(entry.construction.source.target, sourceOrder);
+      if (!geometry || geometry.kind === "unavailable" || !isLineLikeGeometryInput(geometry)) {
+        appendGeometryValueError(entry, "transformCopy member source is unavailable or non-line-like.");
         return;
       }
-      const sourceSegments = connectSourceSegmentGroups(sourceGroups as Array<import("./offsetPathTypes").SourceSegment[]>, false);
-      if (!sourceSegments) {
-        appendGeometryValueError(entry, "transformCopy geometry value construction baseLines are not continuous in the specified order.");
-        return;
-      }
+      const sourceSegments = sourceSegmentsForGeometry(geometry);
       value = copyPathGeometry(sourceSegments, {
         kind: "transform",
         startPoint,
@@ -2094,7 +2087,7 @@ export const evaluateElements = (
         scale,
         angleDeg,
         mirrorX
-      }) ?? undefined;
+      }, "closed" in geometry && geometry.closed === true) ?? undefined;
       if (!value) appendGeometryValueError(entry, "transformCopy geometry value construction produced no transformed segments.");
     } else if (entry.construction.kind === "mirrorCopy") {
       appendGeometryValueError(entry, "mirrorCopy is a display-only preview and cannot produce a path value.");

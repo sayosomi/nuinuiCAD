@@ -28,7 +28,7 @@ export const isEmptyExtractRightBoundary = (compiled: CompiledDslDocument, targe
   if (head?.kind !== "extract" || !logical || target.range.from !== target.range.to ||
     target.sourceAnchor.sourceRevision !== map.sourceRevision) return false;
   const offset = physicalToLogicalOffset(map, logical, target.range.from);
-  return head.parts.filter(p => p.right === "" && p.rightSpan.start === offset && p.rightSpan.end === offset).length === 1;
+  return head.parts.filter(p => p.kind === "interval" && p.right === "" && p.rightSpan.start === offset && p.rightSpan.end === offset).length === 1;
 };
 
 const identityFreeStatementKinds = new Set(["version", "blockEnd", "blockElse"]);

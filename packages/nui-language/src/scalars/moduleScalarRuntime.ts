@@ -7772,16 +7772,15 @@ export const compileModuleScalarRuntime = ({
               : value.construction.kind === "transformCopy"
                 ? (() => {
                     const startPoint = lowerGeometryValuePoint(value.construction.startPoint, context, executionPosition);
-                    const endPoint = lowerGeometryValuePoint(value.construction.endPoint, context, executionPosition);
+                    const endPoint = value.construction.endPoint
+                      ? lowerGeometryValuePoint(value.construction.endPoint, context, executionPosition)
+                      : null;
                     const scale = value.construction.scale ? lowerGeometryValueScalar(value.construction.scale, context) : null;
                     const angleDeg = value.construction.angleDeg ? lowerGeometryValueScalar(value.construction.angleDeg, context) : null;
                     const mirrorX = value.construction.mirrorX ? lowerGeometryValueScalar(value.construction.mirrorX, context) : null;
-                    const baseLines = value.construction.baseLines.flatMap((source) => {
-                      const lowered = lowerGeometryValuePath(source, context, executionPosition);
-                      return lowered ? [lowered] : [];
-                    });
-                    return startPoint && endPoint && scale && angleDeg && mirrorX && baseLines.length === value.construction.baseLines.length
-                      ? { kind: "transformCopy" as const, startPoint, endPoint, scale, angleDeg, mirrorX, baseLines }
+                    const source = lowerGeometryValuePath(value.construction.source, context, executionPosition);
+                    return startPoint && endPoint !== undefined && scale && angleDeg && mirrorX && source
+                      ? { kind: "transformCopy" as const, startPoint, endPoint, scale, angleDeg, mirrorX, source }
                       : null;
                   })()
                 : value.construction.kind === "mirrorCopy"

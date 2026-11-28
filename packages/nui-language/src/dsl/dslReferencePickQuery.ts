@@ -742,7 +742,18 @@ const targetCandidateAt = (
       const target = slot({ start: sourceAttr.valueStart, end: sourceAttr.valueEnd }, "path", { start: sourceAttr.keyStart, end: sourceAttr.valueEnd });
       if (target) return target;
     }
+    for (const key of ["startPoint", "endPoint"]) {
+      const point = authored.payloadSpans[key];
+      if (!point) continue;
+      const target = slot(point, "point");
+      if (target) return target;
+    }
     for (const part of authored.parts) {
+      if (part.kind === "source") {
+        const target = slot(part.sourceSpan, "path", { start: part.colonSpan.end, end: part.sourceSpan.end });
+        if (target) return target;
+        continue;
+      }
       const left = slot(part.leftSpan, "point", { start: part.colonSpan.start + 1, end: part.leftSpan.end });
       if (left) return left;
       const right = slot(part.rightSpan, "point");

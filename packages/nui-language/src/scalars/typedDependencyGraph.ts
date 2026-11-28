@@ -568,7 +568,14 @@ const geometryValueProgramDependencies = (
         if (typeof node.right !== "string") point(node.right, guards);
         return;
       case "joinedPath": paths(node.paths, guards); scalar(node.closed, guards); return;
-      case "transformCopy": point(node.startPoint, guards); point(node.endPoint, guards); scalar(node.scale, guards); scalar(node.angleDeg, guards); scalar(node.mirrorX, guards); paths(node.baseLines, guards); return;
+      case "transformCopy":
+        point(node.startPoint, guards);
+        if (node.endPoint) point(node.endPoint, guards);
+        scalar(node.scale, guards);
+        scalar(node.angleDeg, guards);
+        scalar(node.mirrorX, guards);
+        paths([node.source], guards);
+        return;
       case "mirrorCopy": point(node.axis1, guards); point(node.axis2, guards); paths(node.baseLines, guards); return;
     }
   };

@@ -875,10 +875,10 @@ const parseLine = (
       diagnostics: modifierDiagnostics
     };
   }
-  if (keyword === dslStatementKeywords.extract) {
-    const parsed = parseDslExtract(logicalText);
+  if (keyword === dslStatementKeywords.extract || keyword === dslStatementKeywords.transformCopy) {
+    const parsed = parseDslExtract(logicalText, keyword);
     return {
-      statement: { ...baseFrom(parsed, line, endLine), kind: "extract", parts: parsed.parts,
+      statement: { ...baseFrom(parsed, line, endLine), kind: "extract", declaration: keyword, parts: parsed.parts,
         ...(parsed.layerReference !== undefined ? { layerReference: parsed.layerReference, layerReferenceSpan: parsed.layerReferenceSpan } : {}) },
       diagnostics: parsed.diagnostics.map(item => diagnostic(line, item.message, item.code, project(item.span) ?? undefined))
     };
@@ -1333,8 +1333,12 @@ export const parseDslSnapshot = (snapshot: SourceSnapshot): ParseDslResult => {
         for (const part of statement.parts) {
           checkDeclarationName(part.nameSpan);
           part.namePhysicalSpan = part.nameSpan ? project(part.nameSpan) : null;
-          part.leftPhysicalSpan = project(part.leftSpan); part.rightPhysicalSpan = project(part.rightSpan);
-          part.intervalPhysicalSpan = project(part.intervalSpan); part.colonPhysicalSpan = project(part.colonSpan);
+          part.colonPhysicalSpan = project(part.colonSpan);
+          if (part.kind === "interval") {
+            part.leftPhysicalSpan = project(part.leftSpan);
+            part.rightPhysicalSpan = project(part.rightSpan);
+            part.intervalPhysicalSpan = project(part.intervalSpan);
+          }
         }
         statement.layerReferencePhysicalSpan = statement.layerReferenceSpan ? project(statement.layerReferenceSpan) : null;
         statements.push(...extractMemberStatements(statement, declarationIndex).map(member => decorateStatement(member, logical, sourceMap)));

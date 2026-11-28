@@ -509,12 +509,18 @@ export const analyzeModuleBody = ({
 
     if (statement.kind === "element" && statement.extractPart && statementId && bodySemantic) {
       const member = analyzeExtractMember(statement, statementIndex, statementId, definition.statementIndex, definition.statementId,
-        (raw, span, expected) => resolveGeometry(statementIndex, definition.statementIndex, raw, span, expected === "point" ? "point" : "line", {
-          expectedInterfaceType: expected, allowCoordinate: false, role: expected === "point" ? "pointReference" : "lineReference",
+        (raw, span, expected, allowCoordinate) => resolveGeometry(statementIndex, definition.statementIndex, raw, span, expected === "point" ? "point" : "line", {
+          expectedInterfaceType: expected, allowCoordinate: allowCoordinate ?? false, role: expected === "point" ? "pointReference" : "lineReference",
           scalarResolver: reference => resolveBodyScalar(statementIndex, reference),
           bareScalarResolver: reference => resolveBodyBareScalar(statementIndex, reference),
           geometryPropertyResolver: reference => resolveBodyGeometryProperty(statementIndex, reference)
-        }));
+        }),
+        (raw, span, kind) => analyzeExpression(statementIndex, definition.statementIndex, raw, span, { kind },
+          reference => resolveBodyScalar(statementIndex, reference),
+          reference => resolveBodyBareScalar(statementIndex, reference),
+          reference => resolveBodyGeometryProperty(statementIndex, reference),
+          reference => resolveBodyGeometryBuiltin(statementIndex, reference)));
+      if (member.scalarSites.length) bodySemantic.scalarExpressions = member.scalarSites;
       localGeometryValues.push(member.value);
       registerGeometryValue(member.value);
       bodySemantic.geometryReferences = member.sites;
@@ -894,15 +900,6 @@ export const analyzeModuleBody = ({
             addGeometry(bodySemantic, `construction:paths:${index}`, path.span, path);
           });
           if (construction.closed) addScalar(bodySemantic, "construction:closed", construction.closed.ast.span, construction.closed);
-        } else if (construction?.kind === "transformCopy") {
-          addGeometry(bodySemantic, "construction:startPoint", construction.startPoint.span, construction.startPoint);
-          addGeometry(bodySemantic, "construction:endPoint", construction.endPoint.span, construction.endPoint);
-          construction.baseLines.forEach((source, index) => {
-            addGeometry(bodySemantic, `construction:baseLines:${index}`, source.span, source);
-          });
-          if (construction.scale) addScalar(bodySemantic, "construction:scale", construction.scale.ast.span, construction.scale);
-          if (construction.angleDeg) addScalar(bodySemantic, "construction:angleDeg", construction.angleDeg.ast.span, construction.angleDeg);
-          if (construction.mirrorX) addScalar(bodySemantic, "construction:mirrorX", construction.mirrorX.ast.span, construction.mirrorX);
         } else if (construction?.kind === "mirrorCopy") {
           addGeometry(bodySemantic, "construction:axis1", construction.axis1.span, construction.axis1);
           addGeometry(bodySemantic, "construction:axis2", construction.axis2.span, construction.axis2);

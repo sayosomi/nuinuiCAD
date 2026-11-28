@@ -3450,23 +3450,6 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         closed: scalar(closedArgument, { kind: "boolean" }, "false")
       };
     }
-    if (invocation.construction === "transformCopy" && invocation.pureValueInterface === "path") {
-      if (expectedInterfaceType !== "path") {
-        addLocal(statementIndex, issue("module-geometry-type-mismatch", constructionSpan, "transformCopy construction は path value にのみ代入できます。", {
-          presentation: { key: "diagnostic.module-geometry-type-mismatch", parameters: { target: "transformCopy" } }
-        }));
-      }
-      return {
-        kind: "transformCopy",
-        span: { start: constructionSpan.start, end: initializerSpan.end },
-        startPoint: pointReference(argument("startPoint")),
-        endPoint: pointReference(argument("endPoint")),
-        scale: scalar(argument("scale"), { kind: "number" }, "1"),
-        angleDeg: scalar(argument("angleDeg"), { kind: "number" }, "0"),
-        mirrorX: scalar(argument("mirrorX"), { kind: "boolean" }, "false"),
-        baseLines: pathReferences(argument("baseLines"))
-      };
-    }
     if (invocation.construction === "polar" && invocation.pureValueInterface === "point") {
       if (expectedInterfaceType !== "point") {
         addLocal(statementIndex, issue("module-geometry-type-mismatch", constructionSpan, "polar point construction は point value にのみ代入できます。", {
@@ -6289,9 +6272,17 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     if (statement.kind === "element" && statement.extractPart && moduleOwnerIndexOf(statements, statementIndex) === null) {
       const statementId = statementIdAt(stableStatementIdByIndex, statementIndex);
       const member = analyzeExtractMember(statement, statementIndex, statementId, null, null,
-        (raw, span, expected) => resolveGeometry(statementIndex, null, raw, span, expected === "point" ? "point" : "line", {
-          expectedInterfaceType: expected, allowCoordinate: false, role: expected === "point" ? "pointReference" : "lineReference"
-        }));
+        (raw, span, expected, allowCoordinate) => resolveGeometry(statementIndex, null, raw, span, expected === "point" ? "point" : "line", {
+          expectedInterfaceType: expected, allowCoordinate: allowCoordinate ?? false, role: expected === "point" ? "pointReference" : "lineReference",
+          geometryPropertyResolver: (reference) => resolveGeometryProperty(statementIndex, null, reference)
+        }),
+        (raw, span, kind) => analyzeExpression(statementIndex, null, raw, span, { kind },
+          (reference) => resolveSourceScalar(statementIndex, null, reference.name, null, reference.span),
+          undefined,
+          (reference) => resolveGeometryProperty(statementIndex, null, reference),
+          (reference) => resolveGeometry(statementIndex, null, reference.name, reference.span, reference.expectedGeometryType,
+            { expectedInterfaceType: reference.expectedGeometryType })));
+      if (member.scalarSites.length) rootElementScalarExpressionsByStatementId.set(statementId, member.scalarSites);
       geometryValuesByStatementIndex.set(statementIndex, member.value);
       rootGeometryReferencesByStatementId.set(statementId, member.sites);
       continue;
@@ -6582,16 +6573,6 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         span: source.span,
         reference: source
       })));
-    } else if (construction?.kind === "transformCopy") {
-      rootGeometryReferencesByStatementId.set(statementId, [
-        { parameterKey: "startPoint", span: construction.startPoint.span, reference: construction.startPoint },
-        { parameterKey: "endPoint", span: construction.endPoint.span, reference: construction.endPoint },
-        ...construction.baseLines.map((source, index) => ({
-          parameterKey: `baseLines:${index}`,
-          span: source.span,
-          reference: source
-        }))
-      ]);
     } else if (construction?.kind === "mirrorCopy") {
       rootGeometryReferencesByStatementId.set(statementId, [
         { parameterKey: "axis1", span: construction.axis1.span, reference: construction.axis1 },
@@ -8115,7 +8096,8 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       });
       const projected = toDiagnostic(spans, statement, diagnostic, relatedInformation);
       if (statement.kind === "element" && statement.extractPart) {
-        const boundary = (["left", "right"] as const).find(key => {
+        const isolatedInputs = statement.extractPart.declaration === "transformCopy" ? ["source"] as const : ["left", "right"] as const;
+        const boundary = isolatedInputs.find(key => {
           const bound = statement.payloadSpans[key];
           return bound && diagnostic.span.start >= bound.start && diagnostic.span.end <= bound.end;
         });
