@@ -67,7 +67,8 @@ export const useEvaluationEngine = (
   elements: CadElement[],
   options: EvaluateElementsOptions,
   evaluationRevision = 0,
-  rustTransport?: RustEvaluationTransport
+  rustTransport?: RustEvaluationTransport,
+  active = true
 ): EvaluationEngineState => {
   const evaluationLimitIndex = options.evaluationLimitIndex;
   const typedDependencyGraph = options.typedDependencyGraph;
@@ -248,19 +249,20 @@ export const useEvaluationEngine = (
       engineMode,
       rustEligible,
       rustTransport,
+      active,
       revision: allocateRequestRevision()
     }),
-    [elements, evaluationOptions, evaluationRevision, requestKey, engineMode, rustEligible, rustTransport]
+    [elements, evaluationOptions, evaluationRevision, requestKey, engineMode, rustEligible, rustTransport, active]
   );
   const referenceEvaluation = useMemo(
-    () => (needsReferenceEvaluation ? evaluateElementsReference(elements, evaluationOptions) : null),
-    [elements, evaluationOptions, needsReferenceEvaluation]
+    () => (active && needsReferenceEvaluation ? evaluateElementsReference(elements, evaluationOptions) : null),
+    [active, elements, evaluationOptions, needsReferenceEvaluation]
   );
   const [asyncEvaluation, setAsyncEvaluation] = useState<AsyncEvaluationState | null>(null);
   const emptyEvaluation = useMemo(() => emptyEvaluationResult(elements, evaluationOptions), [elements, evaluationOptions]);
 
   useEffect(() => {
-    if (!rustTransport || engineMode === "reference" || !rustEligible) {
+    if (!active || !rustTransport || engineMode === "reference" || !rustEligible) {
       return;
     }
 
@@ -282,6 +284,7 @@ export const useEvaluationEngine = (
       cancelled = true;
     };
   }, [
+    active,
     elements,
     emptyEvaluation,
     needsReferenceEvaluation,
@@ -297,6 +300,20 @@ export const useEvaluationEngine = (
     rustTransport,
     scalarProgram
   ]);
+
+  if (!active) {
+    return {
+      evaluation: asyncEvaluation?.evaluation ?? emptyEvaluation,
+      evaluationRevision: asyncEvaluation?.evaluationRevision ?? evaluationRevision,
+      evaluationRequestRevision: asyncEvaluation?.evaluationRequestRevision ?? evaluationRequestRevision,
+      mode: engineMode,
+      source: asyncEvaluation?.source ?? (rustTransportAvailable ? "rust" : "reference"),
+      status: asyncEvaluation?.status ?? "idle",
+      rustEligible,
+      isStale: true,
+      error: asyncEvaluation?.error ?? null
+    };
+  }
 
   if (engineMode === "reference" || !rustEligible || !rustTransportAvailable) {
     return {
@@ -372,7 +389,9 @@ export const useEvaluationEngine = (
 
   if (asyncEvaluation) {
     return {
-      evaluation: asyncEvaluation.evaluation,
+      evaluation: !isCurrentAsyncEvaluation && elements.length === 0
+        ? emptyEvaluation
+        : asyncEvaluation.evaluation,
       evaluationRevision: asyncEvaluation.evaluationRevision,
       evaluationRequestRevision: asyncEvaluation.evaluationRequestRevision,
       mode: engineMode,

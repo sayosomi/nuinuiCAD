@@ -264,6 +264,9 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
   const compiledDocumentRevision = useCadDocumentStore((state) => state.compiledDocumentRevision);
   const sourceText = useCadDocumentStore((state) => state.sourceText);
   const sourceRevision = useCadDocumentStore((state) => state.sourceRevision);
+  const currentSourceRevision = useCadDocumentStore((state) => state.currentSourceRevision);
+  const currentCompiledDocument = useCadDocumentStore((state) => state.currentCompiled);
+  const lastGoodDocumentText = useCadDocumentStore((state) => state.docText);
   const previewActive = useCadDocumentStore((state) => state.previewElements !== null);
   const observationSelectionSubject = useCadUiStore((state) => state.selectionSubject);
   const observationSelectedElementIds = useCadUiStore((state) => state.selectedElementIds);
@@ -472,6 +475,23 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
   const activeMultiDocumentRuntimeSnapshot = multiDocumentRuntimeSnapshot?.identityOnly
     ? null
     : multiDocumentRuntimeSnapshot;
+  const localSourceIsCurrentAndValid =
+    currentCompiledDocument.document !== null &&
+    currentCompiledDocument.statementMap !== null &&
+    currentCompiledDocument.spans.sourceMap.source === normalizedSourceFor(sourceText) &&
+    currentCompiledDocument.spans.sourceMap.sourceRevision === currentSourceRevision &&
+    normalizedSourceFor(lastGoodDocumentText) === normalizedSourceFor(sourceText);
+  // Keep the empty Rust placeholder used by incomplete target-pick flows. It
+  // cannot expose stale geometry, and this branch excludes imported sources.
+  const invalidLocalEmptyPlaceholder =
+    currentCompiledDocument.document === null &&
+    currentCompiledDocument.spans.sourceMap.source === normalizedSourceFor(sourceText) &&
+    currentCompiledDocument.spans.sourceMap.sourceRevision === currentSourceRevision &&
+    normalizedSourceFor(lastGoodDocumentText) !== normalizedSourceFor(sourceText) &&
+    elements.length === 0 &&
+    !currentCompiledDocument.statements.some(statement => statement.kind === "import");
+  const localEvaluationIsActive = !activeMultiDocumentRuntimeSnapshot &&
+    (previewActive || localSourceIsCurrentAndValid || invalidLocalEmptyPlaceholder);
   const staleMultiDocumentRuntimeSnapshot = useMemo<VscodeMultiDocumentCanvasRuntimeSnapshot | null>(() => {
     const publication = currentHostGraph;
     const stale = publication?.canvasRuntime;
@@ -580,7 +600,8 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
     elements,
     evaluationOptions,
     compiledDocumentRevision,
-    activeMultiDocumentRuntimeSnapshot ? undefined : localEvaluationTransport
+    activeMultiDocumentRuntimeSnapshot ? undefined : localEvaluationTransport,
+    localEvaluationIsActive
   );
   useLayoutEffect(() => {
     localEvaluationRequestRevisionRef.current = localEvaluationState.evaluationRequestRevision;
