@@ -25,21 +25,28 @@ An **open Work Issue has exactly one appropriate type label** when the correspon
 
 Classify by the primary deliverable, not by urgency, implementation phase, difficulty, required E2E, or assigned model. Do not bulk-relabel PRs or historical closed/mirrored Issues. Preserve legitimate existing area/priority labels if their live repository definition applies. Introduce/rename labels only through an explicit separate policy decision.
 
-## Contract readiness
+## Issue state labels
 
-`contract:pending` — necessary product decision, reproduction/evidence, acceptance, or dependency remains unknown.
+Every open Work Issue has exactly one applicable state label, consistent with its current Issue body and evidence. Permanent Inbox Issues without a concrete Work contract are exempt. State is independent of `type:` classification; do not use `active` for workflow state. These labels do not authorize implementation, merge, E2E execution or closure.
 
-`contract:ready` — meaning, scope, expected acceptance, dependencies and verification are concrete enough to implement after fresh admission.
+| Label | Meaning | Color |
+| --- | --- | --- |
+| `contract:pending` | Necessary product decision, investigation, reproduction/evidence, acceptance or dependency remains unknown. | `FED7AA` |
+| `contract:ready` | Meaning, scope, acceptance, dependencies and verification are concrete enough to implement after fresh admission. Retain during implementation, review, CI and normal premerge E2E while the contract remains valid. | `99F6E4` |
+| `contract:blocked` | An actual prerequisite or capability required for an executable contract is unavailable; ordinary implementation waiting is not blocked. | `FBCFE8` |
+| `e2e:deferred` | Implementation, independent review, required CI and merge are complete; only required Human E2E or its required closure checkpoint remains. Includes waiting, execution, resumption, interruption and environment/execution BLOCKED. | `CBD5E1` |
 
-`contract:blocked` — an actual required prerequisite or capability is unavailable; ordinary waiting for implementation is not blocked.
+Do not change existing `type:` colors. Re-read live labels before a state write. Missing required labels or an unavailable/ambiguous write or read-back blocks the state checkpoint; report it, do not invent labels or substitute body-only status.
 
-These are contract states, not proof that tests passed. Use a single matching `contract:` **label only if the repository actually has and governs it**; otherwise put readiness in the Issue body. Do not infer readiness from an Issue simply being open.
+Check state at authoring, contract confirmation, re-audit, implementation/review/CI checkpoints, merge, E2E start/resume/interruption/result and completion. Apply Pending, Ready or Blocked from current contract evidence. Normal premerge E2E does not qualify for Deferred. Only the explicitly Human-authorized [away exception](./workflow.md#away-only-deferred-human-e2e-exception) can enter Deferred after verified merge with E2E-only remaining acceptance. Retain Deferred through the remaining E2E lifecycle, even if the Human returns or execution is interrupted or blocked. Judge each Issue independently in a batch. If confirmed product FAIL or changed evidence requires additional implementation or contract investigation, return to the applicable contract state. Close only after existing completion requirements hold; preserve historical closed-Issue labels.
+
+At each authorized state mutation, re-read current Issue body, comments, labels, and relevant PR/check/E2E evidence. Reconcile concurrent changes without overwriting unrelated work. Update current Issue meaning and the state label at the same checkpoint, removing obsolete state labels and preserving unrelated labels. Read back from GitHub and verify the intended state and exactly-one invariant (subject to the Inbox exemption and closed history). Do not complete a checkpoint with inconsistent or unverified state. Independent Review checks and reports discrepancies without performing mutations.
 
 ## Recommended Issue body
 
 ```markdown
 ## Status
-Contract: pending | ready | blocked
+State: contract:pending | contract:ready | contract:blocked | e2e:deferred
 
 ## Problem / goal
 Actual, expected, effect on the user, version/environment.
@@ -69,4 +76,4 @@ Keep the body focused on current meaning. Put material investigation, decision h
 
 ## Issue closure
 
-A branch, PR, CI success or successful E2E **setup** does not mean completion. Normal acceptance requires independent review, required protected CI, and any required Human native E2E PASS, plus verified merge/read-back. Close only after all acceptance is proven. The explicitly Human-authorized **away-only** deferred E2E route may merge first, but **must keep the Issue open** until per-Issue Human E2E PASS. See [workflow.md](./workflow.md).
+A branch, PR, CI success or successful E2E **setup** does not mean completion. Normal acceptance requires independent review, required protected CI, and any required Human native E2E PASS, plus verified merge/read-back. Close only after all acceptance is proven. The explicitly Human-authorized **away-only** deferred E2E route may merge first, but **must keep the Issue open** under the state-label rule until per-Issue Human E2E PASS and all required closure checkpoints are complete. See [workflow.md](./workflow.md).
