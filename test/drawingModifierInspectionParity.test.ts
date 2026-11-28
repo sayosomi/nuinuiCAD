@@ -59,6 +59,9 @@ describe.skipIf(!runRustParity)("Drawing Modifier inspection Rust parity", () =>
     };
     const inherited = element("Inherited");
     const parent = element("Pattern");
+    const joined = element("Joined");
+    const poly = element("Poly");
+    const offset = element("Offset");
     const zeroNoFill = element("UnfilledZero");
     const positive = element("PositiveWithFill");
     const laterPositive = element("LaterPositiveWins");
@@ -93,6 +96,23 @@ describe.skipIf(!runRustParity)("Drawing Modifier inspection Rust parity", () =>
       expect(tsResult.effectiveEnabledElementIds).toContain(path.id);
       expect(rustResult.computedGeometry.has(path.id)).toBe(true);
     }
+    const joinedGeometry = tsResult.computedGeometry.get(joined.id);
+    if (joinedGeometry?.kind !== "joinedPath") throw new Error("Joined geometry was not preserved");
+    expect(joinedGeometry.pathIds).toEqual(["A", "B", "C", "D"].map((name) => element(name).id));
+    expect(joinedGeometry.length).toBeCloseTo(140, 10);
+    expect(joinedGeometry.segments.reduce((sum, segment) => sum + segment.length, 0)).toBeCloseTo(140, 10);
+
+    const polyGeometry = tsResult.computedGeometry.get(poly.id);
+    if (polyGeometry?.kind !== "polyline") throw new Error("Poly geometry was not preserved");
+    expect(polyGeometry.length).toBeCloseTo(140, 10);
+    expect(polyGeometry.segments.reduce((sum, segment) => sum + segment.length, 0)).toBeCloseTo(140, 10);
+
+    const offsetGeometry = tsResult.computedGeometry.get(offset.id);
+    if (offsetGeometry?.kind !== "offsetLine") throw new Error("Offset geometry was not preserved");
+    expect(offsetGeometry.baseLineIds).toEqual([poly.id]);
+    expect(offsetGeometry.length).toBeGreaterThan(0);
+    expect(offsetGeometry.segments.reduce((sum, segment) => sum + segment.length, 0)).toBeCloseTo(offsetGeometry.length, 10);
+
     expect(isFillEligibleClosedPath(tsResult.computedGeometry.get(element("Joined").id))).toBe(true);
     expect(isFillEligibleClosedPath(tsResult.computedGeometry.get(element("Poly").id))).toBe(true);
     expect(isFillEligibleClosedPath(tsResult.computedGeometry.get(element("Offset").id))).toBe(true);
