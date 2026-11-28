@@ -490,6 +490,71 @@ line AB = segment(start: A, end: B)`);
     expect(evaluationStateIsCurrentFor(result.current, 8)).toBe(true);
   });
 
+  it("does no Rust or TypeScript evaluation while suspended", () => {
+    const referenceSpy = vi.spyOn(evaluationEngine, "evaluateElementsReference");
+    const transport = vi.fn<RustEvaluationTransport>();
+    const { result } = renderHook(() =>
+      useEvaluationEngine(elements, { evaluationLimitIndex: elements.length }, 9, transport, false)
+    );
+
+    expect(result.current.isStale).toBe(true);
+    expect(result.current.status).toBe("idle");
+    expect(evaluationStateIsCurrentFor(result.current, 9)).toBe(false);
+    expect(transport).not.toHaveBeenCalled();
+    expect(referenceSpy).not.toHaveBeenCalled();
+  });
+
+  it("retains the prior geometry as stale when an active evaluation is suspended", async () => {
+    const payload = evaluateElementsReferencePayload(elements);
+    const transport = vi.fn<RustEvaluationTransport>().mockResolvedValue(payload);
+    const referenceSpy = vi.spyOn(evaluationEngine, "evaluateElementsReference");
+    const { result, rerender } = renderHook(
+      ({ active }: { active: boolean }) =>
+        useEvaluationEngine(elements, { evaluationLimitIndex: elements.length }, 10, transport, active),
+      { initialProps: { active: true } }
+    );
+
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+    const geometryBeforeSuspension = result.current.evaluation.computedGeometry;
+    const referenceCallsBeforeSuspension = referenceSpy.mock.calls.length;
+    rerender({ active: false });
+
+    expect(result.current.evaluation.computedGeometry).toBe(geometryBeforeSuspension);
+    expect(result.current.isStale).toBe(true);
+    expect(evaluationStateIsCurrentFor(result.current, 10)).toBe(false);
+    expect(transport).toHaveBeenCalledTimes(1);
+    expect(referenceSpy).toHaveBeenCalledTimes(referenceCallsBeforeSuspension);
+  });
+
+  it("preserves the previous Rust result for a default caller while an empty Source is pending", async () => {
+    const firstPayload = evaluateElementsReferencePayload(elements);
+    let resolveEmpty: ((value: typeof firstPayload) => void) | undefined;
+    const transport = vi.fn<RustEvaluationTransport>()
+      .mockResolvedValueOnce(firstPayload)
+      .mockImplementationOnce(() => new Promise(resolve => { resolveEmpty = resolve; }));
+    const { result, rerender } = renderHook(
+      ({ nextElements, revision }: { nextElements: CadElement[]; revision: number }) =>
+        useEvaluationEngine(nextElements, { evaluationLimitIndex: nextElements.length }, revision, transport),
+      { initialProps: { nextElements: elements, revision: 21 } }
+    );
+
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+    const priorEvaluation = result.current.evaluation;
+    rerender({ nextElements: [], revision: 22 });
+
+    expect(result.current.evaluation).toBe(priorEvaluation);
+    expect(result.current.evaluation.computedGeometry.size).toBe(3);
+    expect(result.current.evaluationRevision).toBe(21);
+    expect(result.current.isStale).toBe(true);
+    expect(evaluationStateIsCurrentFor(result.current, 22)).toBe(false);
+    expect(transport).toHaveBeenCalledTimes(2);
+
+    await act(async () => { resolveEmpty?.(evaluateElementsReferencePayload([])); });
+    await waitFor(() => expect(result.current.isStale).toBe(false));
+    expect(result.current.evaluationRevision).toBe(22);
+    expect(result.current.evaluation.computedGeometry.size).toBe(0);
+  });
+
   it("falls back to the TypeScript reference evaluation when Rust evaluation fails", async () => {
     const error = new Error("rust failed");
     const transport = vi.fn<RustEvaluationTransport>().mockRejectedValue(error);

@@ -93,6 +93,7 @@ const evaluationRevisionCapture = vi.hoisted(() => ({ revisions: [] as number[] 
 const buildEvaluationOptionsMock = vi.hoisted(() => vi.fn(() => ({})));
 const evaluationTransportCapture = vi.hoisted(() => ({
   local: null as unknown,
+  localActive: true,
   multiDocument: null as unknown,
   bake: null as unknown
 }));
@@ -119,6 +120,14 @@ vi.mock("../geometry/productionEvaluationContext", () => ({
 }));
 
 vi.mock("../geometry/evaluationEngine", () => ({
+  emptyEvaluationResult: () => ({
+    computedGeometry: new Map(),
+    errors: [],
+    warnings: [],
+    evaluatedElementIds: new Set(),
+    effectiveEnabledElementIds: new Set(),
+    effectiveVisibleElementIds: new Set()
+  }),
   evaluateElementsWithRust: vi.fn(async (_elements: unknown, options: { allowDisabledElementIds?: ReadonlySet<string> }, transport: unknown) => {
     drawingCanvasProps.bakeSandboxTargetIds = [...(options.allowDisabledElementIds ?? [])];
     evaluationTransportCapture.bake = transport;
@@ -132,8 +141,9 @@ vi.mock("../geometry/useEvaluationEngine", () => ({
     evaluationRevisionCapture.revisions.push(revision);
     return evaluationStateControl.isCurrent;
   },
-  useEvaluationEngine: (_elements: unknown, _options: unknown, revision: unknown, transport: unknown) => {
+  useEvaluationEngine: (_elements: unknown, _options: unknown, revision: unknown, transport: unknown, active = true) => {
     evaluationTransportCapture.local = transport ?? null;
+    evaluationTransportCapture.localActive = active;
     return {
       evaluation: drawingCanvasProps.evaluation,
       ...(localEvaluationStateControl.enabled ? {
@@ -533,6 +543,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
     evaluationStateControl.isCurrent = true;
     evaluationRevisionCapture.revisions = [];
     evaluationTransportCapture.local = null;
+    evaluationTransportCapture.localActive = true;
     evaluationTransportCapture.multiDocument = null;
     evaluationTransportCapture.bake = null;
   });
@@ -1092,6 +1103,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
     });
 
     expect(evaluationTransportCapture.local).toBeNull();
+    expect(evaluationTransportCapture.localActive).toBe(false);
     expect(fixture.canvasRuntime.rootOnly).toBe(true);
     expect(fixture.canvasRuntime.identityOnly).not.toBe(true);
     expect(drawingCanvasProps.multiDocumentRuntimePresentation?.elements).toEqual(hostElements);
@@ -1178,6 +1190,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
     });
     expect(drawingCanvasProps.multiDocumentRuntimePresentation).toBeNull();
     expect(evaluationTransportCapture.local).toBeTypeOf("function");
+    expect(evaluationTransportCapture.localActive).toBe(true);
   });
 
   it("keeps a same-file nominal record on ordinary local evaluation", async () => {
