@@ -323,7 +323,7 @@ fn validate_text_layout(
 }
 
 fn validate_stroke(stroke: &OutputStroke) -> Result<(), String> {
-    positive(stroke.width_mm, "stroke width")?;
+    non_negative(stroke.width_mm, "stroke width")?;
     if !matches!(stroke.style.as_str(), "solid" | "dashed" | "dotted") {
         return Err(format!("unsupported stroke style: {}", stroke.style));
     }
@@ -953,6 +953,30 @@ mod tests {
     #[test]
     fn accepts_unlabeled_outer_guides_and_matching_shared_labels() {
         assert!(validate_print_payload(&validation_payload()).is_ok());
+    }
+
+    #[test]
+    fn accepts_zero_width_strokes_and_keeps_other_payload_rules_strict() {
+        let mut zero_width = validation_payload();
+        if let OutputDrawable::Line { stroke, .. } = &mut zero_width.drawables[0] {
+            stroke.width_mm = 0.0;
+        } else {
+            panic!("expected validation line");
+        }
+        assert!(validate_print_payload(&zero_width).is_ok());
+
+        if let OutputDrawable::Line { stroke, .. } = &mut zero_width.drawables[0] {
+            stroke.width_mm = -0.1;
+        } else {
+            panic!("expected validation line");
+        }
+        assert!(validate_print_payload(&zero_width)
+            .expect_err("negative stroke width must remain invalid")
+            .contains("stroke width"));
+
+        let mut invalid_paper = validation_payload();
+        invalid_paper.paper.width_mm = 0.0;
+        assert!(validate_print_payload(&invalid_paper).is_err());
     }
 
     #[test]

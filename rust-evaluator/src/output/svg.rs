@@ -131,6 +131,12 @@ fn fill_attributes(fill: Option<&OutputFill>) -> String {
 }
 
 fn push_path_data(svg: &mut String, data: &str, stroke: &OutputStroke, fill: Option<&OutputFill>) {
+    if stroke.width_mm == 0.0 {
+        if let Some(fill) = fill {
+            push_fill_path_data(svg, data, fill);
+        }
+        return;
+    }
     let fill_attributes = fill_attributes(fill);
     svg.push_str(&format!(
         r##"    <path d="{data}" {fill_attributes} stroke="{}" stroke-width="{}" stroke-linecap="round" stroke-linejoin="round"{} />"##,
@@ -483,6 +489,98 @@ mod tests {
             .lines()
             .filter(|line| line.contains(r##"stroke="#31322f""##))
             .all(|line| !line.contains(" Z")));
+    }
+
+    #[test]
+    fn suppresses_zero_width_strokes_for_simple_and_segmented_svg_paths() {
+        let zero_width = OutputStroke {
+            width_mm: 0.0,
+            ..stroke()
+        };
+        let fill = super::super::payload::OutputFill {
+            color_hex: "#123456".to_owned(),
+            opacity: 0.25,
+        };
+        let segments = vec![
+            OutputPathSegment::Line {
+                start: OutputPoint { x: 0.0, y: 0.0 },
+                end: OutputPoint { x: 10.0, y: 0.0 },
+            },
+            OutputPathSegment::Line {
+                start: OutputPoint { x: 10.0, y: 0.0 },
+                end: OutputPoint { x: 10.0, y: 10.0 },
+            },
+        ];
+        let mut filled = payload();
+        filled.drawables = vec![
+            OutputDrawable::Line {
+                element_id: "line".to_owned(),
+                name: "line".to_owned(),
+                start: OutputPoint { x: 0.0, y: 0.0 },
+                end: OutputPoint { x: 10.0, y: 0.0 },
+                stroke: zero_width.clone(),
+                fill: None,
+            },
+            OutputDrawable::Bezier {
+                element_id: "bezier".to_owned(),
+                name: "bezier".to_owned(),
+                start: OutputPoint { x: 20.0, y: 0.0 },
+                control1: OutputPoint { x: 22.0, y: 5.0 },
+                control2: OutputPoint { x: 28.0, y: 5.0 },
+                end: OutputPoint { x: 30.0, y: 0.0 },
+                stroke: zero_width.clone(),
+                fill: None,
+            },
+            OutputDrawable::Arc {
+                element_id: "arc".to_owned(),
+                name: "arc".to_owned(),
+                center: OutputPoint { x: 40.0, y: 20.0 },
+                radius: 5.0,
+                start_angle_deg: 0.0,
+                sweep_angle_deg: 90.0,
+                stroke: zero_width.clone(),
+                fill: None,
+            },
+            OutputDrawable::JoinedPath {
+                element_id: "joined-fill".to_owned(),
+                name: "joined-fill".to_owned(),
+                segments: segments.clone(),
+                stroke: zero_width.clone(),
+                fill: Some(fill.clone()),
+            },
+            OutputDrawable::OffsetLine {
+                element_id: "offset-fill".to_owned(),
+                name: "offset-fill".to_owned(),
+                segments: segments.clone(),
+                stroke: zero_width.clone(),
+                fill: Some(fill.clone()),
+            },
+            OutputDrawable::Polyline {
+                element_id: "polyline-fill".to_owned(),
+                name: "polyline-fill".to_owned(),
+                segments: segments.clone(),
+                closed: true,
+                stroke: zero_width.clone(),
+                fill: Some(fill),
+            },
+            OutputDrawable::JoinedPath {
+                element_id: "joined-no-paint".to_owned(),
+                name: "joined-no-paint".to_owned(),
+                segments,
+                stroke: zero_width,
+                fill: None,
+            },
+        ];
+        let svg = encode_svg(&filled).expect("zero-width SVG paths should build");
+        assert_eq!(svg.matches("<path ").count(), 3);
+        assert_eq!(
+            svg.matches(r##"fill="#123456" fill-opacity="0.25" stroke="none""##)
+                .count(),
+            3
+        );
+        assert!(!svg.contains(r##"stroke="#31322f""##));
+        assert!(!svg.contains("stroke-width=\"0\""));
+        assert!(!svg.contains("joined-no-paint"));
     }
 
     #[test]

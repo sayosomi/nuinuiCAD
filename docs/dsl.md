@@ -129,6 +129,10 @@ reference](dsl/en/syntax.md#source-order-and-formatting) for details.
 
 Styles cascade property by property from groups to individual drawables.
 Drawing Profiles and legacy Style override blocks are removed from nui1.
+`width` accepts a finite non-negative decimal pixel value with the required
+`px` suffix. `0px` (also `0.0px`) suppresses ordinary strokes while preserving
+the geometry; fill remains independent for eligible closed paths. Omitted width
+uses the default `1px`, and a later positive width overrides zero normally.
 `fill` accepts `foreground`, `muted`,
 `accent`, `info`, `warning`, `error`, a fixed `#RRGGBB`, or `none`; `none`
 clears an inherited/effective fill. `fillOpacity` accepts a finite number from

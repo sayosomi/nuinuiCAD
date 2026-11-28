@@ -381,7 +381,7 @@ const strokeFor = (
 ): OutputStroke => {
   const resolved = evaluation.effectiveDrawingModifierStrokes?.get(elementId);
   if (!resolved) return { widthMm: PX_TO_MM, style: "solid", colorHex: OUTPUT_PALETTE.foreground };
-  finitePositive(resolved.widthPx, `style width for ${elementId}`);
+  finiteNonNegative(resolved.widthPx, `style width for ${elementId}`);
   return {
     widthMm: resolved.widthPx * PX_TO_MM,
     style: resolved.style,

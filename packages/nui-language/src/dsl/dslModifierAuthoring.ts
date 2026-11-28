@@ -8,7 +8,7 @@ import { choiceAfterStep, stepDslNumericLiteral, type DslValueStepDirection } fr
 
 export const modifierPropertySchema = [
   { key: "visible", kind: "choice", options: ["true", "false"] },
-  { key: "width", kind: "numeric", unit: "px", step: 0.1, options: ["0.5px", "1px", "1.5px", "2px"] },
+  { key: "width", kind: "numeric", unit: "px", step: 0.1, options: ["0px", "0.5px", "1px", "1.5px", "2px"] },
   { key: "lineType", kind: "choice", options: ["solid", "dashed", "dotted"] },
   { key: "color", kind: "color", options: ["foreground", "muted", "accent", "info", "warning", "error"] },
   { key: "fill", kind: "color", options: ["foreground", "muted", "accent", "info", "warning", "error", "none"] },
@@ -30,9 +30,9 @@ const fixedColor = /^#[0-9a-fA-F]{6}$/;
 export const parseModifierWidthValue = (value: string): { value: number } | ModifierValueParseFailure => {
   const match = value.trim().match(/^(\d+(?:\.\d*)?|\.\d+)px$/);
   const width = match ? Number(match[1]) : NaN;
-  return match && Number.isFinite(width) && width > 0
+  return match && Number.isFinite(width) && width >= 0
     ? { value: width }
-    : { message: "style の width は正の有限な10進数pxリテラルで指定してください(例: 1.5px)。", code: "style-width-invalid" };
+    : { message: "style の width は有限な非負の10進数pxリテラルで指定してください(例: 0px、1.5px)。", code: "style-width-invalid" };
 };
 
 export const parseModifierLineTypeValue = (value: string): { value: DrawingModifierStrokeStyle } | ModifierValueParseFailure =>

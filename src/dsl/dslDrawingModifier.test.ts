@@ -448,6 +448,34 @@ describe("nui1 drawing style source model", () => {
     ]);
   });
 
+  it("preserves explicit zero width through compilation and canonical serialization", () => {
+    const source = sourceLines(
+      "nui 1",
+      "style FillOnly {",
+      "  width: 0px,",
+      "  fill: #E8A0BF,",
+      "  fillOpacity: 0.5,",
+      "}",
+      "style DecimalZero {",
+      "  width: 0.0px,",
+      "}",
+      "style Positive {",
+      "  width: 1.25px,",
+      "}"
+    );
+    const first = compileDslDocument(source);
+    expect(first.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
+    expect(first.document?.modifiers).toEqual([
+      { name: "FillOnly", widthPx: 0, fill: { kind: "fixed", hex: "#e8a0bf" }, fillOpacity: 0.5 },
+      { name: "DecimalZero", widthPx: 0 },
+      { name: "Positive", widthPx: 1.25 }
+    ]);
+    const canonical = serializeDocumentToDsl(first.document!, first.majorVersion!);
+    expect(canonical).toContain("width: 0px,");
+    expect(canonical.match(/width: 0px,/g)).toHaveLength(2);
+    expect(compileDslDocument(canonical).diagnostics.filter((item) => item.severity === "error")).toEqual([]);
+  });
+
   it("accepts fill values and opacity bounds with property-wise cascade", () => {
     const source = sourceLines(
       "nui 1",
@@ -493,9 +521,13 @@ describe("nui1 drawing style source model", () => {
       expect(errors(source)).toEqual([]);
     }
     const invalidCases = [
-      ["width: 0px,", "正の有限な10進数"],
-      ["width: Infinitypx,", "正の有限な10進数"],
-      ["width: 1em,", "正の有限な10進数"],
+      ["width: -0.1px,", "有限な非負の10進数"],
+      ["width: Infinitypx,", "有限な非負の10進数"],
+      ["width: NaNpx,", "有限な非負の10進数"],
+      ["width: 0,", "有限な非負の10進数"],
+      ["width: 1,", "有限な非負の10進数"],
+      ["width: 1em,", "有限な非負の10進数"],
+      ["width: 1e2px,", "有限な非負の10進数"],
       ["lineType: zigzag,", "solid / dashed / dotted"],
       ["color: primary,", "foreground / muted / accent"],
       ["color: none,", "foreground / muted / accent"],

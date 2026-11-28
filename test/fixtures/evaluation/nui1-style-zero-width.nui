@@ -1,0 +1,43 @@
+nui 1
+
+style Hidden {
+  visible: false,
+}
+
+style FillOnly {
+  width: 0px,
+  fill: #E8A0BF,
+  fillOpacity: 0.5,
+}
+
+style PositiveFill {
+  width: 1.5px,
+  fill: #E8A0BF,
+  fillOpacity: 0.5,
+}
+
+style PlainZero {
+  width: 0.0px,
+  fill: none,
+}
+
+style Positive {
+  width: 2.5px,
+}
+
+group Pattern [FillOnly] {
+  line A [Hidden] = segment(start: (0, 0), end: (40, 0))
+  line B [Hidden] = segment(start: (40, 0), end: (40, 30))
+  line C [Hidden] = segment(start: (40, 30), end: (0, 30))
+  line D [Hidden] = segment(start: (0, 30), end: (0, 0))
+  line Joined = join(paths: [A, B, C, D], closed: true)
+  line Poly = polyline(points: [(50, 0), (90, 0), (90, 30), (50, 30)], closed: true)
+  line Offset = offset(sources: [Poly], distance: 5, side: @right, closed: true, suppressTrimWarnings: false)
+  line Open = polyline(points: [(100, 0), (130, 0), (130, 30)], closed: false)
+  line UnfilledZero [PlainZero] = polyline(points: [(140, 0), (170, 0), (170, 30)], closed: true)
+  line PositiveWithFill [PositiveFill] = polyline(points: [(180, 0), (210, 0), (210, 30)], closed: true)
+  line LaterPositiveWins [Positive, FillOnly, Positive] = polyline(points: [(220, 0), (250, 0), (250, 30)], closed: true)
+  line Inherited = segment(start: (260, 0), end: (290, 0))
+}
+
+point DefaultWidth = coordinate(x: 300, y: 0)

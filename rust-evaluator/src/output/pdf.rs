@@ -265,6 +265,21 @@ fn push_presented_stroked_path(
     fill: Option<&OutputFill>,
     origin: OutputPoint,
 ) {
+    if stroke.width_mm == 0.0 {
+        if let Some(fill) = fill {
+            content.push_str("q\n");
+            content.push_str(&format!(
+                "{}\n",
+                non_stroking_color_operator(&fill.color_hex)
+            ));
+            if fill.opacity != 1.0 {
+                content.push_str(&format!("/{} gs\n", fill_state_name(fill.opacity)));
+            }
+            push_segment(content, segment, origin);
+            content.push_str("f\nQ\n");
+        }
+        return;
+    }
     if fill.is_some() {
         content.push_str("q\n");
     }
@@ -298,6 +313,35 @@ fn push_presented_polyline(
     fill: Option<&OutputFill>,
     origin: OutputPoint,
 ) -> Result<(), String> {
+    if stroke.width_mm == 0.0 {
+        let Some(fill) = fill else {
+            return Ok(());
+        };
+        content.push_str("q\n");
+        content.push_str(&format!(
+            "{}\n",
+            non_stroking_color_operator(&fill.color_hex)
+        ));
+        if fill.opacity != 1.0 {
+            content.push_str(&format!("/{} gs\n", fill_state_name(fill.opacity)));
+        }
+        for (index, segment) in segments.iter().enumerate() {
+            let OutputPathSegment::Line { start, end } = segment else {
+                return Err("polyline segments must be lines".to_owned());
+            };
+            if index == 0 {
+                let (x, y) = page_point(*start, origin);
+                content.push_str(&format!("{x} {y} m "));
+            }
+            let (x, y) = page_point(*end, origin);
+            content.push_str(&format!("{x} {y} l\n"));
+        }
+        if closed {
+            content.push_str("h\n");
+        }
+        content.push_str("f\nQ\n");
+        return Ok(());
+    }
     if fill.is_some() {
         content.push_str("q\n");
     }
@@ -1249,6 +1293,116 @@ mod tests {
             .expect("second segment stroke should be emitted");
         assert!(fill_position < first_stroke_position);
         assert!(first_stroke_position < second_stroke_position);
+    }
+
+    #[test]
+    fn paints_zero_width_closed_geometry_with_fill_only_and_omits_unfilled_strokes() {
+        let zero_width = OutputStroke {
+            width_mm: 0.0,
+            style: "solid".to_owned(),
+            color_hex: "#31322f".to_owned(),
+        };
+        let fill = OutputFill {
+            color_hex: "#123456".to_owned(),
+            opacity: 0.25,
+        };
+        let closed_segments = vec![
+            OutputPathSegment::Line {
+                start: OutputPoint { x: 0.0, y: 0.0 },
+                end: OutputPoint { x: 10.0, y: 0.0 },
+            },
+            OutputPathSegment::Line {
+                start: OutputPoint { x: 10.0, y: 0.0 },
+                end: OutputPoint { x: 10.0, y: 10.0 },
+            },
+        ];
+        let mut output = payload();
+        output.drawables = vec![
+            OutputDrawable::JoinedPath {
+                element_id: "joined-fill".to_owned(),
+                name: "joined-fill".to_owned(),
+                segments: closed_segments.clone(),
+                stroke: zero_width.clone(),
+                fill: Some(fill.clone()),
+            },
+            OutputDrawable::OffsetLine {
+                element_id: "offset-fill".to_owned(),
+                name: "offset-fill".to_owned(),
+                segments: closed_segments.clone(),
+                stroke: zero_width.clone(),
+                fill: Some(fill.clone()),
+            },
+            OutputDrawable::Polyline {
+                element_id: "polyline-fill".to_owned(),
+                name: "polyline-fill".to_owned(),
+                segments: closed_segments,
+                closed: true,
+                stroke: zero_width.clone(),
+                fill: Some(fill),
+            },
+            OutputDrawable::JoinedPath {
+                element_id: "joined-empty".to_owned(),
+                name: "joined-empty".to_owned(),
+                segments: vec![OutputPathSegment::Line {
+                    start: OutputPoint { x: 40.0, y: 0.0 },
+                    end: OutputPoint { x: 50.0, y: 0.0 },
+                }],
+                stroke: zero_width.clone(),
+                fill: None,
+            },
+            OutputDrawable::Polyline {
+                element_id: "polyline-empty".to_owned(),
+                name: "polyline-empty".to_owned(),
+                segments: vec![OutputPathSegment::Line {
+                    start: OutputPoint { x: 60.0, y: 0.0 },
+                    end: OutputPoint { x: 70.0, y: 0.0 },
+                }],
+                closed: false,
+                stroke: zero_width.clone(),
+                fill: None,
+            },
+            OutputDrawable::Line {
+                element_id: "line-empty".to_owned(),
+                name: "line-empty".to_owned(),
+                start: OutputPoint { x: 70.0, y: 0.0 },
+                end: OutputPoint { x: 80.0, y: 0.0 },
+                stroke: zero_width.clone(),
+                fill: None,
+            },
+            OutputDrawable::Bezier {
+                element_id: "bezier-empty".to_owned(),
+                name: "bezier-empty".to_owned(),
+                start: OutputPoint { x: 80.0, y: 0.0 },
+                control1: OutputPoint { x: 82.0, y: 5.0 },
+                control2: OutputPoint { x: 88.0, y: 5.0 },
+                end: OutputPoint { x: 90.0, y: 0.0 },
+                stroke: zero_width.clone(),
+                fill: None,
+            },
+            OutputDrawable::Arc {
+                element_id: "arc-empty".to_owned(),
+                name: "arc-empty".to_owned(),
+                center: OutputPoint { x: 95.0, y: 20.0 },
+                radius: 5.0,
+                start_angle_deg: 0.0,
+                sweep_angle_deg: 90.0,
+                stroke: zero_width,
+                fill: None,
+            },
+        ];
+        let pdf = encode_pdf(&output).expect("zero-width PDF paths should build");
+        let text = String::from_utf8_lossy(&pdf);
+
+        let fill_only_path = "28.346 28.346 m 56.693 28.346 l\n56.693 56.693 l\nh\nf\nQ\n";
+        assert_eq!(text.matches(fill_only_path).count(), 3);
+        assert!(!text.contains("h\nB\nQ\n"));
+        assert!(!text.contains("28.346 28.346 m 56.693 28.346 l\nS\n"));
+        assert!(!text.contains("56.693 28.346 m 56.693 56.693 l\nS\n"));
+        assert!(!text.contains("141.732 28.346 m 170.079 28.346 l\nS\n"));
+        assert!(!text.contains("198.425 28.346 m 226.772 28.346 l\nS\n"));
+        assert!(!text.contains(" 0 w"));
+        assert!(text.contains("/GSFill0_25 gs"));
+        assert_eq!(text.matches("28.346 0 m 28.346 841.89 l S").count(), 2);
     }
 
     #[test]

@@ -213,6 +213,14 @@ const applyGeometryStroke = ({
   canvasTheme: CanvasTheme;
 }) => {
   const modifierStroke = effectiveDrawingModifierStrokes?.get(elementId);
+  const lineWidth = lineWidthForGeometry({
+    isSelected,
+    isPrimarySelected,
+    isPointPickActive,
+    isNumericReferencePickActive,
+    isLinePickActive,
+    modifierWidth: modifierStroke?.widthPx
+  });
   const documentColor = modifierStroke
     ? drawingModifierColor(modifierStroke, canvasTheme)
     : defaultColor;
@@ -223,17 +231,11 @@ const applyGeometryStroke = ({
     defaultColor: documentColor,
     canvasTheme
   });
-  ctx.lineWidth = lineWidthForGeometry({
-    isSelected,
-    isPrimarySelected,
-    isPointPickActive,
-    isNumericReferencePickActive,
-    isLinePickActive,
-    modifierWidth: modifierStroke?.widthPx
-  });
+  ctx.lineWidth = lineWidth;
   // Every geometry establishes its own dash state. Interaction emphasis may
   // change color/width, but never replaces the document's explicit dash style.
   ctx.setLineDash(modifierStroke ? drawingModifierDash(modifierStroke.style) : []);
+  return lineWidth > 0;
 };
 
 export const renderCanvasGeometry = ({
@@ -314,7 +316,7 @@ export const renderCanvasGeometry = ({
     ctx.beginPath();
     ctx.moveTo(start.x, start.y);
     ctx.lineTo(end.x, end.y);
-    applyGeometryStroke({
+    const shouldStroke = applyGeometryStroke({
       ctx,
       elementId: line.elementId,
       effectiveDrawingModifierStrokes,
@@ -326,7 +328,7 @@ export const renderCanvasGeometry = ({
       isLinePickActive,
       canvasTheme
     });
-    ctx.stroke();
+    if (shouldStroke) ctx.stroke();
   }};
 
   const drawArcs = () => { for (const arc of arcs) {
@@ -344,7 +346,7 @@ export const renderCanvasGeometry = ({
       -(((arc.startAngleDeg + arc.sweepAngleDeg) * Math.PI) / 180),
       arc.sweepAngleDeg >= 0
     );
-    applyGeometryStroke({
+    const shouldStroke = applyGeometryStroke({
       ctx,
       elementId: arc.elementId,
       effectiveDrawingModifierStrokes,
@@ -356,7 +358,7 @@ export const renderCanvasGeometry = ({
       isLinePickActive,
       canvasTheme
     });
-    ctx.stroke();
+    if (shouldStroke) ctx.stroke();
   }};
 
   const drawCurves = () => { for (const curve of curves) {
@@ -372,7 +374,7 @@ export const renderCanvasGeometry = ({
       if (index === 0) ctx.moveTo(start.x, start.y);
       ctx.bezierCurveTo(control1.x, control1.y, control2.x, control2.y, end.x, end.y);
     });
-    applyGeometryStroke({
+    const shouldStroke = applyGeometryStroke({
       ctx,
       elementId: curve.elementId,
       effectiveDrawingModifierStrokes,
@@ -384,7 +386,7 @@ export const renderCanvasGeometry = ({
       isLinePickActive,
       canvasTheme
     });
-    ctx.stroke();
+    if (shouldStroke) ctx.stroke();
   }};
 
   const drawSegmentedPaths = (paths: Array<ComputedOffsetLine | ComputedJoinedPath>) => { for (const line of paths) {
@@ -417,7 +419,7 @@ export const renderCanvasGeometry = ({
         segment.sweepAngleDeg >= 0
       );
     });
-    applyGeometryStroke({
+    const shouldStroke = applyGeometryStroke({
       ctx,
       elementId: line.elementId,
       effectiveDrawingModifierStrokes,
@@ -429,7 +431,7 @@ export const renderCanvasGeometry = ({
       isLinePickActive,
       canvasTheme
     });
-    ctx.stroke();
+    if (shouldStroke) ctx.stroke();
   }};
   const drawOffsetLines = () => drawSegmentedPaths(offsetLines);
   const drawJoinedPaths = () => drawSegmentedPaths(joinedPaths);
@@ -445,7 +447,7 @@ export const renderCanvasGeometry = ({
       if (index === 0) ctx.moveTo(start.x, start.y);
       ctx.lineTo(end.x, end.y);
     });
-    applyGeometryStroke({
+    const shouldStroke = applyGeometryStroke({
       ctx,
       elementId: polyline.elementId,
       effectiveDrawingModifierStrokes,
@@ -457,7 +459,7 @@ export const renderCanvasGeometry = ({
       isLinePickActive,
       canvasTheme
     });
-    ctx.stroke();
+    if (shouldStroke) ctx.stroke();
   }};
 
   const drawPoints = () => { for (const point of points) {
@@ -508,12 +510,13 @@ export const renderCanvasGeometry = ({
           ? 1.25
         : 2;
     const pointInteraction = isPointPickActive || isNumericReferencePickActive || isLinePickActive || isSelected || isPrimarySelected;
-    ctx.lineWidth = pointStroke && pointInteraction
+    const pointLineWidth = pointStroke && pointInteraction
       ? Math.max(pointStroke.widthPx, legacyPointWidth)
       : pointStroke?.widthPx ?? legacyPointWidth;
+    ctx.lineWidth = pointLineWidth;
     ctx.setLineDash(pointStroke ? drawingModifierDash(pointStroke.style) : []);
     ctx.fill();
-    ctx.stroke();
+    if (pointLineWidth > 0) ctx.stroke();
   }};
 
   for (const kind of CANVAS_BASE_DRAW_ORDER) {
@@ -534,7 +537,7 @@ export const renderCanvasGeometry = ({
       for (const [ownerElementId, preview] of mirrorCopyPreviews) {
         const groups = visibleMirrorCopyPreviewGroups(ownerElementId, preview, visibleElementIds);
         if (groups.length === 0) continue;
-        applyGeometryStroke({
+        const shouldStroke = applyGeometryStroke({
           ctx,
           elementId: ownerElementId,
           effectiveDrawingModifierStrokes,
@@ -546,6 +549,7 @@ export const renderCanvasGeometry = ({
           isLinePickActive: false,
           canvasTheme
         });
+        if (!shouldStroke) continue;
         for (const group of groups) {
           ctx.beginPath();
           group.segments.forEach((segment, index) => {

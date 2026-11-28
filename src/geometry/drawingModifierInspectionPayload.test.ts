@@ -9,12 +9,12 @@ import {
 import { evaluateElements } from "./evaluate";
 import { effectiveDrawingModifierResolutionsFromResult } from "../model/drawingModifierInspection";
 
-const groupElement = (): GroupElement => ({
+const groupElement = (modifierNames: string[] = ["detail"]): GroupElement => ({
   id: "group",
   name: "group",
   type: "group",
   activity: "visible",
-  modifierNames: ["detail"]
+  modifierNames
 });
 
 describe("Drawing Modifier inspection evaluation payload", () => {
@@ -56,6 +56,22 @@ describe("Drawing Modifier inspection evaluation payload", () => {
         modifierName: "detail"
       }
     });
+  });
+
+  it("preserves explicit zero width and rejects negative inspected widths", () => {
+    const result = evaluateElements([groupElement(["zero"])], {
+      drawingModifiers: [{ name: "zero", widthPx: 0 }]
+    });
+    const payload = evaluationResultToPayload(result);
+    expect(payload.effectiveDrawingModifierResolutions?.[0]?.resolution.widthPx).toEqual({
+      value: 0,
+      winner: { ownerElementId: "group", modifierName: "zero" }
+    });
+    expect(evaluationPayloadToResult(payload).effectiveDrawingModifierResolutions?.get("group")?.widthPx.value).toBe(0);
+
+    const invalid = structuredClone(payload);
+    invalid.effectiveDrawingModifierResolutions![0]!.resolution.widthPx.value = -0.1;
+    expect(() => evaluationPayloadToResult(invalid)).toThrow(DrawingModifierInspectionDecodeError);
   });
 
   it("fails closed on malformed Rust winner metadata", () => {

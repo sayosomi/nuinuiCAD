@@ -3778,6 +3778,28 @@ describe("Output Preview application", () => {
       .toBe(Node.DOCUMENT_POSITION_FOLLOWING);
   });
 
+  it("renders zero-width output geometry with no ordinary stroke while retaining fill attributes", async () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(viewportRect);
+    mocks.evaluateOutputPlan.mockImplementation(async ({ output }: { output: TestOutput }) => {
+      const plan = planFor(output, { colorHex: "#abcdef", opacity: 0.25 });
+      const drawable = plan.drawables[0];
+      if (!drawable || drawable.kind === "text") throw new Error("missing path drawable");
+      drawable.stroke.widthMm = 0;
+      return plan;
+    });
+    renderFixture();
+
+    const geometry = await waitFor(() => {
+      const element = screen.getByLabelText("Output preview").querySelector('[data-output-preview-layer="geometry"]');
+      expect(element).not.toBeNull();
+      return element as SVGPathElement;
+    });
+    expect(geometry).toHaveAttribute("stroke", "none");
+    expect(geometry).toHaveAttribute("stroke-width", "0");
+    expect(geometry).toHaveAttribute("fill", "#abcdef");
+    expect(geometry).toHaveAttribute("fill-opacity", "0.25");
+  });
+
   it("accepts exact physical spans for semantic diagnostic targets and fails closed otherwise", () => {
     const diagnostic = (physicalSpan: DslDiagnostic["physicalSpan"], navigationTarget?: DslDiagnostic["navigationTarget"]): DslDiagnostic => ({
       severity: "error",

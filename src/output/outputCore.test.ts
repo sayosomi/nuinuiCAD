@@ -1250,6 +1250,98 @@ describe("SAY-64 output core", () => {
     expect(texts.map((text) => text.rotationDeg)).toEqual([270, 90]);
   });
 
+  it("preserves zero stroke width, fill-only geometry, and geometry bounds across closed path kinds", () => {
+    const doc = sourceFor([
+      "nui 1",
+      "style Pattern {",
+      "  width: 1px,",
+      "  fill: #E8A0BF,",
+      "  fillOpacity: 0.5,",
+      "}",
+      "style Plain {",
+      "  width: 1px,",
+      "}",
+      "style Hidden {",
+      "  visible: false,",
+      "}",
+      "group G {",
+      "  line A [Hidden] = segment(start: (0, 0), end: (10, 0))",
+      "  line B [Hidden] = segment(start: (10, 0), end: (10, 10))",
+      "  line C [Hidden] = segment(start: (10, 10), end: (0, 10))",
+      "  line D [Hidden] = segment(start: (0, 10), end: (0, 0))",
+      "  line Joined [Pattern] = join(paths: [A, B, C, D], closed: true)",
+      "  line Poly [Pattern] = polyline(points: [(20, 0), (30, 0), (30, 10)], closed: true)",
+      "  line Base [Hidden] = polyline(points: [(40, 0), (50, 0), (50, 10)], closed: true)",
+      "  line Offset [Pattern] = offset(sources: [Base], distance: 1, side: @right, closed: true, suppressTrimWarnings: false)",
+      "  line Open [Pattern] = polyline(points: [(60, 0), (70, 0), (70, 10)], closed: false)",
+      "  line StrokeOnly [Plain] = segment(start: (80, 0), end: (90, 0))",
+      "}",
+      "layout L {",
+      "  place G(at: (0, 0))",
+      "}",
+      "svg S(layout: L, layers: [default], margin: 0)"
+    ]);
+    const planWith = (widthPx: number, includeFill: boolean) => {
+      const compiledDocument = {
+        ...doc,
+        document: {
+          ...doc.document,
+          modifiers: doc.document.modifiers!.map((modifier) => {
+            if (modifier.name === "Pattern") {
+              return {
+                ...modifier,
+                widthPx,
+                ...(includeFill ? {} : { fill: undefined, fillOpacity: undefined })
+              };
+            }
+            return modifier.name === "Plain" ? { ...modifier, widthPx } : modifier;
+          })
+        }
+      } as typeof doc;
+      return buildOutputPlan({
+        compiledDocument,
+        output: compiledDocument.document.svgOutputs[0]!,
+        evaluation: evaluationFor(compiledDocument)
+      });
+    };
+    const pathNames = ["Joined", "Poly", "Offset"];
+    const positiveFill = planWith(1, true);
+    const zeroFill = planWith(0, true);
+    const zeroNoFill = planWith(0, false);
+    const find = (plan: ReturnType<typeof buildOutputPlan>, name: string) => {
+      const drawable = plan.drawables.find((candidate) => candidate.name === name);
+      if (!drawable || drawable.kind === "text") throw new Error(`missing path ${name}`);
+      return drawable;
+    };
+
+    for (const name of pathNames) {
+      expect(find(positiveFill, name)).toMatchObject({
+        stroke: { widthMm: PX_TO_MM },
+        fill: { colorHex: "#e8a0bf", opacity: 0.5 }
+      });
+      const filledZeroWidth = find(zeroFill, name);
+      expect(filledZeroWidth).toMatchObject({
+        stroke: { widthMm: 0 },
+        fill: { colorHex: "#e8a0bf", opacity: 0.5 }
+      });
+      const unfilledZeroWidth = find(zeroNoFill, name);
+      expect(unfilledZeroWidth.stroke.widthMm).toBe(0);
+      expect(unfilledZeroWidth).not.toHaveProperty("fill");
+      expect(outputDrawableBounds(filledZeroWidth)).toMatchObject({
+        width: expect.any(Number),
+        height: expect.any(Number)
+      });
+      expect(outputDrawableBounds(filledZeroWidth).width).toBeGreaterThan(0);
+      expect(outputDrawableBounds(filledZeroWidth).height).toBeGreaterThan(0);
+    }
+    expect(find(zeroFill, "Open")).not.toHaveProperty("fill");
+    expect(find(zeroNoFill, "Open")).not.toHaveProperty("fill");
+    expect(zeroNoFill.drawables.map((drawable) => drawable.name)).not.toContain("A");
+    expect(zeroNoFill.renderedBounds.width).toBeGreaterThan(0);
+    expect(zeroNoFill.drawables.find((drawable) => drawable.name === "Joined")?.elementId)
+      .toBe(positiveFill.drawables.find((drawable) => drawable.name === "Joined")?.elementId);
+  });
+
   it("includes final stroke width and deterministic text bounds", () => {
     const doc = simpleSource(["style Heavy {", "  width: 4px,", "  color: #FF3355,", "}"]);
     const line = doc.document.elements.find((element) => element.name === "AB")!;

@@ -163,8 +163,8 @@ const parseModifierVisible = (value: unknown, path: string) => {
 };
 
 const parseModifierWidth = (value: unknown, path: string) => {
-  if (typeof value !== "number" || !Number.isFinite(value)) {
-    return failModifierInspection(`${path}.value is not a finite number`);
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+    return failModifierInspection(`${path}.value is not a finite non-negative number`);
   }
   return value;
 };

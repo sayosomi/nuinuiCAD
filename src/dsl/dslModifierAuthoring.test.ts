@@ -49,10 +49,12 @@ const completionAt = (text: string, position: number) => queryDslCompletion({
 
 describe("style authoring semantics", () => {
   it("attaches stable codes to producer-owned invalid modifier values", () => {
-    expect(parseModifierWidthValue("0px")).toEqual({
-      message: "style の width は正の有限な10進数pxリテラルで指定してください(例: 1.5px)。",
-      code: "style-width-invalid"
-    });
+    expect(parseModifierWidthValue("0px")).toEqual({ value: 0 });
+    expect(parseModifierWidthValue("0.0px")).toEqual({ value: 0 });
+    expect(parseModifierWidthValue("1.5px")).toEqual({ value: 1.5 });
+    for (const invalid of ["-0.1px", "Infinitypx", "NaNpx", "0", "1", "1em"]) {
+      expect(parseModifierWidthValue(invalid)).toMatchObject({ code: "style-width-invalid" });
+    }
     expect(parseModifierLineTypeValue("stripe")).toEqual({
       message: "style の lineType は solid / dashed / dotted のいずれかで指定してください。",
       code: "style-line-type-invalid"
@@ -82,6 +84,9 @@ describe("style authoring semantics", () => {
       code: "style-fill-opacity-out-of-range"
     });
     expect(resolveModifierValueStep("width", "width", "1.5", 1)).toEqual({ insert: "1.6" });
+    expect(resolveModifierValueStep("width", "width", "0.1", -1)).toEqual({ insert: "0" });
+    expect(resolveModifierValueStep("width", "width", "0", -1)).toBeNull();
+    expect(resolveModifierValueStep("width", "width", "0", 1)).toEqual({ insert: "0.1" });
     expect(resolveModifierValueStep("fillOpacity", "value", "0.5", 1)).toEqual({ insert: "0.6" });
   });
 
@@ -114,6 +119,10 @@ describe("style authoring semantics", () => {
     expect(property?.candidates.map((candidate) => candidate.label)).toContain("lineType");
     expect(property?.candidates.map((candidate) => candidate.label)).toEqual(expect.arrayContaining(["fill", "fillOpacity"]));
     expect(property?.candidates.map((candidate) => candidate.label)).not.toContain("state");
+
+    const widthValue = completion(source.replace("width: 1.5px", "width: 0."), "width: 0.");
+    expect(widthValue?.category).toBe("modifierValue");
+    expect(widthValue?.candidates.map((candidate) => candidate.label)).toContain("0px");
 
     const valueSource = source.replace("lineType: dotted", "lineType: d");
     const value = completion(valueSource, "lineType: d");

@@ -259,7 +259,7 @@ const drawableSvg = (
       data-output-preview-layer="geometry"
       fill={drawable.fill?.colorHex ?? "none"}
       fillOpacity={drawable.fill?.opacity}
-      stroke={drawable.stroke.colorHex}
+      stroke={drawable.stroke.widthMm > 0 ? drawable.stroke.colorHex : "none"}
       strokeWidth={drawable.stroke.widthMm * viewport.zoom}
       strokeDasharray={drawable.stroke.style === "dashed" ? "6 4" : drawable.stroke.style === "dotted" ? "1 3" : undefined}
       strokeLinecap="round"

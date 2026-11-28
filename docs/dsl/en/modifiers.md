@@ -9,7 +9,9 @@ overriding only the properties they provide.
 The common properties are:
 
 - `visible`: a boolean presentation value.
-- `width`: a positive finite stroke width in pixels.
+- `width`: a finite non-negative decimal stroke width in pixels, written with
+  the required `px` suffix. `0px` and `0.0px` suppress ordinary strokes while
+  preserving geometry; fill remains independent for eligible closed paths.
 - `lineType`: `solid`, `dashed`, or `dotted`.
 - `color`: a theme role such as `foreground`, or a literal `#RRGGBB`.
 - `fill`: a theme role, a literal `#RRGGBB`, or `none`; `none` clears an inherited fill.
@@ -17,8 +19,10 @@ The common properties are:
 
 The older combined `stroke` syntax is not part of `nui 1`. The normal drawing
 defaults are `1px`, `solid`, and `foreground` when no more-specific value
-overrides them. Legacy `profile` declarations and Profile override blocks are
-rejected.
+overrides them. An omitted width keeps the `1px` default, and later positive
+widths override zero normally. Negative, non-finite, unitless, and unsupported
+unit values are invalid. Legacy `profile` declarations and Profile override
+blocks are rejected.
 
 ## Inheritance and activity
 

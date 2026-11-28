@@ -1405,8 +1405,8 @@ warning marker.
 ## Style declarations and presentation properties
 
 A `style` defines reusable drawing properties. The supported properties are
-independent: `visible` is a boolean; `width` is a positive finite decimal pixel
-literal; `lineType` is `solid`, `dashed`, or `dotted`; `color` is a theme role
+independent: `visible` is a boolean; `width` is a finite non-negative decimal
+pixel literal with the required `px` suffix; `lineType` is `solid`, `dashed`, or `dotted`; `color` is a theme role
 (`foreground`, `muted`, `accent`, `info`, `warning`, or `error`) or `#RRGGBB`;
 `fill` is one of those same theme roles, `#RRGGBB`, or `none`; and
 `fillOpacity` is a finite number in the inclusive range `0..1`. `none` is valid
@@ -1419,6 +1419,16 @@ the parser.
 Effective properties cascade from outer group to inner group to element. Within
 each owner, assigned Styles are applied left to right. The cascade merges each
 property independently and starts from `1px solid foreground`.
+
+An explicit width of `0px` (including decimal zero such as `0.0px`) is retained
+as the effective width and suppresses ordinary geometry strokes in Canvas,
+Output Preview, SVG, and print/PDF. Fill remains independent, so an eligible
+closed path can render with fill and no outline. A zero-width element keeps its
+geometry, identity, references, measurements, visibility, enabled state, and
+bounds. Selection and Pick highlights and auxiliary markers remain visible.
+Omitted width still uses the `1px` default, and a later positive width overrides
+an earlier zero normally. Widths without `px`, negative values, non-finite
+values, and unsupported units are invalid.
 
 Style `visible` is presentation-only. It cannot override a direct or ancestor
 `visible: false` gate. Fill is presentation-only as well: eligible semantically

@@ -3,6 +3,7 @@ import type {
   CadElement,
   ComputedArcLine,
   ComputedBezierCurve,
+  ComputedJoinedPath,
   ComputedLine,
   ComputedOffsetLine,
   ComputedPolyline,
@@ -171,25 +172,28 @@ const renderMirrorPreviews = ({
   return context;
 };
 
-const renderWithStroke = ({
+const renderWithStrokeSnapshots = ({
   stroke,
   lines = [],
   arcs = [],
   curves = [],
   offsetLines = [],
+  joinedPaths = [],
   polylines = [],
   points = [],
   zoom = 1,
   selectedElementIds = [],
   selectedElementId = null,
   isLinePickActive = false,
-  canvasTheme = LEGACY_CANVAS_THEME
+  canvasTheme = LEGACY_CANVAS_THEME,
+  strokes
 }: {
   stroke: DrawingModifierStroke;
   lines?: ComputedLine[];
   arcs?: ComputedArcLine[];
   curves?: ComputedBezierCurve[];
   offsetLines?: ComputedOffsetLine[];
+  joinedPaths?: ComputedJoinedPath[];
   polylines?: ComputedPolyline[];
   points?: ComputedPoint[];
   zoom?: number;
@@ -197,9 +201,10 @@ const renderWithStroke = ({
   selectedElementId?: string | null;
   isLinePickActive?: boolean;
   canvasTheme?: CanvasTheme;
+  strokes?: ReadonlyMap<string, DrawingModifierStroke>;
 }) => {
   const { ctx, snapshots } = strokeContext();
-  const geometryIds = [...lines, ...arcs, ...curves, ...offsetLines, ...polylines, ...points].map((item) => item.elementId);
+  const geometryIds = [...lines, ...arcs, ...curves, ...offsetLines, ...joinedPaths, ...polylines, ...points].map((item) => item.elementId);
   renderCanvasGeometry({
     ctx,
     size: { width: 500, height: 400 },
@@ -208,20 +213,25 @@ const renderWithStroke = ({
     arcs,
     curves,
     offsetLines,
+    joinedPaths,
     polylines,
     points,
     visibleElementIds: new Set(geometryIds),
     selectedElementIdSet: new Set(selectedElementIds),
     selectedElementId,
-    effectiveDrawingModifierStrokes: new Map(geometryIds.map((id) => [id, stroke])),
+    effectiveDrawingModifierStrokes: strokes ?? new Map(geometryIds.map((id) => [id, stroke])),
     canvasTheme,
+    canvasGridSettings: { enabled: false, spacingMm: 10, majorEvery: 5, snapEnabled: false },
     showCanvasPoints: true,
     isPointPickActive: false,
     isNumericReferencePickActive: false,
     isLinePickActive
   });
-  return snapshots.at(-1);
+  return snapshots;
 };
+
+const renderWithStroke = (args: Parameters<typeof renderWithStrokeSnapshots>[0]) =>
+  renderWithStrokeSnapshots(args).at(-1);
 
 const renderLineAndReturnLastStrokeWidth = ({
   zoom,
@@ -841,6 +851,97 @@ describe("renderCanvasGeometry", () => {
         lineDash: [1, 3]
       });
     }
+  });
+
+  it("suppresses ordinary zero-width geometry strokes while preserving positive controls and highlights", () => {
+    const start = point("start", 0, 0);
+    const end = point("end", 10, 0);
+    const zero = { widthPx: 0, style: "dashed" as const, color: { kind: "fixed" as const, hex: "#abcdef" } };
+    const arc: ComputedArcLine = {
+      kind: "arcLine", elementId: "arc", name: "arc", centerPointId: null, center: point("center", 0, 0),
+      start: point("arc-start", 10, 0), end: point("arc-end", 0, 10), radius: 10,
+      startAngleDeg: 0, endAngleDeg: 90, startTangentAngleDeg: 90, endTangentAngleDeg: 180,
+      sweepAngleDeg: 90, length: 15
+    };
+    const curve: ComputedBezierCurve = {
+      kind: "bezierCurve", elementId: "curve", name: "curve", startPointId: "start", endPointId: "end",
+      intermediatePointIds: [], intermediateSlotIds: [], segments: [{
+        startPointId: "start", endPointId: "end", start, control1: { x: 2, y: 3 }, control2: { x: 8, y: 3 }, end
+      }], length: 10, startTangentAngleDeg: 0, endTangentAngleDeg: 0,
+      startHandleAngleDeg: 0, startHandleLength: 1, endHandleAngleDeg: 0, endHandleLength: 1
+    };
+    const offset: ComputedOffsetLine = {
+      kind: "offsetLine", elementId: "offset", name: "offset", baseLineIds: [], start, end,
+      segments: [{ kind: "line", start, end, length: 10 }], closed: false, length: 10,
+      startTangentAngleDeg: 0, endTangentAngleDeg: 0
+    };
+    const joined: ComputedJoinedPath = {
+      kind: "joinedPath", elementId: "joined", name: "joined", pathIds: [], start, end,
+      segments: [{ kind: "line", start, end, length: 10 }], closed: true, length: 10,
+      startTangentAngleDeg: 0, endTangentAngleDeg: 0
+    };
+    const ordinaryGeometries = [
+      { lines: [line("line", start, end)] },
+      { arcs: [arc] },
+      { curves: [curve] },
+      { offsetLines: [offset] },
+      { joinedPaths: [joined] },
+      { polylines: [polyline("polyline", start, point("corner", 10, 10), end)] },
+      { points: [point("point", 0, 0)] }
+    ];
+    for (const geometry of ordinaryGeometries) {
+      expect(renderWithStroke({ stroke: zero, ...geometry })).toBeUndefined();
+    }
+    expect(renderWithStroke({
+      stroke: { ...zero, widthPx: 0.5 },
+      lines: [line("positive", start, end)]
+    })).toMatchObject({ lineWidth: 0.5 });
+    expect(renderWithStrokeSnapshots({
+      stroke: zero,
+      lines: [line("ordinary-zero", start, end), line("positive-after-zero", start, end)],
+      strokes: new Map<string, DrawingModifierStroke>([
+        ["ordinary-zero", zero],
+        ["positive-after-zero", { ...zero, widthPx: 0.75, style: "solid" as const }]
+      ])
+    })).toEqual([{ lineWidth: 0.75, strokeStyle: "#abcdef", lineDash: [] }]);
+    expect(renderWithStroke({
+      stroke: zero,
+      lines: [line("selected", start, end)],
+      selectedElementIds: ["selected"]
+    })).toMatchObject({ lineWidth: 1.2, strokeStyle: "#abcdef" });
+    expect(renderWithStroke({
+      stroke: zero,
+      lines: [line("picked", start, end)],
+      isLinePickActive: true
+    })).toMatchObject({ lineWidth: 1.2, strokeStyle: LEGACY_CANVAS_THEME.pickCandidate });
+    expect(renderWithStroke({
+      stroke: zero,
+      points: [point("selected-point", 0, 0)],
+      selectedElementIds: ["selected-point"]
+    })).toMatchObject({ lineWidth: 1.25 });
+
+    const pointContext = strokeContext();
+    renderCanvasGeometry({
+      ctx: pointContext.ctx,
+      size: { width: 500, height: 400 },
+      viewport: { panX: 0, panY: 0, zoom: 1 },
+      lines: [], arcs: [], curves: [], offsetLines: [], joinedPaths: [], polylines: [], points: [point("plain-point", 0, 0)],
+      visibleElementIds: new Set(["plain-point"]), selectedElementIdSet: new Set(), selectedElementId: null,
+      effectiveDrawingModifierStrokes: new Map([["plain-point", zero]]), canvasGridSettings: { enabled: false, spacingMm: 10, majorEvery: 5, snapEnabled: false },
+      showCanvasPoints: true, isPointPickActive: false, isNumericReferencePickActive: false, isLinePickActive: false
+    });
+    expect(pointContext.ctx.fill).toHaveBeenCalledTimes(1);
+    expect(pointContext.ctx.stroke).not.toHaveBeenCalled();
+
+    const preview = renderMirrorPreviews({
+      previews: new Map([["owner", previewLine()]]),
+      visibleElementIds: new Set(["owner", "source"]),
+      strokes: new Map([["owner", zero]])
+    });
+    expect(preview.strokes).toEqual([]);
+    expect(preview.ctx.fill).not.toHaveBeenCalled();
+    expect(preview.ctx.save).toHaveBeenCalledTimes(1);
+    expect(preview.ctx.restore).toHaveBeenCalledTimes(1);
   });
 
   it("keeps interaction emphasis above, but never below, style width and preserves dash", () => {
