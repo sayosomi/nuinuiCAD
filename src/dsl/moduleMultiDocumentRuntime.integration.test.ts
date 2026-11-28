@@ -26,6 +26,8 @@ import { sourceOwnerForRuntimeElementId } from "@nuinuicad/nui-language";
 import { queryDslCanvasRevealSourceTarget } from "@nuinuicad/nui-language";
 import { queryDslCanvasSourceDefinitionQualified } from "@nuinuicad/nui-language";
 import { queryDslReferencePickTarget } from "@nuinuicad/nui-language";
+import { formatDslSourceReference } from "@nuinuicad/nui-language";
+import { parseDslSourceReference } from "@nuinuicad/nui-language";
 import { referencePickCandidates } from "../model/referencePickCandidates";
 import {
   canvasLayerVisibleElementIds,
@@ -97,6 +99,158 @@ const evaluateCompiled = (compiled: ReturnType<typeof compileDslDocument>) => {
   );
 };
 
+const evaluateCompiledWithRust = (compiled: ReturnType<typeof compileDslDocument>) => {
+  if (!compiled.document || !compiled.statementMap || compiled.majorVersion === null) {
+    throw new Error("expected a compiled document");
+  }
+  return evaluationPayloadToResult(evaluateWithRustOptions(
+    process.cwd(),
+    compiled.document.elements,
+    buildEvaluationOptions({
+      compiledDocument: { ...compiled, document: compiled.document, statementMap: compiled.statementMap, majorVersion: compiled.majorVersion },
+      evaluationLimitIndex: compiled.document.evaluationLimitIndex
+    })
+  ));
+};
+
+const issue1702Library = savedSource("issue-1702-copy2-library", "sha256:issue-1702-copy2-library", `nui 1\nexport module Copy2() {\n  point Origin = coordinate(x: 0, y: 0)\n  line Source = segment(start: (0, 0), end: (10, 0))\n  const transformed: path = transformCopy(\n    startPoint: Origin,\n    endPoint: Origin,\n    baseLines: [Source],\n  )\n  export path copy2 = from(source: transformed)\n}`);
+
+const issue1702Root = (copy2Target: string) => rootSource("issue-1702-copy2-root", `nui 1\nimport "./copy2_lib.nui" as lib\ngroup body_front {\n  line unrelated = segment(start: (30, 30), end: (40, 30))\n  group seam {\n    line upper = segment(start: (5, -10), end: (5, 10))\n    instance corner = lib::Copy2()\n    edge [\n      ${copy2Target},\n      upper.start\n    ](index: 0)\n  }\n}`);
+
+const issue1702ShadowRoot = (copy2Target: string) => rootSource("issue-1702-shadow-root", `nui 1\nimport "./copy2_lib.nui" as lib\ninstance corner = lib::Copy2()\ngroup body_front {\n  line unrelated = segment(start: (30, 30), end: (40, 30))\n  group seam {\n    line upper = segment(start: (5, -10), end: (5, 10))\n    instance corner = lib::Copy2()\n    edge [\n      ${copy2Target},\n      upper.start\n    ](index: 0)\n  }\n}\ngroup other {\n  instance corner = lib::Copy2()\n}`);
+
+const compileIssue1702Edge = async (copy2Target: string) => {
+  const root = issue1702Root(copy2Target);
+  const imported = await compileImported(root, new Map([[
+    `${root.documentId}|./copy2_lib.nui`,
+    issue1702Library
+  ]]));
+  return { root, ...imported };
+};
+
+const compileIssue1702ShadowEdge = async (copy2Target: string) => {
+  const root = issue1702ShadowRoot(copy2Target);
+  const imported = await compileImported(root, new Map([[
+    `${root.documentId}|./copy2_lib.nui`,
+    issue1702Library
+  ]]));
+  return { root, ...imported };
+};
+
+const issue1702TargetOwner = (
+  compiled: ReturnType<typeof compileDslDocument>,
+  libraryDocumentId: typeof issue1702Library.documentId,
+  selector: string
+) => {
+  const parsed = parseDslSourceReference(selector);
+  if (parsed.kind !== "valid" || parsed.reference.path.segments.length < 2) {
+    throw new Error(`expected a qualified endpoint selector: ${selector}`);
+  }
+  const edgeStatementIndex = compiled.statements.findIndex(statement =>
+    statement.kind === "transformation" && statement.construction === "edge"
+  );
+  if (!compiled.sourceLexicalNamespace || !compiled.moduleSemanticAnalysis || !compiled.moduleMaterialization ||
+      !compiled.moduleRuntimeContext || !compiled.statementMap || edgeStatementIndex < 0) {
+    throw new Error("expected lexical, semantic, runtime, and materialization products for the edge target");
+  }
+  const instanceLookup = resolveSourceLexicalPath(
+    compiled.sourceLexicalNamespace,
+    edgeStatementIndex,
+    {
+      absolute: parsed.reference.path.absolute,
+      segments: parsed.reference.path.segments.slice(0, -1)
+    }
+  );
+  expect(instanceLookup.kind).toBe("resolved");
+  if (instanceLookup.kind !== "resolved" || instanceLookup.declaration.kind !== "moduleInstance") {
+    throw new Error(`expected a resolved Module instance path for ${selector}`);
+  }
+  const instance = compiled.moduleSemanticAnalysis.instancesByStatementId.get(instanceLookup.declaration.statementId);
+  if (!instance?.callee || instance.calleeResolution !== "resolved") {
+    throw new Error(`expected a resolved Module callee for ${selector}`);
+  }
+  const definition = (instance.callee.definitionIdentity
+    ? compiled.moduleRuntimeContext.definitionFor(instance.callee.definitionIdentity)
+    : null) ?? instance.callee.definition;
+  if (!definition) throw new Error(`expected the exact Module definition identity for ${selector}`);
+  const exportName = parsed.reference.path.segments.at(-1)!;
+  const exported = definition.exports.find(candidate => candidate.kind === "geometry" && candidate.name === exportName);
+  if (!exported || exported.kind !== "geometry") throw new Error(`expected a public geometry export ${exportName}`);
+  const entry = compiled.moduleMaterialization.executionStatements.find(candidate =>
+    candidate.origin?.kind === "moduleBody" &&
+    candidate.origin.sourceDocumentId === libraryDocumentId &&
+    candidate.sourceStatementId === exported.exportedStatementId &&
+    candidate.sourceStatementIndex === exported.exportedStatementIndex &&
+    candidate.instancePath.length === 1 &&
+    candidate.instancePath[0] === instance.statementId
+  );
+  if (!entry) throw new Error(`expected materialized export ${exportName} for the resolved Module instance`);
+  const owner = sourceOwnerForRuntimeElementId({ ...compiled, statementMap: compiled.statementMap }, entry.runtimeElementId);
+  expect(owner).toMatchObject({
+    runtimeElementId: entry.runtimeElementId,
+    kind: "moduleBody",
+    sourceStatementId: entry.sourceStatementId,
+    sourceStatementIndex: exported.exportedStatementIndex,
+    sourceDocumentId: libraryDocumentId,
+    sourceIdentity: { documentId: libraryDocumentId, localIdentity: exported.exportedStatementId },
+    origin: {
+      kind: "moduleBody",
+      instancePath: [instance.statementId],
+      sourceDocumentId: libraryDocumentId,
+      moduleDefinitionIdentity: definition.identity
+    }
+  });
+  expect(owner?.sourceStatementId).toBe(entry.sourceStatementId);
+
+  const sourceRecipe = compiled.document?.transformationRecipes?.find(recipe =>
+    recipe.sourceStatementIndex === edgeStatementIndex && recipe.construction === "edge"
+  );
+  const runtimeRecipe = compiled.runtimeTransformationRecipes?.find(recipe =>
+    recipe.sourceStatementIndex === edgeStatementIndex && recipe.construction === "edge"
+  );
+  expect(sourceRecipe?.targets.map(target => target.ownerId)).toContain(entry.sourceStatementId);
+  expect(runtimeRecipe?.targets.map(target => target.ownerId)).toContain(entry.runtimeElementId);
+  return { instance, definition, exported, entry, owner, sourceRecipe, runtimeRecipe };
+};
+
+const assertIssue1702Geometry = (
+  compiled: ReturnType<typeof compileDslDocument>,
+  evaluation: ReturnType<typeof evaluateCompiled>
+) => {
+  expect(evaluation.errors).toEqual([]);
+  expect(evaluation.geometryValueErrors).toEqual([]);
+  const copy2 = compiled.moduleMaterialization?.executionStatements.find(entry =>
+    entry.origin?.kind === "moduleBody" &&
+    entry.origin.sourceDocumentId === issue1702Library.documentId &&
+    entry.statement.name === "copy2"
+  );
+  const upperStatementIndex = compiled.statements.findIndex(statement =>
+    statement.kind === "element" && statement.name === "upper"
+  );
+  const unrelatedStatementIndex = compiled.statements.findIndex(statement =>
+    statement.kind === "element" && statement.name === "unrelated"
+  );
+  const upper = compiled.sourceElementsByStatementIndex.get(upperStatementIndex);
+  const unrelated = compiled.sourceElementsByStatementIndex.get(unrelatedStatementIndex);
+  expect(copy2).toBeDefined();
+  expect(upper).toBeDefined();
+  expect(unrelated).toBeDefined();
+  expect(copy2 && evaluation.computedGeometry.get(copy2.runtimeElementId)).toMatchObject({
+    start: { x: 0, y: 0 },
+    end: { x: 5, y: 0 }
+  });
+  expect(upper && evaluation.computedGeometry.get(upper.id)).toMatchObject({
+    kind: "line",
+    start: { x: 5, y: 0 },
+    end: { x: 5, y: 10 }
+  });
+  expect(unrelated && evaluation.computedGeometry.get(unrelated.id)).toMatchObject({
+    kind: "line",
+    start: { x: 30, y: 30 },
+    end: { x: 40, y: 30 }
+  });
+};
+
 beforeAll(() => {
   execFileSync(
     "cargo",
@@ -106,6 +260,170 @@ beforeAll(() => {
 }, 125_000);
 
 describe("multi-document module runtime", () => {
+  it("compiles and evaluates a fully-qualified Module export edge target (#1702)", async () => {
+    const { compiled } = await compileIssue1702Edge("body_front::seam::corner::copy2.end");
+    const errors = compiled.diagnostics.filter(diagnostic => diagnostic.severity === "error");
+    expect(errors, JSON.stringify(compiled.diagnostics, null, 2)).toEqual([]);
+    expect(compiled.document).not.toBeNull();
+    if (!compiled.document) return;
+    issue1702TargetOwner(compiled, issue1702Library.documentId, "body_front::seam::corner::copy2.end");
+    assertIssue1702Geometry(compiled, evaluateCompiled(compiled));
+    assertIssue1702Geometry(compiled, evaluateCompiledWithRust(compiled));
+  });
+
+  it("keeps the short Module export edge selector as a working control (#1702)", async () => {
+    const { compiled } = await compileIssue1702Edge("corner::copy2.end");
+    expect(compiled.diagnostics.filter(diagnostic => diagnostic.severity === "error")).toEqual([]);
+    expect(compiled.document).not.toBeNull();
+    if (!compiled.document) return;
+    issue1702TargetOwner(compiled, issue1702Library.documentId, "corner::copy2.end");
+    assertIssue1702Geometry(compiled, evaluateCompiled(compiled));
+    assertIssue1702Geometry(compiled, evaluateCompiledWithRust(compiled));
+  });
+
+  it("preserves lexical shadowing, distinct same-name instances, and absolute Module qualification (#1702)", async () => {
+    for (const selector of [
+      "body_front::seam::corner::copy2.end",
+      "corner::copy2.end",
+      "::body_front::seam::corner::copy2.end"
+    ]) {
+      const { compiled } = await compileIssue1702ShadowEdge(selector);
+      expect(compiled.diagnostics.filter(diagnostic => diagnostic.severity === "error"), selector).toEqual([]);
+      expect(compiled.document).not.toBeNull();
+      if (!compiled.document || !compiled.moduleMaterialization) continue;
+      const { instance, entry } = issue1702TargetOwner(compiled, issue1702Library.documentId, selector);
+      const copyEntries = compiled.moduleMaterialization.executionStatements.filter(candidate =>
+        candidate.origin?.kind === "moduleBody" &&
+        candidate.origin.sourceDocumentId === issue1702Library.documentId &&
+        candidate.sourceStatementId === entry.sourceStatementId
+      );
+      expect(copyEntries).toHaveLength(3);
+      expect(new Set(copyEntries.map(candidate => candidate.instancePath.join("/"))).size).toBe(3);
+      expect(entry.instancePath).toEqual([instance.statementId]);
+      const unrelatedIndex = compiled.statements.findIndex(statement =>
+        statement.kind === "element" && statement.name === "unrelated"
+      );
+      const upperIndex = compiled.statements.findIndex(statement =>
+        statement.kind === "element" && statement.name === "upper"
+      );
+      const unrelated = compiled.sourceElementsByStatementIndex.get(unrelatedIndex)!;
+      const upper = compiled.sourceElementsByStatementIndex.get(upperIndex)!;
+      for (const evaluation of [evaluateCompiled(compiled), evaluateCompiledWithRust(compiled)]) {
+        expect(evaluation.errors).toEqual([]);
+        expect(evaluation.geometryValueErrors).toEqual([]);
+        expect(evaluation.computedGeometry.get(entry.runtimeElementId)).toMatchObject({
+          start: { x: 0, y: 0 },
+          end: { x: 5, y: 0 }
+        });
+        expect(evaluation.computedGeometry.get(upper.id)).toMatchObject({
+          start: { x: 5, y: 0 },
+          end: { x: 5, y: 10 }
+        });
+        expect(evaluation.computedGeometry.get(unrelated.id)).toMatchObject({
+          start: { x: 30, y: 30 },
+          end: { x: 40, y: 30 }
+        });
+        for (const sibling of copyEntries.filter(candidate => candidate.runtimeElementId !== entry.runtimeElementId)) {
+          expect(evaluation.computedGeometry.get(sibling.runtimeElementId)).toMatchObject({
+            start: { x: 0, y: 0 },
+            end: { x: 10, y: 0 }
+          });
+        }
+      }
+    }
+  });
+
+  it("compiles an edge selector produced from a fully-qualified Reference Pick candidate (#1671)", async () => {
+    const root = rootSource("issue-1702-pick-root", `nui 1\nimport "./copy2_lib.nui" as lib\ngroup body_front {\n  line unrelated = segment(start: (30, 30), end: (40, 30))\n  group seam {\n    line upper = segment(start: (5, -10), end: (5, 10))\n    instance corner = lib::Copy2()\n    // Reference Pick edge insertion point\n  }\n}`);
+    const dependencies = new Map([[`${root.documentId}|./copy2_lib.nui`, issue1702Library]]);
+    const picked = await compileImported(root, dependencies);
+    expect(picked.compiled.diagnostics.filter(diagnostic => diagnostic.severity === "error")).toEqual([]);
+    expect(picked.compiled.document).not.toBeNull();
+    if (!picked.compiled.document) return;
+    const pickEvaluation = evaluateCompiled(picked.compiled);
+    const candidate = referencePickCandidates({ compiled: picked.compiled, evaluation: pickEvaluation, target: null })
+      .find(item => item.options.some(option =>
+        option.kind === "point" &&
+        option.reference.base === "body_front::seam::corner::copy2" &&
+        option.reference.pointKey === "end"
+      ));
+    const endpoint = candidate?.options.find(option =>
+      option.kind === "point" && option.reference.base === "body_front::seam::corner::copy2" && option.reference.pointKey === "end"
+    );
+    expect(endpoint?.kind).toBe("point");
+    if (!endpoint || endpoint.kind !== "point") return;
+    const pickedReference = parseDslSourceReference(`${endpoint.reference.base}.${endpoint.reference.pointKey}`);
+    expect(pickedReference.kind).toBe("valid");
+    if (pickedReference.kind !== "valid") return;
+    const selector = formatDslSourceReference(pickedReference.reference);
+    expect(selector).toBe("body_front::seam::corner::copy2.end");
+    const rootWithEdge = rootSource("issue-1702-pick-root", root.normalizedSource.replace(
+      "    // Reference Pick edge insertion point",
+      `    edge [\n      ${selector},\n      upper.start\n    ](index: 0)`
+    ));
+    const { compiled } = await compileImported(rootWithEdge, dependencies);
+    expect(compiled.diagnostics.filter(diagnostic => diagnostic.severity === "error")).toEqual([]);
+    expect(compiled.document).not.toBeNull();
+    if (!compiled.document) return;
+    issue1702TargetOwner(compiled, issue1702Library.documentId, selector);
+    assertIssue1702Geometry(compiled, evaluateCompiled(compiled));
+    assertIssue1702Geometry(compiled, evaluateCompiledWithRust(compiled));
+  });
+
+  it("rejects invalid, ambiguous, private, and missing qualified Module export paths (#1702)", async () => {
+    const expectRejectedEdge = (compiled: ReturnType<typeof compileDslDocument>) => {
+      const edgeIndex = compiled.statements.findIndex(statement =>
+        statement.kind === "transformation" && statement.construction === "edge"
+      );
+      expect(edgeIndex).toBeGreaterThanOrEqual(0);
+      expect(compiled.diagnostics.some(diagnostic => diagnostic.severity === "error"),
+        JSON.stringify(compiled.diagnostics, null, 2)).toBe(true);
+      expect(compiled.transformationRecipes?.some(recipe =>
+        recipe.sourceStatementIndex === edgeIndex && recipe.construction === "edge"
+      )).not.toBe(true);
+      expect(compiled.runtimeTransformationRecipes?.some(recipe =>
+        recipe.sourceStatementIndex === edgeIndex && recipe.construction === "edge"
+      )).not.toBe(true);
+    };
+
+    const invalid = await compileIssue1702Edge("body_front::missing::corner::copy2.end");
+    const invalidParsed = parseDslSourceReference("body_front::missing::corner::copy2.end");
+    expect(invalidParsed.kind).toBe("valid");
+    expect(invalid.compiled.diagnostics.some(diagnostic => diagnostic.code === "unresolved-transformation-target")).toBe(true);
+    expectRejectedEdge(invalid.compiled);
+
+    const ambiguousRoot = rootSource("issue-1702-ambiguous-root", `nui 1\nimport "./copy2_lib.nui" as lib\ngroup body_front {\n  group seam {\n    instance corner = lib::Copy2()\n  }\n}\ngroup body_front {\n  group seam {\n    instance corner = lib::Copy2()\n  }\n}\nline upper = segment(start: (5, -10), end: (5, 10))\nedge [body_front::seam::corner::copy2.end, upper.start](index: 0)`);
+    const ambiguous = await compileImported(ambiguousRoot, new Map([[
+      `${ambiguousRoot.documentId}|./copy2_lib.nui`,
+      issue1702Library
+    ]]));
+    const ambiguousEdgeIndex = ambiguous.compiled.statements.findIndex(statement =>
+      statement.kind === "transformation" && statement.construction === "edge"
+    );
+    const ambiguousPath = resolveSourceLexicalPath(ambiguous.compiled.sourceLexicalNamespace!, ambiguousEdgeIndex, {
+      absolute: false,
+      segments: ["body_front", "seam", "corner"]
+    });
+    expect(ambiguousPath.kind).toBe("ambiguous");
+    expect(ambiguous.compiled.diagnostics.some(diagnostic => diagnostic.code === "duplicate-element-name")).toBe(true);
+    expectRejectedEdge(ambiguous.compiled);
+
+    const privateLibrary = savedSource("issue-1702-private-library", "sha256:issue-1702-private-library", `nui 1\nexport module Public() {\n  export line Visible = segment(start: (0, 0), end: (10, 0))\n  line Private = segment(start: (0, 10), end: (10, 10))\n}`);
+    const privateRoot = (selector: string, id: string) => rootSource(id, `nui 1\nimport "./private_lib.nui" as lib\ngroup G {\n  line upper = segment(start: (5, -10), end: (5, 10))\n  instance corner = lib::Public()\n  edge [${selector}, upper.start](index: 0)\n}`);
+    for (const [selector, id] of [["corner::Private.end", "issue-1702-private-root"], ["corner::Missing.end", "issue-1702-missing-root"]]) {
+      const rootForExport = privateRoot(selector, id);
+      const compiled = await compileImported(rootForExport, new Map([[
+        `${rootForExport.documentId}|./private_lib.nui`,
+        privateLibrary
+      ]]));
+      expect(
+        compiled.compiled.diagnostics.some(diagnostic => diagnostic.code === "unresolved-transformation-target"),
+        `${selector}: ${JSON.stringify(compiled.compiled.diagnostics, null, 2)}`
+      ).toBe(true);
+      expectRejectedEdge(compiled.compiled);
+    }
+  });
+
   it("evaluates the imported exported-line edge owner in TS and Rust (#1670)", async () => {
     const library = savedSource("edge-export-library", "sha256:issue-1670-edge-export-library", [
       "nui 1",
