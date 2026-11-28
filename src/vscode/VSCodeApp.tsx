@@ -1,6 +1,6 @@
 import type { VscodeCanvasImageResources } from "./protocol";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { evaluateElementsWithRust } from "../geometry/evaluationEngine";
+import { emptyEvaluationResult, evaluateElementsWithRust } from "../geometry/evaluationEngine";
 import { evaluateElementsWithEngine } from "../geometry/evaluationEngineRouting";
 import type { EvaluateDocumentInput } from "../geometry/rustEvaluationInput";
 import type { RustEvaluationTransport } from "../geometry/rustEvaluationRunner";
@@ -606,9 +606,19 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
   useLayoutEffect(() => {
     localEvaluationRequestRevisionRef.current = localEvaluationState.evaluationRequestRevision;
   }, [localEvaluationState.evaluationRequestRevision]);
+  // The evaluation hook preserves stale results for its default callers. At
+  // the VS Code presentation boundary, an empty current Source (including the
+  // incomplete target-pick placeholder) must not paint the prior document's
+  // geometry while the matching empty evaluation is pending.
+  const localPresentationEvaluationState =
+    elements.length === 0 &&
+    localEvaluationState.isStale &&
+    (localSourceIsCurrentAndValid || invalidLocalEmptyPlaceholder)
+      ? { ...localEvaluationState, evaluation: emptyEvaluationResult(elements, evaluationOptions) }
+      : localEvaluationState;
   const evaluationState = activeMultiDocumentRuntimeSnapshot
     ? multiDocumentRuntimeEvaluationState
-    : localEvaluationState;
+    : localPresentationEvaluationState;
   const graphPublication = multiDocumentGraphPublication?.status === "current"
     ? multiDocumentGraphPublication
     : null;

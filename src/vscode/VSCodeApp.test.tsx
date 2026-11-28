@@ -120,6 +120,14 @@ vi.mock("../geometry/productionEvaluationContext", () => ({
 }));
 
 vi.mock("../geometry/evaluationEngine", () => ({
+  emptyEvaluationResult: () => ({
+    computedGeometry: new Map(),
+    errors: [],
+    warnings: [],
+    evaluatedElementIds: new Set(),
+    effectiveEnabledElementIds: new Set(),
+    effectiveVisibleElementIds: new Set()
+  }),
   evaluateElementsWithRust: vi.fn(async (_elements: unknown, options: { allowDisabledElementIds?: ReadonlySet<string> }, transport: unknown) => {
     drawingCanvasProps.bakeSandboxTargetIds = [...(options.allowDisabledElementIds ?? [])];
     evaluationTransportCapture.bake = transport;

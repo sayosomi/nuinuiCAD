@@ -65,6 +65,8 @@ type HostTestDocument = {
   positionAt: (offset: number) => { line: number; character: number };
 };
 const vscodeHost = vi.hoisted(() => ({
+  fileAutoSave: "off" as "off" | "afterDelay",
+  fileAutoSaveDelay: 1000,
   documents: [] as HostTestDocument[],
   files: new Map<string, Uint8Array>(),
   surfaceDiagnosticCollections: [] as Array<{
@@ -135,6 +137,14 @@ vi.mock("vscode", () => {
   };
   return {
     workspace: {
+      getConfiguration: (section: string) => ({
+        get: (key: string, defaultValue?: unknown) =>
+          section === "files" && key === "autoSave"
+            ? vscodeHost.fileAutoSave
+            : section === "files" && key === "autoSaveDelay"
+              ? vscodeHost.fileAutoSaveDelay
+              : defaultValue
+      }),
       get textDocuments() { return vscodeHost.documents; },
       fs: { readFile: async (uri: HostTestUri) => {
         const bytes = vscodeHost.files.get(uri.fsPath);
@@ -361,6 +371,7 @@ describe("Issue #1541 VS Code dependency forwarding into production Rust", () =>
     setVscodeWebviewApi({ postMessage: () => undefined });
     vi.unstubAllEnvs();
     vscodeHost.documents = [];
+    vscodeHost.fileAutoSave = "off";
     vscodeHost.files.clear();
     vscodeHost.surfaceDiagnosticCollections = [];
     vscodeHost.openListeners = [];
@@ -1098,6 +1109,405 @@ describe("Issue #1541 VS Code dependency forwarding into production Rust", () =>
     expect(value).not.toHaveProperty("elementId");
   }, 30000);
 
+  it("coalesces a continuous imported-Module burst to the first and trailing current graph", async () => {
+    vi.stubEnv("VITE_EVALUATION_ENGINE", "rust");
+    vi.useFakeTimers();
+    useCadDocumentStore.setState(initialCadDocumentState());
+    useCadUiStore.setState(initialCadUiState());
+    canvas.evaluation = null;
+
+    const rootUri = "file:///tmp/issue-1751-burst/root.nui";
+    const requests: Array<{ id: number; input: EvaluateDocumentInput; sentAtVirtualMs: number }> = [];
+    const enqueues: Array<{
+      id: number | null;
+      input: EvaluateDocumentInput;
+      sourceAutomatic: boolean;
+      enqueuedAtVirtualMs: number;
+    }> = [];
+    const queue = VscodeRustTransport.prototype as unknown as {
+      enqueue: (input: EvaluateDocumentInput, sourceAutomatic: boolean) => Promise<unknown>;
+    };
+    const originalEnqueue = queue.enqueue;
+    const enqueueSpy = vi.spyOn(queue, "enqueue").mockImplementation(function (input, sourceAutomatic) {
+      const enqueuedAtVirtualMs = Date.now();
+      const result = originalEnqueue.call(this, input, sourceAutomatic);
+      const id = (this as unknown as VscodeRustTransport).requestIdForInput(input);
+      enqueues.push({ id, input, sourceAutomatic, enqueuedAtVirtualMs });
+      return result;
+    });
+    const api = { postMessage: vi.fn((message: VscodeToExtensionMessage) => {
+      if (message.type === "rustEvaluationRequest") {
+        requests.push({ id: message.id, input: message.input, sentAtVirtualMs: Date.now() });
+      }
+    }) };
+    const app = render(<VSCodeApp api={api} />);
+    const send = async (message: unknown) => {
+      await act(async () => window.dispatchEvent(new MessageEvent("message", { data: message })));
+    };
+    const advance = async (milliseconds: number) => {
+      await act(async () => { await vi.advanceTimersByTimeAsync(milliseconds); });
+    };
+    const respond = async (request: (typeof requests)[number]) => {
+      const payload = await rust.evaluateInput(request.input);
+      await send({ type: "rustEvaluationResponse", id: request.id, payload });
+      return payload;
+    };
+    const graphFor = async (sourceText: string, documentVersion: number, graphRevision: number) =>
+      issue1751GraphPublicationFor({
+        rootUri,
+        sourceText,
+        documentVersion,
+        sourceRevision: useCadDocumentStore.getState().sourceRevision,
+        graphRevision
+      });
+
+    try {
+      await act(async () => { await Promise.resolve(); });
+      for (const request of [...requests]) await respond(request);
+      requests.length = 0;
+      enqueues.length = 0;
+      await advance(200);
+
+      const settledSource = issue1751RootSourceFor(5, true);
+      await send({ type: "multiDocumentGraphPublication", status: "building", documentVersion: 1, hostDocumentUri: rootUri, graph: null });
+      await send({ type: "replaceTextDocument", sourceText: settledSource, documentVersion: 1, hostDocumentUri: rootUri });
+      await send(await graphFor(settledSource, 1, 1));
+      let initialGraphRequest = requests.find(request => request.input.elements.some(element => element.name.includes("Waist")));
+      if (!initialGraphRequest) {
+        for (const request of [...requests]) {
+          if (!request.input.elements.some(element => element.name.includes("Waist"))) await respond(request);
+        }
+        await advance(200);
+        initialGraphRequest = requests.find(request => request.input.elements.some(element => element.name.includes("Waist")));
+      }
+      if (!initialGraphRequest) throw new Error("Settled imported root did not produce its current graph request");
+      await respond(initialGraphRequest);
+      await advance(200);
+      requests.length = 0;
+      enqueues.length = 0;
+
+      const referenceSpy = vi.spyOn(evaluationEngine, "evaluateElementsReference");
+      const referenceCountBeforeBurst = referenceSpy.mock.calls.length;
+      const values = [6, 7, 8];
+      let firstGraphArrivalVirtualMs: number | null = null;
+      let latestSourceText = settledSource;
+      for (let index = 0; index < values.length; index += 1) {
+        const endX = values[index]!;
+        const version = index + 2;
+        latestSourceText = issue1751RootSourceFor(endX, true);
+        if (index > 0) await advance(40);
+        await send({
+          type: "multiDocumentGraphPublication", status: "building", documentVersion: version,
+          hostDocumentUri: rootUri, graph: null
+        });
+        await send({
+          type: "commitText", sourceText: latestSourceText, documentVersion: version,
+          reason: "edit", hostDocumentUri: rootUri
+        });
+        const publication = await graphFor(latestSourceText, version, version);
+        const graphArrivalVirtualMs = Date.now();
+        if (index === 0) firstGraphArrivalVirtualMs = graphArrivalVirtualMs;
+        await send(publication);
+        if (index === 0) {
+          expect(requests).toHaveLength(1);
+          expect(requests[0]!.id).toBe(enqueues.at(-1)?.id);
+          expect(requests[0]!.sentAtVirtualMs - graphArrivalVirtualMs).toBe(0);
+        } else {
+          expect(requests).toHaveLength(1);
+        }
+      }
+
+      expect(firstGraphArrivalVirtualMs).not.toBeNull();
+      expect(enqueues).toHaveLength(values.length);
+      expect(enqueues.every(enqueue => enqueue.sourceAutomatic &&
+        enqueue.input.elements.length === 3 && enqueue.input.elements.some(element => element.name.includes("Waist"))))
+        .toBe(true);
+      await advance(199);
+      expect(requests).toHaveLength(1);
+      await advance(1);
+      expect(requests).toHaveLength(1);
+      const obsoleteFirstRequest = requests[0]!;
+      const obsoleteFirstPayload = await respond(obsoleteFirstRequest);
+      expect(requests).toHaveLength(2);
+      const trailingRequest = requests[1]!;
+      expect(trailingRequest.id).toBe(enqueues.at(-1)?.id);
+      expect(trailingRequest.input.elements).toHaveLength(3);
+      await respond(trailingRequest);
+
+      const geometry = (name: string) => [...(canvas.evaluation?.computedGeometry.values() ?? [])]
+        .find(item => item.name === name);
+      expect(geometry("RootControl")).toMatchObject({
+        kind: "line", start: { x: 0, y: 0 }, end: { x: 8, y: 0 }, length: 8
+      });
+      expect(geometry("Waist")).toMatchObject({
+        kind: "line", start: { x: 3, y: 9 }, end: { x: 23, y: 9 }, length: 20
+      });
+      expect(referenceSpy).toHaveBeenCalledTimes(referenceCountBeforeBurst);
+
+      await send({ type: "rustEvaluationResponse", id: obsoleteFirstRequest.id, payload: obsoleteFirstPayload });
+      expect(geometry("RootControl")).toMatchObject({ kind: "line", end: { x: 8, y: 0 }, length: 8 });
+      expect(geometry("Waist")).toMatchObject({ kind: "line", end: { x: 23, y: 9 }, length: 20 });
+      expect(requests).toHaveLength(2);
+      process.stdout.write(
+        `[nuinuicad] Issue #1751 M4 imported burst: revisions=${values.length}, ` +
+        `localAutomaticEnqueues=${enqueues.filter(enqueue => !enqueue.input.elements.some(element => element.name.includes("Waist"))).length}, ` +
+        `eligibleAutomaticEnqueues=${enqueues.length}, sends=${requests.map(request => request.id).join(",")}, ` +
+        `firstGraphArrivalToSend=${requests[0]!.sentAtVirtualMs - firstGraphArrivalVirtualMs!}ms virtual, ` +
+        `trailingUsesLatest=${trailingRequest.input.elements.some(element => element.name === "RootControl")}\n`
+      );
+    } finally {
+      app.unmount();
+      enqueueSpy.mockRestore();
+      vi.useRealTimers();
+    }
+  }, 30000);
+
+  it.each([
+    { fixtureLabel: "small", fillerLines: 0 },
+    { fixtureLabel: "1500-line-library", fillerLines: 1496 }
+  ].flatMap(fixture => [
+    { ...fixture, scenario: "single-edit" as const },
+    { ...fixture, scenario: "controlled-burst" as const }
+  ]))("records Base/fix M5 imported Module metrics for $fixtureLabel $scenario", async ({
+    fixtureLabel, fillerLines, scenario
+  }) => {
+    vi.stubEnv("VITE_EVALUATION_ENGINE", "rust");
+    vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout", "setInterval", "clearInterval"] });
+    useCadDocumentStore.setState(initialCadDocumentState());
+    useCadUiStore.setState(initialCadUiState());
+    canvas.evaluation = null;
+
+    const baselineMeasurement = process.env.ISSUE_1751_M5_BASELINE === "1";
+    const sourceIdentity = baselineMeasurement ? "Base-exact-sources-installed" : "candidate-sources-installed";
+    const rootUri = `file:///tmp/issue-1751-m5-${fixtureLabel}-${scenario}/root.nui`;
+    const librarySource = fillerLines === 0
+      ? issue1751LibrarySource
+      : [
+          "nui 1",
+          "export module Panel() {",
+          ...Array.from({ length: fillerLines }, (_, index) => `  const filler${index}: number = ${index}`),
+          "  export line Waist = segment(start: (3, 9), end: (23, 9))",
+          "}"
+        ].join("\n");
+    const fixtureLines = issue1751RootSourceFor(5, true).split("\n").length + librarySource.split("\n").length;
+    const requests: Array<{ id: number; input: EvaluateDocumentInput; atVirtualMs: number; atWallMs: number }> = [];
+    const enqueues: Array<{
+      id: number | null;
+      input: EvaluateDocumentInput;
+      sourceAutomatic: boolean;
+      atVirtualMs: number;
+      atWallMs: number;
+    }> = [];
+    const graphArrivalByRequestId = new Map<number, { atVirtualMs: number; atWallMs: number }>();
+    const queue = VscodeRustTransport.prototype as unknown as {
+      enqueue: (input: EvaluateDocumentInput, sourceAutomatic: boolean) => Promise<unknown>;
+    };
+    const originalEnqueue = queue.enqueue;
+    const enqueueSpy = vi.spyOn(queue, "enqueue").mockImplementation(function (input, sourceAutomatic) {
+      const atVirtualMs = Date.now();
+      const atWallMs = Number(process.hrtime.bigint()) / 1_000_000;
+      const result = originalEnqueue.call(this, input, sourceAutomatic);
+      const id = (this as unknown as VscodeRustTransport).requestIdForInput(input);
+      enqueues.push({ id, input, sourceAutomatic, atVirtualMs, atWallMs });
+      return result;
+    });
+    const api = { postMessage: vi.fn((message: VscodeToExtensionMessage) => {
+      if (message.type === "rustEvaluationRequest") {
+        requests.push({
+          id: message.id,
+          input: message.input,
+          atVirtualMs: Date.now(),
+          atWallMs: Number(process.hrtime.bigint()) / 1_000_000
+        });
+      }
+    }) };
+    const app = render(<VSCodeApp api={api} />);
+    const send = async (message: unknown) => {
+      await act(async () => window.dispatchEvent(new MessageEvent("message", { data: message })));
+    };
+    const advance = async (milliseconds: number) => {
+      await act(async () => { await vi.advanceTimersByTimeAsync(milliseconds); });
+    };
+    const respond = async (request: (typeof requests)[number]) => {
+      const payload = await rust.evaluateInput(request.input);
+      await send({ type: "rustEvaluationResponse", id: request.id, payload });
+      return payload;
+    };
+    const graphFor = async (sourceText: string, documentVersion: number, graphRevision: number) =>
+      issue1751GraphPublicationFor({
+        rootUri,
+        sourceText,
+        librarySource,
+        documentVersion,
+        sourceRevision: useCadDocumentStore.getState().sourceRevision,
+        graphRevision
+      });
+    const deliverImportedRevision = async (
+      sourceText: string,
+      documentVersion: number,
+      graphRevision: number,
+      initial = false
+    ) => {
+      await send({
+        type: "multiDocumentGraphPublication", status: "building", documentVersion,
+        hostDocumentUri: rootUri, graph: null
+      });
+      const enqueueStart = enqueues.length;
+      const sourceEditAtVirtualMs = Date.now();
+      const sourceEditAtWallMs = Number(process.hrtime.bigint()) / 1_000_000;
+      await send(initial
+        ? { type: "replaceTextDocument", sourceText, documentVersion, hostDocumentUri: rootUri }
+        : { type: "commitText", sourceText, documentVersion, reason: "edit", hostDocumentUri: rootUri });
+      const publication = await graphFor(sourceText, documentVersion, graphRevision);
+      const graphArrivalAtVirtualMs = Date.now();
+      const graphArrivalAtWallMs = Number(process.hrtime.bigint()) / 1_000_000;
+      const graphEnqueueStart = enqueues.length;
+      await send(publication);
+      for (const enqueue of enqueues.slice(graphEnqueueStart)) {
+        if (enqueue.id !== null && enqueue.input.elements.some(element => element.name.includes("Waist"))) {
+          graphArrivalByRequestId.set(enqueue.id, { atVirtualMs: graphArrivalAtVirtualMs, atWallMs: graphArrivalAtWallMs });
+        }
+      }
+      return {
+        enqueueStart,
+        sourceEditAtVirtualMs,
+        sourceEditAtWallMs,
+        graphArrivalAtVirtualMs,
+        graphArrivalAtWallMs
+      };
+    };
+
+    try {
+      await act(async () => { await Promise.resolve(); });
+      for (const request of [...requests]) await respond(request);
+      await advance(200);
+      const localSource = issue1751RootSourceFor(5, false);
+      await send({ type: "replaceTextDocument", sourceText: localSource, documentVersion: 1, hostDocumentUri: rootUri });
+      await advance(200);
+      const initialLocal = requests.at(-1);
+      if (initialLocal) await respond(initialLocal);
+      await advance(200);
+      const settledSource = issue1751RootSourceFor(5, true);
+      await deliverImportedRevision(settledSource, 2, 2);
+      const settledGraphRequest = requests.find(request => request.input.elements.some(element => element.name.includes("Waist")));
+      if (settledGraphRequest) await respond(settledGraphRequest);
+      else {
+        for (const request of [...requests]) await respond(request);
+        await advance(200);
+        const graphRequest = requests.find(request => request.input.elements.some(element => element.name.includes("Waist")));
+        if (!graphRequest) throw new Error("M5 setup did not settle an imported graph request");
+        await respond(graphRequest);
+      }
+      await advance(200);
+      requests.length = 0;
+      enqueues.length = 0;
+      graphArrivalByRequestId.clear();
+
+      const referenceSpy = vi.spyOn(evaluationEngine, "evaluateElementsReference");
+      const referenceCountBeforeScenario = referenceSpy.mock.calls.length;
+      const measurementStartVirtualMs = Date.now();
+      const measurementStartWallMs = Number(process.hrtime.bigint()) / 1_000_000;
+      const revisions = scenario === "single-edit" ? [6] : [6, 7, 8];
+      const sourceTimes: Array<{ virtualMs: number; wallMs: number }> = [];
+      const graphTimes: Array<{ virtualMs: number; wallMs: number }> = [];
+      for (let index = 0; index < revisions.length; index += 1) {
+        const endX = revisions[index]!;
+        if (index > 0) await advance(40);
+        const measurement = await deliverImportedRevision(
+          issue1751RootSourceFor(endX, true),
+          index + 3,
+          index + 3
+        );
+        sourceTimes.push({ virtualMs: measurement.sourceEditAtVirtualMs, wallMs: measurement.sourceEditAtWallMs });
+        graphTimes.push({ virtualMs: measurement.graphArrivalAtVirtualMs, wallMs: measurement.graphArrivalAtWallMs });
+      }
+      const inputStopVirtualMs = sourceTimes.at(-1)!.virtualMs;
+      const inputStopWallMs = sourceTimes.at(-1)!.wallMs;
+      if (scenario === "single-edit") {
+        const local = requests.find(request => !request.input.elements.some(element => element.name.includes("Waist")));
+        if (local) await respond(local);
+        let currentGraphRequest = requests.find(request => request.input.elements.some(element => element.name.includes("Waist")));
+        if (!currentGraphRequest) {
+          await advance(200);
+          currentGraphRequest = requests.find(request => request.input.elements.some(element => element.name.includes("Waist")));
+        }
+        if (!currentGraphRequest) throw new Error("M5 single edit did not send its current imported graph");
+        await respond(currentGraphRequest);
+      } else {
+        await advance(200);
+        const firstSentRequest = requests[0];
+        if (!firstSentRequest) throw new Error("M5 burst did not send a first request");
+        await respond(firstSentRequest);
+        const sentIds = new Set(requests.map(request => request.id));
+        let trailingCurrentGraph = requests.find(request =>
+          request.input.elements.some(element => element.name.includes("Waist")) && !sentIds.has(request.id)
+        );
+        if (!trailingCurrentGraph) {
+          trailingCurrentGraph = requests.find(request =>
+            request.input.elements.some(element => element.name.includes("Waist")) && request.id !== firstSentRequest.id
+          );
+        }
+        if (!trailingCurrentGraph) throw new Error("M5 burst did not send its trailing current graph");
+        await respond(trailingCurrentGraph);
+      }
+
+      const finalX = revisions.at(-1)!;
+      const rootControl = [...(canvas.evaluation?.computedGeometry.values() ?? [])]
+        .find(item => item.name === "RootControl");
+      const waist = [...(canvas.evaluation?.computedGeometry.values() ?? [])]
+        .find(item => item.name === "Waist");
+      expect(rootControl).toMatchObject({ kind: "line", start: { x: 0, y: 0 }, end: { x: finalX, y: 0 }, length: finalX });
+      expect(waist).toMatchObject({ kind: "line", start: { x: 3, y: 9 }, end: { x: 23, y: 9 }, length: 20 });
+      if (!baselineMeasurement) {
+        expect(referenceSpy).toHaveBeenCalledTimes(referenceCountBeforeScenario);
+      }
+
+      const currentCanvasWallMs = Number(process.hrtime.bigint()) / 1_000_000;
+      const currentCanvasVirtualMs = Date.now();
+      const enqueuesForScenario = [...enqueues];
+      const sendsForScenario = [...requests];
+      const localEnqueues = enqueuesForScenario.filter(enqueue =>
+        !enqueue.input.elements.some(element => element.name.includes("Waist"))
+      );
+      const graphEnqueues = enqueuesForScenario.filter(enqueue =>
+        enqueue.input.elements.some(element => element.name.includes("Waist"))
+      );
+      const matchingIntervals = sendsForScenario.map(request => {
+        const enqueue = enqueuesForScenario.find(candidate => candidate.id === request.id);
+        const graphArrival = graphArrivalByRequestId.get(request.id);
+        return {
+          id: request.id,
+          enqueueToSendVirtualMs: enqueue ? request.atVirtualMs - enqueue.atVirtualMs : null,
+          enqueueToSendWallMs: enqueue ? request.atWallMs - enqueue.atWallMs : null,
+          graphArrivalToSendVirtualMs: graphArrival ? request.atVirtualMs - graphArrival.atVirtualMs : null,
+          graphArrivalToSendWallMs: graphArrival ? request.atWallMs - graphArrival.atWallMs : null
+        };
+      });
+      process.stdout.write(
+        `[nuinuicad] Issue #1751 M5 ${baselineMeasurement ? "Base" : "fix"}: source=${sourceIdentity}, ` +
+        `fixture=${fixtureLabel}, sourceLines=${fixtureLines}, scenario=${scenario}, edits=${revisions.length}, ` +
+        `localEnqueues=${localEnqueues.length}, graphEnqueues=${graphEnqueues.length}, ` +
+        `requests=${sendsForScenario.length}, requestIds=${sendsForScenario.map(request => request.id).join(",")}, ` +
+        `matchingEnqueueAndGraphIntervals=${JSON.stringify(matchingIntervals)}, ` +
+        `inputStopToCanvas=${currentCanvasVirtualMs - inputStopVirtualMs}ms virtual/` +
+        `${(currentCanvasWallMs - inputStopWallMs).toFixed(3)}ms observed-wall, ` +
+        `scenarioStartToCanvas=${currentCanvasVirtualMs - measurementStartVirtualMs}ms virtual/` +
+        `${(currentCanvasWallMs - measurementStartWallMs).toFixed(3)}ms observed-wall, ` +
+        `Canvas-frame-time=not-measured\n`
+      );
+      if (!baselineMeasurement) {
+        expect(localEnqueues).toHaveLength(0);
+        if (scenario === "single-edit") expect(sendsForScenario).toHaveLength(1);
+        else expect(sendsForScenario.length).toBeLessThanOrEqual(2);
+        expect(graphEnqueues.every(enqueue => enqueue.sourceAutomatic)).toBe(true);
+      }
+    } finally {
+      app.unmount();
+      enqueueSpy.mockRestore();
+      vi.useRealTimers();
+    }
+  }, 30000);
+
   it.each([
     {
       caseName: "empty external Module",
@@ -1343,9 +1753,13 @@ describe("Issue #1541 VS Code dependency forwarding into production Rust", () =>
     }
   }, 30000);
 
-  it("admits only the settled current imported graph after a single Source edit", async () => {
+  it.each([
+    { autoSaveLabel: "OFF", fileAutoSave: "off" as const },
+    { autoSaveLabel: "ON afterDelay", fileAutoSave: "afterDelay" as const }
+  ])("admits only the settled current imported graph after a single Source edit with Auto Save $autoSaveLabel", async ({ fileAutoSave }) => {
     vi.stubEnv("VITE_EVALUATION_ENGINE", "rust");
-    vi.useFakeTimers();
+    vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout", "setInterval", "clearInterval"] });
+    vscodeHost.fileAutoSave = fileAutoSave;
     useCadDocumentStore.setState(initialCadDocumentState());
     useCadUiStore.setState(initialCadUiState());
     canvas.evaluation = null;
@@ -1358,6 +1772,7 @@ describe("Issue #1541 VS Code dependency forwarding into production Rust", () =>
       sentAtWallMs: number;
     }> = [];
     const enqueued: Array<{
+      id: number | null;
       input: EvaluateDocumentInput;
       sourceAutomatic: boolean;
       atVirtualMs: number;
@@ -1368,8 +1783,12 @@ describe("Issue #1541 VS Code dependency forwarding into production Rust", () =>
     };
     const originalEnqueue = transportQueue.enqueue;
     const enqueueSpy = vi.spyOn(transportQueue, "enqueue").mockImplementation(function (input, sourceAutomatic) {
-      enqueued.push({ input, sourceAutomatic, atVirtualMs: Date.now(), atWallMs: performance.now() });
-      return originalEnqueue.call(this, input, sourceAutomatic);
+      const atVirtualMs = Date.now();
+      const atWallMs = performance.now();
+      const promise = originalEnqueue.call(this, input, sourceAutomatic);
+      const id = (this as unknown as VscodeRustTransport).requestIdForInput(input);
+      enqueued.push({ id, input, sourceAutomatic, atVirtualMs, atWallMs });
+      return promise;
     });
     const api = { postMessage: vi.fn((message: VscodeToExtensionMessage) => {
       if (message.type === "rustEvaluationRequest") {
@@ -1382,6 +1801,8 @@ describe("Issue #1541 VS Code dependency forwarding into production Rust", () =>
       }
     }) };
     const app = render(<VSCodeApp api={api} />);
+    let host: ReturnType<typeof createVscodeModuleMultiDocumentHost> | null = null;
+    let phaseObservation: ReturnType<typeof observeVscodeMultiDocumentGraphPhases> | null = null;
     const advance = async (milliseconds: number) => {
       await act(async () => { await vi.advanceTimersByTimeAsync(milliseconds); });
     };
@@ -1460,6 +1881,8 @@ describe("Issue #1541 VS Code dependency forwarding into production Rust", () =>
       const sourceEditWallAt = performance.now();
       const editRequestStart = requests.length;
       const editEnqueueStart = enqueued.length;
+      const referenceSpy = vi.spyOn(evaluationEngine, "evaluateElementsReference");
+      const referenceCountBeforeEdit = referenceSpy.mock.calls.length;
       await send({
         type: "multiDocumentGraphPublication", status: "building", documentVersion: 3,
         hostDocumentUri: rootUri, graph: null
@@ -1491,6 +1914,17 @@ describe("Issue #1541 VS Code dependency forwarding into production Rust", () =>
       const graphToSendWallMs = currentGraphRequest.sentAtWallMs - graphArrivalWallAt;
       expect(currentGraphRequest.input.elements.map(element => element.name)).toContain("RootControl");
       expect(currentGraphRequest.input.elements.some(element => element.name.includes("Waist"))).toBe(true);
+      expect(currentGraphRequest.input.elements).toHaveLength(3);
+      expect(enqueued.slice(editEnqueueStart)).toEqual([expect.objectContaining({
+        input: currentGraphRequest.input,
+        sourceAutomatic: true
+      })]);
+      expect(enqueued[editEnqueueStart]?.id).toBe(currentGraphRequest.id);
+      expect(requests.slice(editRequestStart)).toEqual([expect.objectContaining({
+        id: currentGraphRequest.id,
+        input: currentGraphRequest.input
+      })]);
+      expect(referenceSpy).toHaveBeenCalledTimes(referenceCountBeforeEdit);
       expect(new Set(requests.map(request => request.id)).size).toBe(requests.length);
       await respond(currentGraphRequest);
       const geometry = (name: string) => [...(canvas.evaluation?.computedGeometry.values() ?? [])]
@@ -1506,11 +1940,85 @@ describe("Issue #1541 VS Code dependency forwarding into production Rust", () =>
       await send(currentPublication);
       expect(requests).toHaveLength(settledRequestCount);
       expect(enqueued).toHaveLength(settledEnqueueCount);
+
+      // Exercise the real extension Host's save subscription. VS Code's
+      // `files.autoSave` setting determines whether this edit produces an
+      // automatic save event; OFF is followed by an explicit manual save.
+      const rootPath = "/tmp/issue-1751-admission/root.nui";
+      const libraryPath = "/tmp/issue-1751-admission/library.nui";
+      const hostSource = importedV3;
+      const hostUri = vscode.Uri.file(rootPath) as unknown as HostTestUri;
+      const hostDocument: HostTestDocument = {
+        uri: hostUri,
+        fileName: rootPath,
+        version: 3,
+        isDirty: true,
+        getText: () => hostSource,
+        offsetAt: ({ line, character }) => hostSource.split("\n").slice(0, line)
+          .reduce((total, value) => total + value.length + 1, 0) + character,
+        positionAt: offset => {
+          const prefix = hostSource.slice(0, offset).split("\n");
+          return { line: prefix.length - 1, character: prefix.at(-1)!.length };
+        }
+      };
+      vscodeHost.documents = [hostDocument];
+      vscodeHost.files.set(rootPath, new TextEncoder().encode(hostSource));
+      vscodeHost.files.set(libraryPath, new TextEncoder().encode(issue1751LibrarySource));
+      const hostPhases: Array<{ name: string; documentUri: string }> = [];
+      phaseObservation = observeVscodeMultiDocumentGraphPhases(event => hostPhases.push(event));
+      host = createVscodeModuleMultiDocumentHost();
+      const savedFileChanged = vi.spyOn(
+        host as unknown as { savedFileChanged: (uri: vscode.Uri, kind: "change") => Promise<void> },
+        "savedFileChanged"
+      );
+      const activateRoot = vi.spyOn(
+        host as unknown as { activateRoot: (document: vscode.TextDocument) => Promise<void> },
+        "activateRoot"
+      );
+      host.start();
+      await act(async () => { await Promise.all(activateRoot.mock.results.map(result => result.value)); });
+      expect((host as unknown as { diagnosticsStateFor: (document: vscode.TextDocument) => { status: string } })
+        .diagnosticsStateFor(hostDocument as unknown as vscode.TextDocument).status).toBe("current");
+      const hostBuildCount = () => hostPhases.filter(event =>
+        event.name === "graphBuildStarted" && event.documentUri === rootUri
+      ).length;
+      const buildsBeforeSave = hostBuildCount();
+      const hostRequestCountBeforeSave = requests.length;
+      const hostEnqueueCountBeforeSave = enqueued.length;
+      const configuredAutoSave = vscode.workspace.getConfiguration("files").get<string>("autoSave");
+      const emitHostSave = async () => {
+        hostDocument.isDirty = false;
+        vscodeHost.files.set(rootPath, new TextEncoder().encode(hostSource));
+        const saveCount = savedFileChanged.mock.calls.length;
+        vscodeHost.saveListeners.forEach(listener => listener(hostDocument));
+        expect(savedFileChanged).toHaveBeenCalledTimes(saveCount + 1);
+        await savedFileChanged.mock.results.at(-1)?.value;
+      };
+      if (configuredAutoSave === "afterDelay") {
+        const configuredDelay = vscode.workspace.getConfiguration("files").get<number>("autoSaveDelay");
+        expect(configuredDelay).toBe(vscodeHost.fileAutoSaveDelay);
+        let autoSaveFinished: Promise<void> | undefined;
+        setTimeout(() => { autoSaveFinished = emitHostSave(); }, configuredDelay);
+        await advance(configuredDelay!);
+        await autoSaveFinished;
+      } else {
+        expect(configuredAutoSave).toBe("off");
+        expect(savedFileChanged).not.toHaveBeenCalled();
+        await emitHostSave();
+      }
+      const watcherCount = savedFileChanged.mock.calls.length;
+      vscodeHost.watcherChangeListeners.forEach(listener => listener(hostUri));
+      expect(savedFileChanged).toHaveBeenCalledTimes(watcherCount + 1);
+      await savedFileChanged.mock.results.at(-1)?.value;
+      expect(hostBuildCount()).toBe(buildsBeforeSave);
+      expect(requests).toHaveLength(hostRequestCountBeforeSave);
+      expect(enqueued).toHaveLength(hostEnqueueCountBeforeSave);
+      expect(referenceSpy).toHaveBeenCalledTimes(referenceCountBeforeEdit);
       process.stdout.write(
         `[nuinuicad] Issue #1751 M0 Base/fix observation: obsoleteLocalEnqueues=${editLocalEnqueues.length}, ` +
         `currentGraphRequestId=${currentGraphRequest.id}, source-to-send=${sourceToSendVirtualMs}ms virtual/${sourceToSendWallMs.toFixed(3)}ms wall, ` +
         `graph-to-send=${graphToSendVirtualMs}ms virtual/${graphToSendWallMs.toFixed(3)}ms wall, ` +
-        `editEnqueues=${editEnqueues.length}, requests=${requests.length}, Canvas-frame-time=not-measured\n`
+        `editEnqueues=${editEnqueues.length}, editRequests=${requests.slice(editRequestStart).length}, Canvas-frame-time=not-measured\n`
       );
       expect(editLocalEnqueues).toHaveLength(0);
       expect(graphToSendVirtualMs).toBe(0);
@@ -1540,6 +2048,8 @@ describe("Issue #1541 VS Code dependency forwarding into production Rust", () =>
       expect(reimportRequest.input.elements.some(element => element.name.includes("Waist"))).toBe(true);
       await respond(reimportRequest);
     } finally {
+      phaseObservation?.dispose();
+      host?.dispose();
       app.unmount();
       enqueueSpy.mockRestore();
       vi.useRealTimers();
@@ -1631,6 +2141,7 @@ describe("Issue #1541 VS Code dependency forwarding into production Rust", () =>
 
   it("does not retain local geometry as current for a legitimately empty Source", async () => {
     vi.stubEnv("VITE_EVALUATION_ENGINE", "rust");
+    vi.useFakeTimers();
     useCadDocumentStore.setState(initialCadDocumentState());
     useCadUiStore.setState(initialCadUiState());
     canvas.evaluation = null;
@@ -1659,6 +2170,8 @@ describe("Issue #1541 VS Code dependency forwarding into production Rust", () =>
           data: { type: "rustEvaluationResponse", id: localRequest.id, payload }
         })));
       }
+      await act(async () => { await vi.advanceTimersByTimeAsync(200); });
+      const requestCountBeforeEmptySource = requests.length;
       await act(async () => window.dispatchEvent(new MessageEvent("message", { data: {
         type: "commitText", sourceText: "nui 1\n", documentVersion: 2, reason: "edit", hostDocumentUri: rootUri
       } })));
@@ -1666,8 +2179,21 @@ describe("Issue #1541 VS Code dependency forwarding into production Rust", () =>
       expect(canvas.evaluation?.computedGeometry.size).toBe(0);
       expect(canvas.evaluation?.errors).toEqual([]);
       expect(canvas.props?.evaluationState).toMatchObject({ isStale: true });
+      const emptyRequests = requests.slice(requestCountBeforeEmptySource);
+      expect(emptyRequests).toHaveLength(1);
+      expect(emptyRequests[0]?.input.elements).toEqual([]);
+      const emptyPayload = await rust.evaluateInput(emptyRequests[0]!.input);
+      await act(async () => window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "rustEvaluationResponse", id: emptyRequests[0]!.id, payload: emptyPayload }
+      })));
+      expect(canvas.evaluation?.computedGeometry.size).toBe(0);
+      expect(canvas.evaluation?.errors).toEqual([]);
+      expect(canvas.props?.evaluationState).toMatchObject({
+        evaluationRevision: expect.any(Number), source: "rust", status: "ready", isStale: false
+      });
     } finally {
       app.unmount();
+      vi.useRealTimers();
     }
   });
 

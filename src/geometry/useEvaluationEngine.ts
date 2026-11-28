@@ -389,9 +389,7 @@ export const useEvaluationEngine = (
 
   if (asyncEvaluation) {
     return {
-      evaluation: !isCurrentAsyncEvaluation && elements.length === 0
-        ? emptyEvaluation
-        : asyncEvaluation.evaluation,
+      evaluation: asyncEvaluation.evaluation,
       evaluationRevision: asyncEvaluation.evaluationRevision,
       evaluationRequestRevision: asyncEvaluation.evaluationRequestRevision,
       mode: engineMode,
