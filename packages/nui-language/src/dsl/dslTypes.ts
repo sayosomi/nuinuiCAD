@@ -63,7 +63,7 @@ export type DslDiagnostic = {
   severity: "error" | "warning";
   /** A compiler-proven, locally invalid extract boundary. Retain its diagnostic
    * while allowing healthy members to compile; output validates its owner. */
-  isolatedExtractPart?: { sourceStatementId: string; statementIndex: number; boundary: "left" | "right"; sourceDocumentId?: string };
+  isolatedExtractPart?: { sourceStatementId: string; statementIndex: number; boundary: "left" | "right" | "source"; sourceDocumentId?: string };
   line: number;
   column: number;
   message: string;
@@ -269,17 +269,24 @@ export type DslExtractPart = {
   layerReference?: string;
   layerReferenceSpan?: DslSpan;
   colonSpan: DslSpan;
+  namePhysicalSpan?: DslPhysicalSpan | null;
+  colonPhysicalSpan?: DslPhysicalSpan | null;
+} & ({
+  kind: "interval";
   left: string;
   leftSpan: DslSpan;
   right: string;
   rightSpan: DslSpan;
   intervalSpan: DslSpan;
-  namePhysicalSpan?: DslPhysicalSpan | null;
   leftPhysicalSpan?: DslPhysicalSpan | null;
   rightPhysicalSpan?: DslPhysicalSpan | null;
   intervalPhysicalSpan?: DslPhysicalSpan | null;
-  colonPhysicalSpan?: DslPhysicalSpan | null;
-};
+} | {
+  kind: "source";
+  source: string;
+  sourceSpan: DslSpan;
+  sourcePhysicalSpan?: DslPhysicalSpan | null;
+});
 
 export type DslStatement =
   | (DslStatementBase & { kind: "role" })
@@ -350,6 +357,7 @@ export type DslStatement =
     })
   | (DslStatementBase & {
       kind: "extract";
+      declaration: "extract" | "transformCopy";
       parts: readonly DslExtractPart[];
       layerReference?: string;
       layerReferenceSpan?: DslSpan;
@@ -376,7 +384,7 @@ export type DslStatement =
       /** Exact physical source range of the Layer reference token. */
       layerReferencePhysicalSpan?: DslPhysicalSpan | null;
       /** Parser-owned projection of an authored member, never a callable builtin. */
-      extractPart?: { declarationIndex: number; partIndex: number };
+      extractPart?: { declarationIndex: number; partIndex: number; declaration: "extract" | "transformCopy" };
       /** Present only on statement-for headers. */
       forSource?: string;
       forSourceSpan?: DslSpan;

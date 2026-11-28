@@ -799,7 +799,14 @@ export const analyzeTypedDeclarations = ({
   const hasScalarExpressionConsumers = statements.some((statement, statementIndex) => {
     if (!includeStatement(statement, statementIndex)) return false;
     if (statement.kind === "transformation") {
-      return statement.attrs.some(attr => attr.value.includes("@"));
+      return statement.attrs.some(({ key, value }) => {
+        const numeric = key === "scale" || key === "angleDeg" || key === "index";
+        const coordinate = ["from", "to", "axis1", "axis2"].includes(key) && value.trimStart().startsWith("(");
+        if (!numeric && !coordinate) return false;
+        const { tokens } = tokenizeScalarExpression(value, { start: 0, end: value.length });
+        return tokens.some(token => token.kind === "reference" || token.kind === "geometryProperty" ||
+          (token.kind === "literal" && token.choiceMarker));
+      });
     }
     if (statement.kind !== "element" && statement.kind !== "group") return false;
     const elementId = reconciledContainers.elementIdByStatementIndex.get(statementIndex);

@@ -33,7 +33,6 @@ const calls = [
   ["line", "polyline", "polyline"],
   ["line", "join", "joinedPath"],
   ["line", "split", "splitLine"],
-  ["line", "transformCopy", "copyLine"],
   ["line", "mirrorCopy", "symmetricCopyLine"],
   ["path", "from", "materializedPath"],
   ["mutation", "edge", "edge"],
@@ -74,7 +73,7 @@ describe("DSL nui 1 construction registry", () => {
     }
 
     expect(coveredTypes).toEqual(new Set(
-      Object.keys(elementTypeLabels).filter((type) => !runtimeOnlyElementTypes.has(type as CadElementType))
+      Object.keys(elementTypeLabels).filter((type) => type !== "copyLine" && !runtimeOnlyElementTypes.has(type as CadElementType))
     ));
   });
 
@@ -87,21 +86,8 @@ describe("DSL nui 1 construction registry", () => {
     expect(constructionFor("missing", "offset")).toBeNull();
   });
 
-  it("renames the copy construction without changing its element or arguments", () => {
-    expect(constructionFor("line", "transformCopy")).toMatchObject({
-      category: "line",
-      construction: "transformCopy",
-      elementType: "copyLine",
-      pureValueInterface: "path",
-      args: [
-        { arg: "startPoint", required: true },
-        { arg: "endPoint", required: true },
-        { arg: "scale" },
-        { arg: "angleDeg" },
-        { arg: "mirrorX" },
-        { arg: "baseLines", required: true, parameterKey: "baseLineIds" },
-      ],
-    });
+  it("retires transformCopy from the call registry and preserves mirrorCopy", () => {
+    expect(constructionFor("line", "transformCopy")).toBeNull();
     expect(constructionFor("line", "mirrorCopy")).toMatchObject({
       elementType: "symmetricCopyLine"
     });

@@ -815,7 +815,7 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
   } else if (completionContext.kind === "keyword") {
     completions = neutralQuery ? neutralCompletions : completionContext.options.map((label) => ({ label, type: "keyword" }));
     usesNeutralQuery = neutralQuery !== null;
-  } else if (completionContext.kind === "knotArgument") {
+  } else if ((completionContext.kind === "knotArgument" || completionContext.kind === "transformCopyArgument")) {
     completions = neutralCompletions;
     usesNeutralQuery = neutralQuery !== null;
   } else if (completionContext.kind === "construction") {

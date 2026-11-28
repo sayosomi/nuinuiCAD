@@ -49,7 +49,7 @@ describe("immutable single-geometry reference values", () => {
       "const P: point = A",
       "line L = segment(start: P, end: B)",
       "const Broad: path = L",
-      "line Copy = transformCopy(startPoint: (0, 0), endPoint: (10, 0), scale: 1, angleDeg: 0, mirrorX: false, baseLines: [Broad])"
+      "transformCopy C(startPoint: (0, 0), endPoint: (10, 0), parts: [Copy: Broad])"
     ].join("\n"));
 
     expect(compiled.diagnostics).toEqual([]);
@@ -58,7 +58,13 @@ describe("immutable single-geometry reference values", () => {
     const l = compiled.document?.elements.find((element) => element.name === "L");
     const copy = compiled.document?.elements.find((element) => element.name === "Copy");
     expect(l).toMatchObject({ startPoint: { mode: "reference", pointId: a?.id } });
-    expect(copy).toMatchObject({ baseLineIds: [l?.id] });
+    expect(copy).toMatchObject({ type: "materializedPath", source: "Broad" });
+    const part = compiled.moduleSemanticAnalysis?.geometryValues.find(value => value.name === "Copy");
+    expect(part?.construction).toMatchObject({
+      kind: "transformCopy", source: {
+        target: { kind: "geometryValue", backingTarget: { kind: "sourceGeometry", statementId: l?.id } }
+      }
+    });
   });
 
   it("passes aliased geometry through scalar property reads without making the alias scalar", () => {
@@ -162,7 +168,7 @@ describe("immutable single-geometry reference values", () => {
     });
     expect(pureGeometryValueConstructionCandidates("point").map((candidate) => candidate.label)).toEqual(["coordinate", "offset", "polar", "between", "onLine", "intersection", "tangentOffset", "bezierExtremePoint", "bezierBulgePoint"]);
     expect(pureGeometryValueConstructionCandidates("line").map((candidate) => candidate.label)).toEqual(["segment", "polar", "commonTangent"]);
-    expect(pureGeometryValueConstructionCandidates("path").map((candidate) => candidate.label)).toEqual(["segment", "polar", "commonTangent", "offset", "join", "polyline", "transformCopy", "bezier", "arc", "through"]);
+    expect(pureGeometryValueConstructionCandidates("path").map((candidate) => candidate.label)).toEqual(["segment", "polar", "commonTangent", "offset", "join", "polyline", "bezier", "arc", "through"]);
     expect(pureGeometryValueConstructionCandidates("point").map((candidate) => candidate.label)).not.toContain("through");
     expect(pureGeometryValueConstructionCandidates("line").map((candidate) => candidate.label)).not.toContain("through");
     expect(pureGeometryValueConstructionCandidates("point").map((candidate) => candidate.label)).not.toContain("transformCopy");
@@ -413,59 +419,48 @@ const ExportedStart: point = onLine(from: ProviderInstance::Edge.start, ratio: 0
     expect(compiled.geometryValueProgram?.map((entry) => entry.construction.kind)).toEqual(["offsetPoint", "offsetPath"]);
   });
 
-  it("keeps transformCopy as a path value and rejects the obsolete mirrorCopy path value", () => {
+  it("gives each named copy a construction of its own and keeps mirrorCopy drawable-only", () => {
     const compiled = compile([
       "nui 1",
       "point Start = coordinate(x: 0, y: 0)",
       "point End = coordinate(x: 0, y: 10)",
       "line First = segment(start: (0, 0), end: (10, 0))",
       "line Second = segment(start: (10, 0), end: (20, 0))",
-      "const Copied: path = transformCopy(startPoint: Start, endPoint: End, scale: 2, angleDeg: 15, mirrorX: true, baseLines: [First, Second])",
+      "transformCopy Copies(startPoint: Start, endPoint: End, scale: 2, angleDeg: 15, mirrorX: true, parts: [a: First, b: Second])",
       "const Mirrored: path = mirrorCopy(axis1: Start, axis2: End, baseLines: [First, Second])"
     ].join("\n"), "geometry-value-copy");
-
-    expect(compiled.diagnostics.some((diagnostic) => diagnostic.message.toLowerCase().includes("mirrorcopy"))).toBe(true);
-    expect(compiled.moduleSemanticAnalysis?.geometryValues.find((value) => value.name === "Copied")?.construction?.kind).toBe("transformCopy");
-    const start = compiled.sourceElementsByStatementIndex.get(1);
-    const end = compiled.sourceElementsByStatementIndex.get(2);
-    const first = compiled.sourceElementsByStatementIndex.get(3);
-    const second = compiled.sourceElementsByStatementIndex.get(4);
-    if (!start || !end || !first || !second) throw new Error("expected named copy references");
-    const copied = compiled.moduleSemanticAnalysis?.geometryValues.find((value) => value.name === "Copied");
-    expect(copied?.construction).toMatchObject({
-      kind: "transformCopy",
-      startPoint: { target: { kind: "sourceGeometry", statementId: start.id, geometryKind: "point" } },
-      endPoint: { target: { kind: "sourceGeometry", statementId: end.id, geometryKind: "point" } },
-      scale: { ast: { kind: "numberLiteral", value: 2 } },
-      angleDeg: { ast: { kind: "numberLiteral", value: 15 } },
-      mirrorX: { ast: { kind: "booleanLiteral", value: true } },
-      baseLines: [
-        { target: { kind: "sourceGeometry", statementId: first.id, geometryKind: "line" } },
-        { target: { kind: "sourceGeometry", statementId: second.id, geometryKind: "line" } }
-      ]
-    });
-    const copiedSites = compiled.moduleSemanticAnalysis?.rootGeometryReferencesByStatementId.get(copied!.statementId);
-    expect(copiedSites?.map((site) => site.parameterKey)).toEqual(["startPoint", "endPoint", "baseLines:0", "baseLines:1"]);
-    expect(copiedSites?.map((site) => site.reference.target)).toEqual([
-      expect.objectContaining({ kind: "sourceGeometry", statementId: start.id }),
-      expect.objectContaining({ kind: "sourceGeometry", statementId: end.id }),
-      expect.objectContaining({ kind: "sourceGeometry", statementId: first.id }),
-      expect.objectContaining({ kind: "sourceGeometry", statementId: second.id })
-    ]);
-    expect(compiled.geometryValueProgram?.map((entry) => entry.construction.kind)).toEqual(["transformCopy"]);
+    expect(compiled.diagnostics.some(diagnostic => diagnostic.message.toLowerCase().includes("mirrorcopy"))).toBe(true);
+    const statementId = (name: string) => compiled.statements.flatMap((statement, index) =>
+      statement.name === name ? [compiled.sourceElementsByStatementIndex.get(index)?.id] : [])[0];
+    for (const [name, original] of [["a", "First"], ["b", "Second"]]) {
+      const part = compiled.moduleSemanticAnalysis?.geometryValues.find(value => value.name === name);
+      expect(part?.construction).toMatchObject({
+        kind: "transformCopy",
+        startPoint: { target: { kind: "sourceGeometry", statementId: statementId("Start"), geometryKind: "point" } },
+        endPoint: { target: { kind: "sourceGeometry", statementId: statementId("End"), geometryKind: "point" } },
+        scale: { ast: { kind: "numberLiteral", value: 2 } },
+        angleDeg: { ast: { kind: "numberLiteral", value: 15 } },
+        mirrorX: { ast: { kind: "booleanLiteral", value: true } },
+        source: { target: { kind: "sourceGeometry", statementId: statementId(original), geometryKind: "line" } }
+      });
+      expect(compiled.moduleSemanticAnalysis?.rootGeometryReferencesByStatementId.get(part!.statementId)
+        ?.filter(site => !site.runtimeOnly).map(site => site.reference.target)).toEqual([
+        expect.objectContaining({ statementId: statementId(original) }),
+        expect.objectContaining({ statementId: statementId("Start") }),
+        expect.objectContaining({ statementId: statementId("End") })
+      ]);
+    }
   });
 
-  it("allows copy constructions for path values but rejects strict line values at compile time", () => {
+  it("rejects a named copy assigned to a strict line value", () => {
     const compiled = compile([
       "nui 1",
       "line Base = segment(start: (0, 0), end: (10, 0))",
-      "const Transform: line = transformCopy(startPoint: (0, 0), endPoint: (10, 0), baseLines: [Base])",
-      "const Mirror: line = mirrorCopy(axis1: (0, 0), axis2: (0, 10), baseLines: [Base])"
+      "transformCopy C(startPoint: (0, 0), parts: [part: Base])",
+      "const Strict: line = C::part"
     ].join("\n"), "geometry-value-copy-interface");
 
     expect(errorCodes(compiled)).toContain("module-geometry-type-mismatch");
-    expect(compiled.diagnostics.some((diagnostic) => diagnostic.message.toLowerCase().includes("mirrorcopy"))).toBe(true);
-    expect(compiled.geometryValueProgram?.map((entry) => entry.construction.kind)).toEqual(["transformCopy"]);
   });
 
   it("accepts through as a path-only pure construction with resolved point sites and defaults", () => {
@@ -708,7 +703,7 @@ const ExportedStart: point = onLine(from: ProviderInstance::Edge.start, ratio: 0
       "point Origin = coordinate(x: 3, y: 4)",
       "line Base = segment(start: (0, 0), end: (10, 0))",
       "instance One = M(source: Origin, edge: Base, broad: Base)",
-      "line Use = transformCopy(startPoint: (0, 0), endPoint: (10, 0), scale: 1, angleDeg: 0, mirrorX: false, baseLines: [One::outputPath])"
+      "transformCopy C(startPoint: (0, 0), endPoint: (10, 0), parts: [Use: One::outputPath])"
     ].join("\n"), "module-geometry-value");
 
     expect(compiled.diagnostics).toEqual([]);
@@ -716,9 +711,12 @@ const ExportedStart: point = onLine(from: ProviderInstance::Edge.start, ratio: 0
       "localPoint", "localLine", "localPath", "output", "outputPath"
     ]);
     expect(compiled.document?.elements.map((element) => element.name)).toEqual(["Origin", "Base", "One", "Use"]);
-    const base = compiled.document?.elements.find((element) => element.name === "Base");
     const use = compiled.document?.elements.find((element) => element.name === "Use");
-    expect(use).toMatchObject({ baseLineIds: [base?.id] });
+    expect(use).toMatchObject({ type: "materializedPath", source: "One::outputPath" });
+    const part = compiled.moduleSemanticAnalysis?.geometryValues.find(value => value.name === "Use");
+    expect(part?.construction).toMatchObject({
+      kind: "transformCopy", source: { target: { kind: "deferredModuleExport", instanceName: "One", exportName: "outputPath" } }
+    });
   });
 
   it("validates root aliases from Module geometry exports through deferred export sites", () => {
@@ -730,7 +728,7 @@ const ExportedStart: point = onLine(from: ProviderInstance::Edge.start, ratio: 0
       "}",
       "instance I = M()",
       "const Valid: path = I::Edge",
-      "line Copy = transformCopy(startPoint: (0, 0), endPoint: (10, 0), scale: 1, angleDeg: 0, mirrorX: false, baseLines: [Valid])"
+      "transformCopy C(startPoint: (0, 0), endPoint: (10, 0), parts: [Copy: Valid])"
     ].join("\n"), "geometry-export-alias-valid");
     expect(valid.diagnostics).toEqual([]);
     expect(valid.document?.elements.map((element) => element.name)).toEqual(["I", "Edge", "Private", "Copy"]);

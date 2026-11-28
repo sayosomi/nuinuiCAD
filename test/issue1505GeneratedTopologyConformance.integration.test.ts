@@ -82,6 +82,11 @@ function owners(c: TextCompileResult) {
     const name = s.kind === "element" && s.type === "forGroup" ? required(s.attrs.find(a => a.key === "variable")?.value, "iterator")
       : s.kind === "element" && s.type === "conditionalGroup" ? "if" : s.name || s.kind;
     if (!s.enclosing) return name;
+    const container = doc.statements[s.enclosing.statementIndex];
+    if (s.kind === "element" && s.extractPart?.declaration === "transformCopy") {
+      expect(container).toMatchObject({ kind: "extract", declaration: "transformCopy" });
+      return container?.enclosing ? `${sourceName(container.enclosing.statementIndex)}/${name}` : name;
+    }
     const parent = sourceName(s.enclosing.statementIndex);
     // Else shares the conditional owner and has its own lexical branch.
     const enclosing = s.enclosing as typeof s.enclosing & { branch?: string };
@@ -187,6 +192,19 @@ describe("#1505 sealed dynamic generated topology", () => {
         const nc = owners(compiled);
         check(`${mode} compiled reference ownership`, () => {
           for (const ref of cp.refs) {
+            const programs = options.geometryValueProgram?.filter(entry =>
+              nc.byId.get(entry.sourceStatementId) === ref.consumer && entry.construction.kind === "transformCopy") ?? [];
+            if (programs.length) {
+              expect(programs).toHaveLength(1);
+              const construction = programs[0]!.construction;
+              if (construction.kind !== "transformCopy" || construction.source.kind !== "target") throw new Error("Missing copied operand");
+              const target = construction.source.target;
+              expect(target).toMatchObject({ kind: "forGroupOccurrence" });
+              if (target.kind !== "forGroupOccurrence") throw new Error("Missing generated occurrence identity");
+              expect(nc.elementOwner(target.templateElementId).template).toBe(ref.target);
+              if (ref.index !== undefined) compare(target.index, { kind: "numberLiteral", value: ref.index }, "selected index");
+              continue;
+            }
             const entries = [...options.geometryInputTargetsByElementId ?? []].filter(([id]) => nc.elementOwner(id).template === ref.consumer);
             expect(entries.length, ref.consumer).toBeGreaterThan(0);
             for (const [, parameters] of entries) {

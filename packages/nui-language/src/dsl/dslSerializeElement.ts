@@ -238,10 +238,37 @@ const transformationStatement = (
   };
 };
 
+const transformCopyDraftStatement = (
+  element: Extract<CadElement, { type: "copyLine" }>,
+  refs: DslSerializerRefs,
+  blankParameterKeys: ReadonlySet<string> = new Set()
+): SerializedStatement => {
+  const spec = constructionForElementType(element.type);
+  const sources = blankParameterKeys.has("baseLineIds")
+    ? [""]
+    : element.baseLineIds.map(id => refs.token(id, element));
+  const parts = sources.map((source, index) => `part${index === 0 ? "" : index + 1}: ${source}`);
+  return {
+    header: `transformCopy ${refs.name(element)}${modifierReferenceSuffix(element)}${layerReferenceSuffix(element, refs)}(`,
+    args: [
+      ...spec.args.filter(arg => arg.arg !== "parts").flatMap(arg => {
+        if (blankParameterKeys.has(arg.arg)) return [{ key: arg.arg, text: `${arg.arg}: ` }];
+        const serialized = serializeArg(element, arg, refs);
+        return serialized ? [serialized] : [];
+      }),
+      { key: "parts", text: `parts: [${parts.join(", ")}]` },
+      ...commonArgs(element, refs).filter(arg => arg.key === "enabled" || arg.key === "visible")
+    ],
+    close: ")",
+    argumentSeparator: "comma"
+  };
+};
+
 export const serializeElementStatementBlock = (
   element: CadElement,
   refs: DslSerializerRefs,
 ): SerializedStatement => {
+  if (element.type === "copyLine") return transformCopyDraftStatement(element, refs);
   const spec = constructionForElement(element);
   if (spec.category === MUTATION_CATEGORY) return transformationStatement(element, spec, refs);
   if (spec.category === "group" || spec.category === "if" || spec.category === "for") {
@@ -276,6 +303,7 @@ export const serializeElementStatementBlockWithBlanks = (
   refs: DslSerializerRefs,
   blankParameterKeys: ReadonlySet<string>
 ): SerializedStatement => {
+  if (element.type === "copyLine") return transformCopyDraftStatement(element, refs, blankParameterKeys);
   const spec = constructionForElement(element);
   if (spec.category === MUTATION_CATEGORY) return transformationStatement(element, spec, refs, blankParameterKeys);
   const common = commonArgs(element, refs, new Set(spec.args.map((argSpec) => argSpec.arg)));

@@ -94,7 +94,7 @@ import { arcGeometryKernel, bezierBulgePointGeometryKernel, bezierExtremePointGe
 import { buildOffsetLineGeometry } from "./offsetPaths";
 import { isFillEligibleClosedPath, isLineLikeGeometryInput, pointAtDistanceFromEndpoint } from "./linePaths";
 import { copyPathGeometry } from "./copyPathGeometry";
-import { connectSourceSegmentGroups, sourceSegmentsForGeometry } from "./offsetSourceSegments";
+import { sourceSegmentsForGeometry } from "./offsetSourceSegments";
 import { joinedPathGeometryValueKernel } from "./joinedPathGeometryValue";
 import { findLineIntersections, isSelfIntersectingClosedPath } from "./lineIntersections";
 import { evaluateTypedExpressionWithGeometryDemands, type GeometryBuiltinTargetLookupResult } from "../scalars/expressionEvaluator";
@@ -549,13 +549,15 @@ export const evaluateElements = (
         }
       }
     }
-    // Drawable and pure geometry inputs may precede scalar prerequisites.
-    // Project their already-resolved binding prerequisites into the existing
-    // schedule; do not advance unrelated authored events or control owners.
+    // Geometry inputs and recipes can become ready before the next authored
+    // scalar event. Schedule their immutable prerequisites from active edges.
     earlyNumericDependencyVersionIds = new Set<string>();
     const numericInputs = (options.typedDependencyGraph?.edges ?? []).flatMap(edge => {
-      if ((edge.from.kind !== "element" && edge.from.kind !== "geometry-value") ||
-          edge.to.kind !== "binding" || !graphEdgeIsActive(edge)) return [];
+      if (edge.to.kind !== "binding" || !graphEdgeIsActive(edge)) return [];
+      if (edge.from.kind === "transformation-recipe") {
+        return [{ bindingId: edge.to.id, sourceOrder: Number.NEGATIVE_INFINITY }];
+      }
+      if (edge.from.kind !== "element" && edge.from.kind !== "geometry-value") return [];
       const geometryValue = edge.from.kind === "geometry-value"
         ? geometryValueProgram[geometryValueIndexByEndpointId.get(typedDependencyEndpointId(edge.from)) ?? -1]
         : undefined;
@@ -2060,7 +2062,9 @@ export const evaluateElements = (
         return;
       }
       const startPoint = structuralPointForProgramPoint(entry.construction.startPoint, sourceOrder);
-      const endPoint = structuralPointForProgramPoint(entry.construction.endPoint, sourceOrder);
+      const endPoint = entry.construction.endPoint === null
+        ? startPoint
+        : structuralPointForProgramPoint(entry.construction.endPoint, sourceOrder);
       const scale = evaluateGeometryValueScalar(entry.construction.scale, sourceOrder);
       const angleDeg = evaluateGeometryValueScalar(entry.construction.angleDeg, sourceOrder);
       const mirrorX = evaluateGeometryValueBoolean(entry.construction.mirrorX, sourceOrder);
@@ -2072,21 +2076,12 @@ export const evaluateElements = (
         appendGeometryValueError(entry, "transformCopy geometry value construction scale must be a finite positive number.");
         return;
       }
-      const sourceGroups = entry.construction.baseLines.map((source) => {
-        const geometry = resolveGeometryValueProgramTarget(source.target, sourceOrder);
-        if (!geometry || geometry.kind === "unavailable" || !isLineLikeGeometryInput(geometry)) return undefined;
-        const segments = sourceSegmentsForGeometry(geometry);
-        return segments.length > 0 ? segments : undefined;
-      });
-      if (sourceGroups.length === 0 || sourceGroups.some((group) => !group)) {
-        appendGeometryValueError(entry, "transformCopy geometry value construction inputs are unavailable, non-line-like, or contain no segments.");
+      const geometry = resolveGeometryValueProgramTarget(entry.construction.source.target, sourceOrder);
+      if (!geometry || geometry.kind === "unavailable" || !isLineLikeGeometryInput(geometry)) {
+        appendGeometryValueError(entry, "transformCopy member source is unavailable or non-line-like.");
         return;
       }
-      const sourceSegments = connectSourceSegmentGroups(sourceGroups as Array<import("./offsetPathTypes").SourceSegment[]>, false);
-      if (!sourceSegments) {
-        appendGeometryValueError(entry, "transformCopy geometry value construction baseLines are not continuous in the specified order.");
-        return;
-      }
+      const sourceSegments = sourceSegmentsForGeometry(geometry);
       value = copyPathGeometry(sourceSegments, {
         kind: "transform",
         startPoint,
@@ -2094,7 +2089,7 @@ export const evaluateElements = (
         scale,
         angleDeg,
         mirrorX
-      }) ?? undefined;
+      }, "closed" in geometry && geometry.closed === true) ?? undefined;
       if (!value) appendGeometryValueError(entry, "transformCopy geometry value construction produced no transformed segments.");
     } else if (entry.construction.kind === "mirrorCopy") {
       appendGeometryValueError(entry, "mirrorCopy is a display-only preview and cannot produce a path value.");
@@ -3361,9 +3356,17 @@ export const evaluateElements = (
     );
     if (!numericMaterialization.ok) {
       errors.push(...numericMaterialization.errors);
-      for (const [id, original] of originalGeometry) {
-        if (original) computedGeometry.set(id, original);
-        else computedGeometry.delete(id);
+      for (const target of targets) {
+        const id = target.runtimeOwnerId;
+        const original = originalGeometry.get(id);
+        if (target.stagePath.length === 0 || (target.stagePath.length === 1 && target.stagePath[0] === "final")) {
+          computedGeometry.delete(id);
+          failedElementIds.add(id);
+        } else if (original) {
+          computedGeometry.set(id, original);
+        } else {
+          computedGeometry.delete(id);
+        }
       }
       return;
     }
@@ -3385,9 +3388,17 @@ export const evaluateElements = (
     }
     runtimeElementsById.delete(synthetic.id);
     if (errors.length !== errorCountBefore) {
-      for (const [id, original] of originalGeometry) {
-        if (original) computedGeometry.set(id, original);
-        else computedGeometry.delete(id);
+      for (const target of targets) {
+        const id = target.runtimeOwnerId;
+        const original = originalGeometry.get(id);
+        if (recipe.construction === "move" && target.stagePath.length === 0) {
+          computedGeometry.delete(id);
+          failedElementIds.add(id);
+        } else if (original) {
+          computedGeometry.set(id, original);
+        } else {
+          computedGeometry.delete(id);
+        }
       }
       return;
     }
@@ -3554,7 +3565,13 @@ export const evaluateElements = (
           return !runtimeId || !completedTransformationTargets.get(priorIndex)?.has(runtimeId);
         })))) return false;
       if (plan.prerequisites.some((dependency) => !transformationDependencyAvailable(dependency, scope))) return false;
-      if (plan.argumentDependencies.some((dependency) => !transformationDependencyAvailable(dependency, scope))) return false;
+      if (plan.argumentDependencies.some(dependency => {
+        if (transformationDependencyAvailable(dependency, scope)) return false;
+        const id = scope?.get(dependency.ownerId) ?? dependency.ownerId;
+        // A completed drawable with no base has a terminal dependency error.
+        // Let Move's normal evaluator report it instead of waiting indefinitely.
+        return recipe.construction !== "move" || !completedElementIds.has(id) || baseTransformationGeometry.has(id);
+      })) return false;
       for (const occurrence of plan.geometryValuePrerequisites ?? []) {
         const key = geometryValueOccurrenceKey(occurrence);
         const entry = lazyFrameGeometryValues.get(key);
@@ -3571,8 +3588,11 @@ export const evaluateElements = (
         }
         if (!computedGeometryValues.has(key)) return false;
       }
-      if (plan.scalarPrerequisites.some((bindingId) => bindingLookup
-        ? bindingLookup(bindingId).status !== "ok" : !endpointIsReady(`binding:${bindingId}`))) return false;
+      if (plan.scalarPrerequisites.some((bindingId) => {
+        if (!bindingLookup && endpointIsReady(`binding:${bindingId}`)) return false;
+        const value = (bindingLookup ?? scalarBindingResolver?.resolveBinding)?.(bindingId);
+        return !value || (value.status === "error" && value.issueCode === "evaluation-binding-unavailable");
+      })) return false;
     }
     for (const target of recipe.targets) {
       if (!transformationDependencyAvailable(target, scope)) return false;
@@ -3609,12 +3629,24 @@ export const evaluateElements = (
         if (scope && (recipe.targets.some(target => !scope.has(target.ownerId)) ||
           recipe.targets.some(target => runtimeTargetsFor(recipe, target, scope).length === 0) ||
           recipe.targets.every(target => completedTransformationTargets.get(recipeIndex)?.has(scope.get(target.ownerId)!)))) continue;
+        const plan = transformationPlanByRecipeIndex.get(recipeIndex);
+        const rank = typedDependencyEndpointRankById.get(`transformation-recipe:recipe:${recipe.id}`);
+        if (linearMutationResolver && plan?.scalarPrerequisites.length && rank !== undefined) {
+          // Release the recipe's immutable scalar prerequisites by graph rank
+          // without moving the authored cursor or retiring control scopes.
+          linearMutationResolver.advanceTo({
+            kind: "beforeStatement",
+            sourceOrder: Number.NEGATIVE_INFINITY,
+            dependencyExecutionPosition: rank
+          }, dependencyReadyVersionIdsForSourceOrder(Number.NEGATIVE_INFINITY), dependencyScheduledPrerequisiteVersionIdsByVersionId);
+        }
         if (!transformationRecipeReady(recipeIndex, recipe, scope, bindingLookup)) continue;
         executeTransformationRecipe(recipe, recipeIndex, scope, bindingLookup);
         if (!scope) {
           pendingTransformationRecipes.delete(recipeIndex);
           completedTransformationRecipeIndices.add(recipeIndex);
         }
+        if (!scope && recipe.runtimeInstancePath?.length) captureReadyModuleInstanceBases();
         progressed = true;
       }
     }
@@ -3960,6 +3992,15 @@ export const evaluateElements = (
         : [id]);
       const instancePath = snapshot.instancePath ?? options.moduleMaterialization?.runtimeIdentityByElementId.get(snapshot.instanceId)?.path ??
         options.moduleMaterialization?.originByRuntimeElementId.get(snapshot.instanceId)?.instancePath ?? [];
+      const pendingBodyMove = instancePath.length > 0 && recipeList.some((recipe, index) =>
+        recipe.construction === "move" && recipe.enabled &&
+        recipe.runtimeInstancePath && instancePath.every((part, i) => recipe.runtimeInstancePath?.[i] === part) &&
+        !completedTransformationRecipeIndices.has(index) &&
+        recipe.targets.some(target => transformationDependencyRuntimeIds(target).some(id =>
+          computedGeometry.has(id) && !completedTransformationTargets.get(index)?.has(id)
+        ))
+      );
+      if (pendingBodyMove) continue;
       const hasUnevaluatedGeometryValue = geometryValueProgram.some((entry, index) =>
         entry.occurrence.instancePath.length >= instancePath.length &&
         instancePath.every((part, pathIndex) => entry.occurrence.instancePath[pathIndex] === part) &&

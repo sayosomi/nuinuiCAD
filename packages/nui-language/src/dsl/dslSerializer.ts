@@ -30,12 +30,15 @@ export const serializeExtractDeclaration = (
   const head = (name: string, names: readonly string[] | undefined, layer: string | undefined) =>
     `${formatDslName(name)}${modifiers(names)}${layer ? ` in ${formatDslName(layer)}` : ""}`;
   const source = statement.attrs.find(attr => attr.key === "source")?.value ?? "";
+  const args = statement.declaration === "extract"
+    ? [{ key: "source", value: source }]
+    : statement.attrs.filter(attr => !["parts", "enabled", "visible"].includes(attr.key));
   const gates = statement.attrs.filter(attr => attr.key === "enabled" || attr.key === "visible");
   return [
-    `${indent}extract ${head(statement.name, statement.modifierNames, statement.layerReference)}(`,
-    `${indent}${DSL_INDENT}source: ${source},`,
+    `${indent}${statement.declaration} ${head(statement.name, statement.modifierNames, statement.layerReference)}(`,
+    ...args.map(arg => `${indent}${DSL_INDENT}${arg.key}: ${arg.value},`),
     `${indent}${DSL_INDENT}parts: [`,
-    ...statement.parts.map(part => `${indent}${DSL_INDENT.repeat(2)}${head(part.name, part.modifierNames, part.layerReference)}: ${part.left}..${part.right},`),
+    ...statement.parts.map(part => `${indent}${DSL_INDENT.repeat(2)}${head(part.name, part.modifierNames, part.layerReference)}: ${part.kind === "interval" ? `${part.left}..${part.right}` : part.source},`),
     `${indent}${DSL_INDENT}],`,
     ...gates.map(attr => `${indent}${DSL_INDENT}${attr.key}: ${attr.value},`),
     `${indent})`

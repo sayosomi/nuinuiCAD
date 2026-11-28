@@ -1544,7 +1544,7 @@ describe("module geometry runtime", () => {
     const allowed = compileWithIds([
       "nui 1",
       "module M(path: line) {",
-      "  line Copy = transformCopy(startPoint: path.start, endPoint: path.end, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [path])",
+      "  transformCopy Copies_Copy(startPoint: path.start, endPoint: path.end, scale: 1, angleDeg: 0, mirrorX: false, parts: [Copy: path])",
       "}",
       "line Base = segment(start: (0, 0), end: (10, 0))",
       "instance X = M(path: Base)"

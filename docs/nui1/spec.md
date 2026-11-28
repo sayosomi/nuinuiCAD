@@ -978,6 +978,56 @@ the final argument has a trailing comma. A single-line call is parseable, but
 the Source Editor's canonical formatter emits the stable multi-line shape for a
 multi-argument call.
 
+### Named transformed path copies
+
+`transformCopy` creates a source-only namespace of independently drawable path
+members. The required `startPoint` is a point reference or coordinate, and
+`parts` is a nonempty list of unique named members. Each member takes one
+line-like reference or typed path value in the declaration's lexical scope.
+The same source may be copied under distinct member names.
+
+```nui
+transformCopy Copied(
+  startPoint: (0, 0),
+  endPoint: (100, 50),
+  angleDeg: 90,
+  parts: [shoulder: Shoulder, side: Side],
+)
+```
+
+The common transform translates by `endPoint - startPoint`, optionally
+reflects through the vertical axis at `endPoint`, scales about that point,
+then rotates about it in Y-up degrees. If omitted, `endPoint` uses the
+evaluated `startPoint` and the translation is zero. An explicit invalid
+endpoint remains an error. Scale must be finite and positive and defaults to
+`1`. The angle defaults to `0`, and `mirrorX` defaults to `false`.
+
+Each source retains its own directed segment sequence, exact line, arc and
+Bezier primitives, and closedness. Part order has no effect on geometry.
+The parts remain independent even if their sources touch. The namespace head
+allocates no drawable, Group or path value. Reference a member as
+`Copied::shoulder`. Use ordinary path consumers or transformations on
+individual members, and use explicit `join` when a single continuous path is
+needed. Module exports can materialize a member with `path ... = from(...)`.
+
+Each copy captures the source's transformation prefix at the declaration.
+Source parameter edits still propagate through the dependency graph. Later
+recipes on a source or member affect its own result. Scope and occurrence
+identity follow the named extract member rules in Groups, Modules, statement
+`for` and `if` bodies.
+
+Head and members accept Style and Layer selectors like `extract`. Style
+properties cascade from the enclosing Group through the head to the member.
+Explicit member Layer takes precedence over explicit head Layer, nearest
+explicit instance Layer, nearest explicit Group Layer and then `default`.
+The head's `enabled` and `visible` arguments gate its members. Source
+Style, Layer, visibility and parent membership do not transfer. An invalid or
+disabled source invalidates its member, while an invalid shared argument
+invalidates every affected member.
+
+The legacy construction and pure initializer spellings of `transformCopy`
+are rejected. Use the named declaration for all transformed copies.
+
 ### Non-destructive interval extraction
 
 `extract` declares a virtual namespace of independently drawable, named path
@@ -1706,13 +1756,7 @@ is an implemented pure `path` initializer using the drawable line-offset
 geometry, ordering, defaults, validation, and trimming behavior. Both pure
 forms are identity-free and remain consumable by the existing compatible
 geometry readers; runtime failures use the occurrence-owned geometry-value
-diagnostic channel. `transformCopy(startPoint: ..., endPoint: ..., scale: ...,
-angleDeg: ..., mirrorX: ..., baseLines: ...)` is an implemented pure `path`
-initializer. Its ordered line-like source list is not rewritten or
-auto-reversed. It translates the source start point to `endPoint`, optionally
-mirrors about the vertical through `endPoint`, scales about `endPoint`, then
-rotates by `angleDeg`; `scale` defaults to 1, `angleDeg` to 0, and `mirrorX` to
-false. `mirrorCopy` is instead an authored `line Name = mirrorCopy(axis1: ...,
+diagnostic channel. `mirrorCopy` is an authored `line Name = mirrorCopy(axis1: ...,
 axis2: ..., baseLines: ...)` display-only declaration. Its valid, distinct
 two-point axis reflects every line-like source independently. Each source keeps
 its own segment order and orientation; line endpoints, Bezier controls, arc
@@ -2088,7 +2132,7 @@ const selectedX: number = selected.x
 ```
 
 Existing broad line-list consumers treat their list value as `path[]`. This
-includes `offset.sources` and `transformCopy.baseLines`; an inline literal and
+includes `offset.sources`; an inline literal and
 a named `path[]` value are semantically equivalent at these sites:
 
 ```text

@@ -54,15 +54,15 @@ const valueFor = (element: CadElement, parameterKey: string) => {
 };
 
 it("preserves an incomplete arithmetic field for evaluation", () => {
-  const spec = constructionFor("line", "transformCopy")!;
+  const spec = constructionFor("line", "polar")!;
   const result = applyArgs(
-    sample("copyLine"),
+    sample("angleLengthLine"),
     spec,
-    [arg("startPoint", "A"), arg("endPoint", "B"), arg("baseLines", "[AB]"), arg("angleDeg", "90 +")],
+    [arg("start", "A"), arg("length", "20"), arg("angle", "90 +")],
     resolvers
   );
   expect(result.diagnostics).toEqual([]);
-  expect(result.element).toMatchObject({ angleDeg: { kind: "expression", expression: "90 +" }, baseLineIds: ["l1"] });
+  expect(result.element).toMatchObject({ angleDeg: { kind: "expression", expression: "90 +" } });
 });
 
 const populatedArgs = (spec: DslConstructionSpec, element: CadElement) =>
@@ -77,7 +77,7 @@ const populatedArgs = (spec: DslConstructionSpec, element: CadElement) =>
 const specs = [
   ["point", "coordinate"], ["point", "offset"], ["point", "polar"], ["point", "between"],
   ["point", "onLine"], ["point", "intersection"], ["point", "tangentOffset"], ["line", "segment"],
-  ["line", "polar"], ["line", "offset"], ["line", "split"], ["line", "transformCopy"],
+  ["line", "polar"], ["line", "offset"], ["line", "split"],
   ["line", "mirrorCopy"],
   ["mutation", "extend"], ["mutation", "move"], ["mutation", "mirrorMove"], ["mutation", "edge"],
   ["mutation", "reverse"],

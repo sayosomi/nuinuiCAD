@@ -209,9 +209,25 @@ the drawable point offset semantics, and
 produces an identity-free `path` using the drawable line offset geometry and
 validation. Both forms remain consumable by existing geometry readers; runtime
 failures are owned by the value occurrence and do not create a drawable
-identity. `transformCopy(startPoint: ..., endPoint: ..., scale: ..., angleDeg: ..., mirrorX: ..., baseLines: ...[])`
-is an immutable, non-drawable pure `path` initializer. It translates, mirrors
-about the destination vertical, scales about the destination, then rotates.
+identity.
+
+<!-- dsl-example: syntax-fragment -->
+```nui
+transformCopy Copied(
+  startPoint: (0, 0),
+  endPoint: (100, 50),
+  angleDeg: 90,
+  parts: [shoulder: Shoulder, side: Side],
+)
+```
+
+`Copied::shoulder` and `Copied::side` are separate drawable paths. Each
+source keeps its direction, primitives and closedness. The common transform
+translates, optionally reflects about the destination vertical, scales, and
+then rotates. Omit `endPoint` to transform about `startPoint` without a
+translation. Scale defaults to `1` and must be positive. The angle defaults
+to `0` and `mirrorX` defaults to `false`. Use named parts for all copies.
+
 `mirrorCopy(axis1: ..., axis2: ..., baseLines: ...)` is a drawable declaration
 that owns a live, display-only symmetric preview. Each input line-like source
 is reflected independently, preserving segment order, orientation, Bezier

@@ -48,6 +48,7 @@ import { parseDslSourceReferenceAt } from "./dslReferenceTokens";
 export type DslCompletionContext =
   | { kind: "layerReference"; from: number; to: number; prefix: string | null }
   | { kind: "knotArgument"; from: number; to: number; used: ReadonlySet<string> }
+  | { kind: "transformCopyArgument"; from: number; to: number; used: ReadonlySet<string> }
   | { kind: "keyword"; from: number; to: number; options: readonly string[] }
   | { kind: "construction"; from: number; to: number; category: DslConstructionCategory }
   | { kind: "argument"; from: number; to: number; spec: DslConstructionSpec; usedArgumentNames: ReadonlySet<string> }
@@ -452,7 +453,7 @@ const layerReferenceContextAt = (code: string, pos: number): DslCompletionContex
     const head = parseNameWithModifiers(code, { start, end: layerAt }, diagnostics, allowLayerMembership);
     return head.name && diagnostics.length === 0 ? referenceAt(layerAt + 2, end) : null;
   };
-  const keyword = /^\s*(?:export\s+)?(point|line|path|curve|arc|text|image|extract|group|instance|print|svg)\s+/.exec(code);
+  const keyword = /^\s*(?:export\s+)?(point|line|path|curve|arc|text|image|extract|transformCopy|group|instance|print|svg)\s+/.exec(code);
   if (!keyword) return null;
   const kind = keyword[1]!;
   const nesting = scanDslNesting(code);
@@ -479,12 +480,12 @@ const layerReferenceContextAt = (code: string, pos: number): DslCompletionContex
     const boundaries = kind === "group" ? new Set(["(", "{"]) : new Set(["=", "("]);
     const headEnd = [...nesting.topLevelPositions].find(index => boundaries.has(code[index]!)) ?? code.length;
     if (pos <= headEnd) return headAt(keyword[0].length, headEnd, kind === "group");
-    if (kind !== "extract") return null;
+    if (kind !== "extract" && kind !== "transformCopy") return null;
   }
   const callOpen = [...nesting.topLevelPositions].find(index => code[index] === "(");
   if (callOpen === undefined) return null;
   const callEnd = nesting.matchedDelimiters.find(pair => pair.open.index === callOpen)?.close.index ?? code.length;
-  const key = kind === "extract" ? "parts" : "layers";
+  const key = kind === "extract" || kind === "transformCopy" ? "parts" : "layers";
   const argument = scanCallArgs(code, { start: callOpen + 1, end: callEnd }).args.find(arg => arg.key === key);
   if (!argument || code[argument.valueSpan.start] !== "[") return null;
   const open = argument.valueSpan.start;
@@ -495,7 +496,7 @@ const layerReferenceContextAt = (code: string, pos: number): DslCompletionContex
     const start = limits[i - 1]! + 1;
     const stop = limits[i]!;
     if (pos < start || pos > stop) continue;
-    if (kind !== "extract") return referenceAt(start, stop);
+    if (kind !== "extract" && kind !== "transformCopy") return referenceAt(start, stop);
     const colon = [...scanDslNesting(code, { start, end: stop }).topLevelPositions].find(index => code[index] === ":");
     return headAt(start, colon ?? stop);
   }
@@ -519,20 +520,43 @@ export const dslCompletionContextAt = (
   const code = lexedLine.code;
   const layer = layerReferenceContextAt(code, pos);
   if (layer) return layer;
-  if (/^extract\b/.test(code.trimStart())) {
+  if (/^(extract|transformCopy)\b/.test(code.trimStart())) {
     const head = parseDsl(code).statements.find(s => s.kind === "extract");
     if (head?.kind === "extract") {
-      const sourceSpan = head.payloadSpans.source;
-      const pointSpan = head.parts.flatMap(p => [p.leftSpan, p.rightSpan]).find(span => pos >= span.start && pos <= span.end);
-      const span = pointSpan ?? (sourceSpan && pos >= sourceSpan.start && pos <= sourceSpan.end ? sourceSpan : undefined);
+      const atCursor = (span: DslSpan | undefined): span is DslSpan => Boolean(span && pos >= span.start && pos <= span.end);
+      const sourceSpan = [head.payloadSpans.source, ...head.parts.flatMap(part => part.kind === "source" ? [part.sourceSpan] : [])].find(atCursor);
+      const pointSpan = [head.payloadSpans.startPoint, head.payloadSpans.endPoint,
+        ...head.parts.flatMap(part => part.kind === "interval" ? [part.leftSpan, part.rightSpan] : [])].find(atCursor);
+      const span = pointSpan ?? sourceSpan;
       if (span) {
         const point = Boolean(pointSpan);
         const token = code.slice(span.start, pos).trimStart();
         const qualified = token.lastIndexOf("::");
         if (qualified >= 0 && !token.startsWith("@")) return { kind: "moduleQualifiedMember", from: pos - (token.length - qualified - 2), to: pos,
           qualifiedInstanceName: token.slice(0, qualified), expectedGeometryKind: point ? "point" : "path" };
-        return { kind: "parameter", from: span.start, to: pos, ...(point ? { extractBoundary: true as const } : {}), parameter: { source: "attr", key: point ? "left" : "source",
-          definition: point ? { key: "startPoint", label: "point", kind: "reference", allowCoordinate: false } : { key: "source", label: "path", kind: "lineReference" } } };
+        return { kind: "parameter", from: span.start, to: pos, ...(point && head.declaration === "extract" ? { extractBoundary: true as const } : {}), parameter: { source: "attr", key: point ? "left" : "source",
+          definition: point ? { key: "startPoint", label: "point", kind: "reference", allowCoordinate: head.declaration === "transformCopy" } : { key: "source", label: "path", kind: "lineReference" } } };
+      }
+      if (head.declaration === "transformCopy") {
+        const start = code.indexOf("(") + 1;
+        if (start > 0 && start <= pos) {
+          const end = scanDslNesting(code).matchedDelimiters.find(pair => pair.open.index === start - 1)?.close.index ?? code.length;
+          if (pos > end) return null;
+          const nesting = scanDslNesting(code, { start, end });
+          const from = ([...nesting.topLevelCommas].reverse().find(comma => comma < pos) ?? start - 1) + 1;
+          const prefix = code.slice(from, pos);
+          const fragment = prefix.trimStart();
+          const topArg = scanCallArgs(code, { start, end }).args.find(arg => pos >= arg.valueSpan.start && pos <= arg.valueSpan.end);
+          if (topArg?.key === "scale" || topArg?.key === "angleDeg") {
+            return numberFieldCompletionContext(code, pos, topArg.valueSpan.start, {
+              source: "attr", key: topArg.key, definition: { key: topArg.key, label: topArg.key, kind: "number" }
+            });
+          }
+          if (/^\w*$/.test(fragment)) return {
+            kind: "transformCopyArgument", from: pos - fragment.length, to: pos,
+            used: new Set(head.attrs.map(attr => attr.key))
+          };
+        }
       }
     }
   }

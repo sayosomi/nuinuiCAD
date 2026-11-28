@@ -398,8 +398,10 @@ describe("Rust mapped geometry occurrence identity", () => {
       "line Triangle = polyline(points: [(0, 0), (4, 0), (0, 4)], closed: true)",
       "const loops: path[] = [Square, Triangle]",
       "const mapped: path[] = for item in loops { item }",
-      "line CopiedForward = transformCopy(startPoint: (0, 0), endPoint: (10, 0), scale: 1, angleDeg: 0, mirrorX: false, baseLines: [mapped[0], mapped[1]])",
-      "line CopiedReverse = transformCopy(startPoint: (0, 0), endPoint: (10, 0), scale: 1, angleDeg: 0, mirrorX: false, baseLines: [mapped[1], mapped[0]])"
+      "line Forward = join(paths: [mapped[0], mapped[1]])",
+      "transformCopy C(startPoint: (0, 0), endPoint: (10, 0), parts: [CopiedForward: Forward])",
+      "line Reverse = join(paths: [mapped[1], mapped[0]])",
+      "transformCopy D(startPoint: (0, 0), endPoint: (10, 0), parts: [CopiedReverse: Reverse])"
     ].join("\n"));
     const options = optionsFor(fixture);
     const request = buildRustEvaluationInput(fixture.elements, options);
@@ -410,13 +412,13 @@ describe("Rust mapped geometry occurrence identity", () => {
     expect(b).toBeDefined();
     expect(indexedTargets.map((target) => target.kind === "drawable" ? target.elementId : undefined))
       .toEqual([a!.id, b!.id]);
-    const forwardTargets = geometryInputTargetsFor(fixture, request, "CopiedForward", "baseLineIds");
-    const reverseTargets = geometryInputTargetsFor(fixture, request, "CopiedReverse", "baseLineIds");
+    const forwardTargets = geometryInputTargetsFor(fixture, request, "Forward", "pathIds");
+    const reverseTargets = geometryInputTargetsFor(fixture, request, "Reverse", "pathIds");
     expect(forwardTargets).toHaveLength(2);
     expect(reverseTargets).toHaveLength(2);
     expect(reverseTargets).toEqual([...forwardTargets].reverse());
-    expect(mappedMemberIndicesFor(fixture, request, "CopiedForward", "baseLineIds")).toEqual([0, 1]);
-    expect(mappedMemberIndicesFor(fixture, request, "CopiedReverse", "baseLineIds")).toEqual([1, 0]);
+    expect(mappedMemberIndicesFor(fixture, request, "Forward", "pathIds")).toEqual([0, 1]);
+    expect(mappedMemberIndicesFor(fixture, request, "Reverse", "pathIds")).toEqual([1, 0]);
     const expected = request.geometryValueProgram?.filter((entry) => entry.occurrence.mappedMemberIndex !== undefined) ?? [];
     expect(expected.map((entry) => entry.occurrence.mappedMemberIndex)).toEqual([0, 1]);
 
@@ -425,7 +427,7 @@ describe("Rust mapped geometry occurrence identity", () => {
     expect(rawEntries.map((entry) => entry.occurrence)).toEqual(expected.map((entry) => entry.occurrence));
     const result = evaluationPayloadToResult(payload);
     expect(result.errors).toEqual([]);
-    expect(result.computedGeometryValues.size).toBe(2);
+    expect(result.computedGeometryValues.size).toBe(4);
     expect(geometryFor(fixture, payload, "Indexed")).toMatchObject({ kind: "offsetLine", length: 20 });
     const forward = geometryFor(fixture, payload, "CopiedForward");
     expect(forward).toMatchObject({ kind: "offsetLine" });
@@ -445,13 +447,14 @@ describe("Rust mapped geometry occurrence identity", () => {
       "line Loop = polyline(points: [(0, 0), (10, 0), (10, 10), (0, 10)], closed: true)",
       "const loops: path[] = [Loop]",
       "const mapped: path[] = for item in loops { item }",
-      "line Duplicated = transformCopy(startPoint: (0, 0), endPoint: (10, 0), scale: 1, angleDeg: 0, mirrorX: false, baseLines: [mapped[0], mapped[0]])"
+      "line Repeated = join(paths: [mapped[0], mapped[0]])",
+      "transformCopy C(startPoint: (0, 0), endPoint: (10, 0), parts: [Duplicated: Repeated])"
     ].join("\n"));
     const options = optionsFor(fixture);
     const request = buildRustEvaluationInput(fixture.elements, options);
     const loop = fixture.elements.find((element) => element.name === "Loop");
     expect(loop).toBeDefined();
-    const targets = geometryInputTargetsFor(fixture, request, "Duplicated", "baseLineIds");
+    const targets = geometryInputTargetsFor(fixture, request, "Repeated", "pathIds");
     expect(targets.map((target) => {
       if (target.kind !== "geometryValueMap" && target.kind !== "geometryValue") {
         throw new Error("expected mapped duplicate path entries");

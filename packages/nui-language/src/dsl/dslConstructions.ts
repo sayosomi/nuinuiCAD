@@ -177,13 +177,6 @@ const constructionSpecs: DslConstructionSpec[] = [
   { category: "line", construction: "split", elementType: "splitLine", args: [required("source", "baseLineId"), required("at", "splitPoint")] },
   {
     category: "line",
-    construction: "transformCopy",
-    elementType: "copyLine",
-    pureValueInterface: "path",
-    args: [required("startPoint"), required("endPoint"), arg("scale"), arg("angleDeg"), arg("mirrorX"), required("baseLines", "baseLineIds")],
-  },
-  {
-    category: "line",
     construction: "mirrorCopy",
     elementType: "symmetricCopyLine",
     args: [required("axis1", "axisPoint1"), required("axis2", "axisPoint2"), required("baseLines", "baseLineIds")],
@@ -308,8 +301,17 @@ const constructionSpecs: DslConstructionSpec[] = [
   },
 ];
 
+// A transient creation draft is still a CopyLineElement. It serializes to
+// a named declaration and never participates in construction-call lookup.
+const copyLineDraftSpec: DslConstructionSpec = {
+  category: "line",
+  construction: "transformCopy",
+  elementType: "copyLine",
+  args: [required("startPoint"), arg("endPoint"), arg("scale"), arg("angleDeg"), arg("mirrorX"), required("parts", "baseLineIds")]
+};
+
 const specsByCall = new Map(constructionSpecs.map((spec) => [`${spec.category}\u0000${spec.construction}`, spec]));
-const specsByElementType = new Map<CadElementType, DslConstructionSpec>();
+const specsByElementType = new Map<CadElementType, DslConstructionSpec>([["copyLine", copyLineDraftSpec]]);
 
 for (const spec of constructionSpecs) {
   const existing = specsByElementType.get(spec.elementType);
@@ -369,7 +371,7 @@ export const parameterKeyForArg = (type: CadElementType, argName: string): strin
 };
 
 export const argNameForParameter = (type: CadElementType, parameterKey: string): string | null => {
-  const specs = constructionSpecs.filter((spec) => spec.elementType === type);
+  const specs = type === "copyLine" ? [copyLineDraftSpec] : constructionSpecs.filter((spec) => spec.elementType === type);
   const match = [...specs.flatMap((spec) => spec.args), ...commonArgSpecs].find(
     (spec) => (spec.parameterKey ?? spec.arg) === parameterKey &&
       (!spec.special || spec.special === "points"),

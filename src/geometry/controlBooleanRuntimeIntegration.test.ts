@@ -7,11 +7,8 @@
 import { describe, expect, it } from "vitest";
 import { compileCanonicalText, regenerateCanonicalFromModel, type LastGoodDslDocument } from "@nuinuicad/nui-language/document";
 import { emptyDocument } from "@nuinuicad/nui-language";
+import { buildEvaluationOptions } from "./productionEvaluationContext";
 import { evaluateElements } from "./evaluate";
-import {
-  buildConditionalGroupConditionsByElementId,
-  buildControlBooleanRuntimeEntries
-} from "./controlBooleanRuntime";
 
 const compileCanonical = (source: string): LastGoodDslDocument => {
   const baseline = regenerateCanonicalFromModel(emptyDocument(), 1);
@@ -30,17 +27,7 @@ const idByName = (compiled: LastGoodDslDocument, name: string): string => {
   return element.id;
 };
 
-const optionsFor = (compiled: LastGoodDslDocument) => ({
-  scalarProgram: compiled.scalarProgram,
-  controlBooleanEntries: buildControlBooleanRuntimeEntries(
-    { propertyBindings: compiled.propertyBindings ?? new Map(), elementIdByStatementIndex: compiled.statementMap.elementIdByStatementIndex },
-    compiled.document.elements
-  ),
-  conditionalGroupConditionsByElementId: buildConditionalGroupConditionsByElementId(
-    compiled.conditionalGroupConditions ?? new Map(),
-    compiled.statementMap.elementIdByStatementIndex
-  )
-});
+const optionsFor = (compiled: LastGoodDslDocument) => buildEvaluationOptions({ compiledDocument: compiled, evaluationLimitIndex: compiled.document.evaluationLimitIndex });
 
 describe("Task 25 conditionalGroup.condition, end-to-end through the real compiler", () => {
   it("boolean literal condition selects the then branch", () => {
@@ -191,9 +178,9 @@ describe("Task 25 conditionalGroup.condition, end-to-end through the real compil
       "line AB = segment(start: A, end: B)",
       "for i in range(min: 0, max: 2, step: 1) {",
       "  if (flag) {",
-      "    line Then = transformCopy(startPoint: A, endPoint: B, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [AB])",
+      "    transformCopy Copies_Then(startPoint: A, endPoint: B, scale: 1, angleDeg: 0, mirrorX: false, parts: [Then: AB])",
       "  } else {",
-      "    line Else = transformCopy(startPoint: A, endPoint: B, scale: 1, angleDeg: 0, mirrorX: true, baseLines: [AB])",
+      "    transformCopy Copies_Else(startPoint: A, endPoint: B, scale: 1, angleDeg: 0, mirrorX: true, parts: [Else: AB])",
       "  }",
       "}"
     ].join("\n"));
@@ -223,7 +210,7 @@ describe("Task 25 forGroup.showGenerated, end-to-end through the real compiler",
       "point B = coordinate(x: 10, y: 0)",
       "line AB = segment(start: A, end: B)",
       "for i in range(min: 0, max: 2, step: 1, showGenerated: false) {",
-      "  line C = transformCopy(startPoint: A, endPoint: B, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [AB])",
+      "  transformCopy Copies_C(startPoint: A, endPoint: B, scale: 1, angleDeg: 0, mirrorX: false, parts: [C: AB])",
       "}"
     ].join("\n"));
     const result = evaluateElements(compiled.document.elements, optionsFor(compiled));
@@ -240,7 +227,7 @@ describe("Task 25 forGroup.showGenerated, end-to-end through the real compiler",
       "point B = coordinate(x: 10, y: 0)",
       "line AB = segment(start: A, end: B)",
       "for i in range(min: 0, max: 2, step: 1, showGenerated: 表示) {",
-      "  line C = transformCopy(startPoint: A, endPoint: B, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [AB])",
+      "  transformCopy Copies_C(startPoint: A, endPoint: B, scale: 1, angleDeg: 0, mirrorX: false, parts: [C: AB])",
       "}"
     ].join("\n"));
     const result = evaluateElements(compiled.document.elements, optionsFor(compiled));
@@ -265,7 +252,7 @@ describe("Task 25 forGroup.showGenerated, end-to-end through the real compiler",
       "point B = coordinate(x: 10, y: 0)",
       "line AB = segment(start: A, end: B)",
       "for i in range(min: 0, max: 2, step: 1, showGenerated: 表示) {",
-      "  line C = transformCopy(startPoint: A, endPoint: B, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [AB])",
+      "  transformCopy Copies_C(startPoint: A, endPoint: B, scale: 1, angleDeg: 0, mirrorX: false, parts: [C: AB])",
       "}"
     ].join("\n"));
     const result = evaluateElements(compiled.document.elements, optionsFor(compiled));
@@ -311,7 +298,7 @@ describe("Task 25 forGroup.showGenerated, end-to-end through the real compiler",
       "point B = coordinate(x: 10, y: 0)",
       "line AB = segment(start: A, end: B)",
       "for i in range(min: 0, max: 2, step: 1, showGenerated: 表示) {",
-      "  line C = transformCopy(startPoint: A, endPoint: B, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [AB])",
+      "  transformCopy Copies_C(startPoint: A, endPoint: B, scale: 1, angleDeg: 0, mirrorX: false, parts: [C: AB])",
       "}"
     ].join("\n"));
     const result = evaluateElements(compiled.document.elements, optionsFor(compiled));

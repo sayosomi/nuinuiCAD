@@ -107,7 +107,8 @@ export const transformedCopyPathSegments = (
 
 export const copyPathGeometry = (
   sourceSegments: readonly SourceSegment[],
-  transform: CopyPathTransform
+  transform: CopyPathTransform,
+  closed = false
 ): ComputedGeometryValueOffsetLine | null => {
   const segments = transformedCopyPathSegments(sourceSegments, transform);
   if (segments.length === 0) return null;
@@ -117,7 +118,7 @@ export const copyPathGeometry = (
     start: segments[0]?.start ?? null,
     end: segments.at(-1)?.end ?? null,
     segments,
-    closed: false,
+    closed,
     length: segments.reduce((total, segment) => total + segment.length, 0),
     startTangentAngleDeg: measurements.startTangentAngleDeg,
     endTangentAngleDeg: measurements.endTangentAngleDeg

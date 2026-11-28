@@ -100,7 +100,10 @@ function names(compiled: TextCompileResult) {
   const doc = compiled.currentCompiled;
   const qualified = (i: number): string => {
     const s = doc.statements[i];
-    const parent = s.enclosing ? qualified(s.enclosing.statementIndex) : "";
+    const enclosing = s.enclosing && doc.statements[s.enclosing.statementIndex];
+    const container = s.kind === "element" && s.extractPart?.declaration === "transformCopy"
+      ? enclosing?.enclosing : s.enclosing;
+    const parent = container ? qualified(container.statementIndex) : "";
     return [parent, "name" in s ? s.name : s.kind].filter(Boolean).join("::");
   };
   const byIndex = new Map(doc.statements.map((_, i) => [i, qualified(i)]));

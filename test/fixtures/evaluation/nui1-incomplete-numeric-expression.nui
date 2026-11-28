@@ -4,5 +4,5 @@ point A = coordinate(x: 0, y: 0)
 point B = coordinate(x: 10, y: 0)
 line AB = segment(start: A, end: B)
 for i in range(min: 0, max: 1, step: 1, showGenerated: true) {
-  line Copy = transformCopy(startPoint: A, endPoint: B, scale: 1, angleDeg: 90 +, mirrorX: false, baseLines: [AB])
+  line Copy = polar(start: A, angle: 90 +, length: 10)
 }

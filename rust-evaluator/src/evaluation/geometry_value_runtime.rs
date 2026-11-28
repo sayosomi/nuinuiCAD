@@ -233,11 +233,11 @@ pub(crate) enum GeometryValueConstruction {
     },
     TransformCopy {
         start_point: Box<GeometryValuePoint>,
-        end_point: Box<GeometryValuePoint>,
+        end_point: Option<Box<GeometryValuePoint>>,
         scale: Box<TypedScalarExpression>,
         angle_deg: Box<TypedScalarExpression>,
         mirror_x: Box<TypedScalarExpression>,
-        base_lines: Vec<GeometryValueProgramTarget>,
+        source: GeometryValueProgramTarget,
     },
     MirrorCopy {
         axis1: Box<GeometryValuePoint>,
@@ -1139,11 +1139,12 @@ fn decode_entry(value: &Value) -> Result<GeometryValueProgramEntry, String> {
                         "geometry value transformCopy is missing startPoint".to_owned()
                     })?,
                 )?),
-                end_point: Box::new(decode_point(
-                    construction_object.get("endPoint").ok_or_else(|| {
-                        "geometry value transformCopy is missing endPoint".to_owned()
-                    })?,
-                )?),
+                end_point: construction_object
+                    .get("endPoint")
+                    .filter(|point| !point.is_null())
+                    .map(decode_point)
+                    .transpose()?
+                    .map(Box::new),
                 scale: Box::new(decode_typed_field(
                     construction_object,
                     "scale",
@@ -1159,11 +1160,13 @@ fn decode_entry(value: &Value) -> Result<GeometryValueProgramEntry, String> {
                     "mirrorX",
                     "geometry value transformCopy",
                 )?),
-                base_lines: decode_target_list(
-                    construction_object,
-                    "baseLines",
-                    "geometry value transformCopy",
-                )?,
+                source: decode_program_target(
+                    construction_object
+                        .get("source")
+                        .and_then(|source| source.get("target"))
+                        .ok_or("transformCopy is missing source target")?,
+                )?
+                .ok_or("transformCopy source target is null")?,
             },
             "mirrorCopy" => GeometryValueConstruction::MirrorCopy {
                 axis1: Box::new(decode_point(construction_object.get("axis1").ok_or_else(
@@ -3510,7 +3513,7 @@ fn evaluate_geometry_value_leaf(
             scale,
             angle_deg,
             mirror_x,
-            base_lines,
+            source,
         } => {
             if entry.declared_interface_type != "path" {
                 append_geometry_value_error(
@@ -3529,7 +3532,11 @@ fn evaluate_geometry_value_leaf(
                 );
                 return;
             };
-            let Some(end_point) = evaluate_point(end_point, resolver, state, source_order) else {
+            let end_point = match end_point {
+                Some(point) => evaluate_point(point, resolver, state, source_order),
+                None => Some(start_point),
+            };
+            let Some(end_point) = end_point else {
                 append_geometry_value_error(
                     state,
                     entry,
@@ -3570,23 +3577,17 @@ fn evaluate_geometry_value_leaf(
                 );
                 return;
             };
-            let source_segments = match copy_source_segments(
-                base_lines,
-                resolver,
-                state,
-                source_order,
-            ) {
-                Ok(segments) => segments,
-                Err(reason) => {
-                    let message = if reason.contains("continuous") {
-                        "transformCopy geometry value construction baseLines are not continuous in the specified order."
-                    } else {
-                        "transformCopy geometry value construction inputs are unavailable, non-line-like, or contain no segments."
-                    };
-                    append_geometry_value_error(state, entry, message);
-                    return;
-                }
+            let Some(geometry) = target_geometry(source, resolver, state, source_order)
+                .filter(|geometry| is_line_like_geometry(Some(geometry)))
+            else {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "transformCopy member source is unavailable or non-line-like.",
+                );
+                return;
             };
+            let source_segments = source_segments_for_geometry(&geometry);
             let transform = LineTransform::move_between(
                 super::offset_types::OffsetPoint {
                     x: start_point.0,
@@ -3600,7 +3601,7 @@ fn evaluate_geometry_value_leaf(
                 mirror_x,
                 scale,
             );
-            let Some(value) = copied_offset_line_geometry_value(&source_segments, &transform)
+            let Some(mut value) = copied_offset_line_geometry_value(&source_segments, &transform)
             else {
                 append_geometry_value_error(
                     state,
@@ -3609,6 +3610,10 @@ fn evaluate_geometry_value_leaf(
                 );
                 return;
             };
+            value["closed"] = json!(geometry
+                .get("closed")
+                .and_then(Value::as_bool)
+                .unwrap_or(false));
             Some(value)
         }
         GeometryValueConstruction::MirrorCopy {

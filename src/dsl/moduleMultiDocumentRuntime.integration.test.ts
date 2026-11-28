@@ -2,7 +2,8 @@ import { evaluateWithRustOptions } from "../../test/evaluationParitySupport";
 import { evaluationPayloadToResult } from "../geometry/evaluationPayload";
 import { execFileSync } from "node:child_process";
 import { beforeAll, describe, expect, it } from "vitest";
-import { compileDslDocument } from "@nuinuicad/nui-language";
+import { analyzeDslLintDiagnostics, compileDslDocument } from "@nuinuicad/nui-language";
+import { compileFreshCanonicalText } from "@nuinuicad/nui-language/document";
 import { parseDsl } from "@nuinuicad/nui-language";
 import { evaluateElements } from "../geometry/evaluate";
 import { buildEvaluationOptions } from "../geometry/productionEvaluationContext";
@@ -113,7 +114,48 @@ const evaluateCompiledWithRust = (compiled: ReturnType<typeof compileDslDocument
   ));
 };
 
-const issue1702Library = savedSource("issue-1702-copy2-library", "sha256:issue-1702-copy2-library", `nui 1\nexport module Copy2() {\n  point Origin = coordinate(x: 0, y: 0)\n  line Source = segment(start: (0, 0), end: (10, 0))\n  const transformed: path = transformCopy(\n    startPoint: Origin,\n    endPoint: Origin,\n    baseLines: [Source],\n  )\n  export path copy2 = from(source: transformed)\n}`);
+describe("M2 imported materialized path recipe scopes", () => {
+  it.each([
+    ["extract", true], ["extract", false], ["transformCopy", true], ["transformCopy", false]
+  ] as const)("%s / angle before source %s", async (kind, angleBefore) => {
+    const source = "line L = segment(start: (0, 0), end: (20, 0))";
+    const copy = kind === "extract"
+      ? "extract C(source: L, parts: [copy: start..end])"
+      : "transformCopy C(startPoint: (0, 0), parts: [copy: L])";
+    const angle = "const angle: number = -45";
+    const move = "move C::copy(from: (0, 0), to: (0, 0), angleDeg: angle)";
+    const body = angleBefore ? [angle, source, copy, move] : [source, copy, angle, move];
+    const library = savedSource("issue-1701-library", "sha256:issue-1701-library", [
+      "nui 1", "export module Shape() {", ...body.map(row => `  ${row}`), "}"
+    ].join("\n"));
+    const root = rootSource("issue-1701-root", [
+      "nui 1", 'import "./shape.nui" as lib', "instance First = lib::Shape()", "instance Second = lib::Shape()"
+    ].join("\n"));
+    const { graph, compiled } = await compileImported(root, new Map([[`${root.documentId}|./shape.nui`, library]]));
+    expect(graph.valid).toBe(true);
+    expect(compiled.diagnostics.filter(diagnostic => diagnostic.severity === "error")).toEqual([]);
+    const savedLibrary = compileFreshCanonicalText(library.normalizedSource);
+    expect(savedLibrary.diagnostics.filter(diagnostic => diagnostic.severity === "error")).toEqual([]);
+    expect(analyzeDslLintDiagnostics(savedLibrary.currentCompiled)
+      .filter(diagnostic => diagnostic.code === "unused-typed-declaration")).toEqual([]);
+    for (const evaluation of [evaluateCompiled(compiled), evaluateCompiledWithRust(compiled)]) {
+      expect(evaluation.errors).toEqual([]);
+      expect(evaluation.geometryValueErrors ?? []).toEqual([]);
+      for (const name of ["L", "copy"]) {
+        const elements = compiled.document!.elements.filter(element => element.name === name);
+        expect(new Set(elements.map(element => element.id)).size).toBe(2);
+        for (const element of elements) {
+          const geometry = evaluation.computedGeometry.get(element.id);
+          if (!geometry || !("end" in geometry)) throw new Error(`Missing path ${element.id}`);
+          expect(geometry.end?.x).toBeCloseTo(name === "L" ? 20 : 14.1421356237, 8);
+          expect(geometry.end?.y).toBeCloseTo(name === "L" ? 0 : -14.1421356237, 8);
+        }
+      }
+    }
+  }, 20_000);
+});
+
+const issue1702Library = savedSource("issue-1702-copy2-library", "sha256:issue-1702-copy2-library", `nui 1\nexport module Copy2() {\n  point Origin = coordinate(x: 0, y: 0)\n  line Source = segment(start: (0, 0), end: (10, 0))\n  transformCopy Copy(startPoint: Origin, visible: false, parts: [transformed: Source])\n  export path copy2 = from(source: Copy::transformed)\n}`);
 
 const issue1702Root = (copy2Target: string) => rootSource("issue-1702-copy2-root", `nui 1\nimport "./copy2_lib.nui" as lib\ngroup body_front {\n  line unrelated = segment(start: (30, 30), end: (40, 30))\n  group seam {\n    line upper = segment(start: (5, -10), end: (5, 10))\n    instance corner = lib::Copy2()\n    edge [\n      ${copy2Target},\n      upper.start\n    ](index: 0)\n  }\n}`);
 

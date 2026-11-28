@@ -546,7 +546,7 @@ describe("pure geometry construction runtime", () => {
     const supported = evaluate([
       "nui 1",
       "line Base = segment(start: (0, 0), end: (10, 0))",
-      "const Copied: path = transformCopy(startPoint: (0, 0), endPoint: (20, 10), baseLines: [Base])"
+      "transformCopy Copies_Copied(startPoint: (0, 0), endPoint: (20, 10), visible: false, parts: [Copied: Base])"
     ].join("\n"));
     const rejected = compile([
       "nui 1",
@@ -576,19 +576,19 @@ describe("pure geometry construction runtime", () => {
       "const Arc: path = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: @counterclockwise)",
       "const Polyline: path = polyline(points: [(0, 0), (10, 0), (10, 10)], closed: false)",
       "const Offset: path = offset(sources: [Polyline], distance: 1, side: @right, closed: false, suppressTrimWarnings: false)",
-      "const Transformed: path = transformCopy(startPoint: (0, 0), endPoint: (20, 10), scale: 2, angleDeg: 90, mirrorX: true, baseLines: [Curve])",
-      "const PolylineCopy: path = transformCopy(startPoint: (0, 0), endPoint: (0, 0), scale: 1, angleDeg: 0, mirrorX: false, baseLines: [Polyline])",
-      "const TransformedLength: number = Transformed.length",
-      "line CopyUse = segment(start: Transformed.start, end: Transformed.end)"
+      "transformCopy Copies_Transformed(startPoint: (0, 0), endPoint: (20, 10), scale: 2, angleDeg: 90, mirrorX: true, visible: false, parts: [Transformed: Curve])",
+      "transformCopy Copies_PolylineCopy(startPoint: (0, 0), endPoint: (0, 0), scale: 1, angleDeg: 0, mirrorX: false, visible: false, parts: [PolylineCopy: Polyline])",
+      "const TransformedLength: number = Copies_Transformed::Transformed.length",
+      "line CopyUse = segment(start: Copies_Transformed::Transformed.start, end: Copies_Transformed::Transformed.end)"
     ].join("\n"));
 
     expect(compiled.diagnostics).toEqual([]);
     expect(result.errors).toEqual([]);
     expect(result.geometryValueErrors).toEqual([]);
-    const valueFor = (statementIndex: number) => [...(result.computedGeometryValues?.values() ?? [])]
-      .find((entry) => entry.occurrence.sourceStatementId === `geometry-value-runtime:${statementIndex}`)?.value;
+    const valueFor = (name: string) =>
+      result.computedGeometry.get(compiled.document!.elements.find(element => element.name === name)!.id);
 
-    expect(valueFor(5)).toMatchObject({
+    expect(valueFor("Transformed")).toMatchObject({
       kind: "offsetLine",
       start: { x: 20, y: 10 },
       end: { x: 20, y: -10 },
@@ -598,85 +598,55 @@ describe("pure geometry construction runtime", () => {
         control2: { x: 16, y: -10 }
       }]
     });
-    expect(valueFor(6)).toMatchObject({
+    expect(valueFor("PolylineCopy")).toMatchObject({
       kind: "offsetLine",
       start: { x: 0, y: 0 },
       end: { x: 10, y: 10 },
       segments: [{ kind: "line" }, { kind: "line" }]
     });
-    expect(valueFor(5)).not.toHaveProperty("elementId");
     expect([...result.computedGeometryValues!.values()].every(({ value }) =>
       !("elementId" in value) && !("name" in value) && !("baseLineIds" in value)
     )).toBe(true);
-    expect(result.computedScalarBindings?.get("binding:geometry-value-runtime:7")).toMatchObject({
+    const length = compiled.bindingAnalysis!.catalog.bindings.find(binding => binding.name === "TransformedLength");
+    expect(result.computedScalarBindings?.get(length!.id)).toMatchObject({
       status: "ok",
       value: { kind: "number" }
     });
-    expect(result.computedGeometry.get("geometry-value-runtime:8")).toMatchObject({ kind: "line" });
+    expect(valueFor("CopyUse")).toMatchObject({ kind: "line" });
   });
 
-  it("reports copy path parameter, ordering, and empty-source failures through occurrence-owned errors", () => {
-    const cases = [
-      [
-        "invalid scale",
-        [
-          "line Base = segment(start: (0, 0), end: (10, 0))",
-          "const Bad: path = transformCopy(startPoint: (0, 0), endPoint: (10, 0), scale: 0, baseLines: [Base])"
-        ],
-        "transformCopy geometry value construction scale must be a finite positive number."
-      ],
-      [
-        "discontinuous ordered sources",
-        [
-          "line First = segment(start: (0, 0), end: (10, 0))",
-          "line Second = segment(start: (20, 0), end: (30, 0))",
-          "const Bad: path = transformCopy(startPoint: (0, 0), endPoint: (10, 0), baseLines: [First, Second])"
-        ],
-        "transformCopy geometry value construction baseLines are not continuous in the specified order."
-      ],
-      [
-        "empty source list",
-        [
-          "const Bad: path = transformCopy(startPoint: (0, 0), endPoint: (10, 0), baseLines: [])"
-        ],
-        "transformCopy geometry value construction inputs are unavailable, non-line-like, or contain no segments."
-      ],
-      [
-        "degenerate source segments",
-        [
-          "const Source: path = polyline(points: [(0, 0), (0, 0)], closed: false)",
-          "const Bad: path = transformCopy(startPoint: (0, 0), endPoint: (10, 0), baseLines: [Source])"
-        ],
-        "transformCopy geometry value construction produced no transformed segments."
-      ]
-    ] as const;
-
-    for (const testCase of cases) {
-      const [, declarations, message] = testCase;
-      const { compiled, result } = evaluate(["nui 1", ...declarations].join("\n"));
-      const entry = compiled.geometryValueProgram?.at(-1);
-      expect(entry).toBeDefined();
-      expect(result.errors).toEqual([]);
-      expect(result.geometryValueErrors).toEqual([{ occurrence: entry?.occurrence, message }]);
-      expect(result.geometryValueErrors?.every((error) => !("elementId" in error))).toBe(true);
-    }
+  it.each([
+    ["scale: 0,", "line Base = segment(start: (0, 0), end: (10, 0))", "scale must be a finite positive number"],
+    ["", "const Base: path = polyline(points: [(0, 0), (0, 0)], closed: false)", "produced no transformed segments"]
+  ])("reports invalid named member geometry through its occurrence (%s)", (args, source, message) => {
+    const { compiled, result } = evaluate([
+      "nui 1", source,
+      `transformCopy C(startPoint: (0, 0), ${args} parts: [bad: Base])`
+    ].join("\n"));
+    const entry = compiled.geometryValueProgram?.find(candidate => candidate.construction.kind === "transformCopy");
+    expect(entry).toBeDefined();
+    expect(result.geometryValueErrors).toEqual([{
+      occurrence: entry!.occurrence,
+      message: expect.stringContaining(message)
+    }]);
+    expect(result.computedGeometry.has(compiled.document!.elements.find(element => element.name === "bad")!.id)).toBe(false);
   });
 
   it("reports an unavailable source before reporting its dependent copy", () => {
     const { compiled, result } = evaluate([
       "nui 1",
       "const Failed: path = polyline(points: [(0, 0), (10 / 0, 0)], closed: false)",
-      "const Copied: path = transformCopy(startPoint: (0, 0), endPoint: (10, 0), baseLines: [Failed])"
+      "transformCopy Copies_Copied(startPoint: (0, 0), endPoint: (10, 0), visible: false, parts: [Copied: Failed])"
     ].join("\n"));
     const failed = compiled.geometryValueProgram?.find((entry) => entry.sourceStatementIndex === 1);
-    const copied = compiled.geometryValueProgram?.find((entry) => entry.sourceStatementIndex === 2);
+    const copied = compiled.geometryValueProgram?.find((entry) => entry.construction.kind === "transformCopy");
 
     expect(failed).toBeDefined();
     expect(copied).toBeDefined();
-    expect(result.errors).toEqual([]);
+    expect(result.errors).toEqual([expect.objectContaining({ elementName: "Copied" })]);
     expect(result.geometryValueErrors).toEqual([
       { occurrence: failed?.occurrence, message: "Polyline geometry value construction inputs are unavailable or invalid." },
-      { occurrence: copied?.occurrence, message: "transformCopy geometry value construction inputs are unavailable, non-line-like, or contain no segments." }
+      { occurrence: copied?.occurrence, message: "transformCopy member source is unavailable or non-line-like." }
     ]);
     expect(result.geometryValueErrors?.every((error) => !("elementId" in error))).toBe(true);
   });
@@ -685,8 +655,8 @@ describe("pure geometry construction runtime", () => {
     const { compiled, result } = evaluate([
       "nui 1",
       "module M(source: path) {",
-      "  const copied: path = transformCopy(startPoint: (0, 0), endPoint: (20, 10), baseLines: [source])",
-      "  export const output: path = copied",
+      "  transformCopy Copies_copied(startPoint: (0, 0), endPoint: (20, 10), visible: false, parts: [copied: source])",
+      "  export const output: path = Copies_copied::copied",
       "}",
       "line Base = segment(start: (0, 0), end: (10, 0))",
       "instance I = M(source: Base)",
@@ -1743,7 +1713,7 @@ describe("pure geometry construction runtime", () => {
       "const Alias: line = L",
       "point Tangent = tangentOffset(line: Alias, base: A, angle: 0, distance: 2)",
       "point Division = onLine(from: L.end, ratio: 0.5)",
-      "line Transform = transformCopy(startPoint: A, endPoint: B, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [L])",
+      "transformCopy Copies_Transform(startPoint: A, endPoint: B, scale: 1, angleDeg: 0, mirrorX: false, parts: [Transform: L])",
       "line Mirror = mirrorCopy(axis1: A, axis2: B, baseLines: [L])",
     ].join("\n"));
 
@@ -1751,9 +1721,10 @@ describe("pure geometry construction runtime", () => {
     expect(result.errors).toEqual([]);
     expect(result.computedGeometry.get("geometry-value-runtime:5")).toMatchObject({ kind: "point", x: 2, y: 0 });
     expect(result.computedGeometry.get("geometry-value-runtime:6")).toMatchObject({ kind: "point", x: 5, y: 0 });
-    expect(result.computedGeometry.get("geometry-value-runtime:7")).toMatchObject({ kind: "offsetLine" });
-    expect(result.computedGeometry.has("geometry-value-runtime:8")).toBe(false);
-    expect(result.mirrorCopyPreviews?.get("geometry-value-runtime:8")?.groups).toHaveLength(1);
+    const id = (name: string) => compiled.document!.elements.find(element => element.name === name)!.id;
+    expect(result.computedGeometry.get(id("Transform"))).toMatchObject({ kind: "offsetLine" });
+    expect(result.computedGeometry.has(id("Mirror"))).toBe(false);
+    expect(result.mirrorCopyPreviews?.get(id("Mirror"))?.groups).toHaveLength(1);
     expect([...result.computedGeometryValues!.values()].every(({ value }) => !("elementId" in value))).toBe(true);
     expect([...result.evaluatedElementIds ?? []]).not.toContain("geometry-value-runtime:3");
   });

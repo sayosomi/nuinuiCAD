@@ -75,6 +75,18 @@ export const materializeSourceCreationTemplate = (
   if (!form) return null;
 
   const parts: SourceCreationTemplatePart[] = [];
+  if (plan.category === "transformCopy") {
+    const [startPoint, source] = form.argumentHoles;
+    if (!startPoint || !source) return null;
+    appendText(parts, "transformCopy ");
+    parts.push(holePart({ role: "name" }));
+    appendText(parts, `(\n${DSL_INDENT}startPoint: `);
+    parts.push(holePart({ role: "argument", ...startPoint }));
+    appendText(parts, `,\n${DSL_INDENT}parts: [part: `);
+    parts.push(holePart({ role: "argument", ...source }));
+    appendText(parts, "]\n)");
+    return { commandId: plan.commandId, formIndex, parts };
+  }
   appendText(parts, isTransformation ? `${plan.construction} ` : `${plan.category} `);
   if (isTransformation) {
     parts.push(holePart({ role: "target", argName: "target" }));

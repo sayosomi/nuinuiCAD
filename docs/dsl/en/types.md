@@ -107,18 +107,9 @@ duplicate points, and requires at least two open points or three closed points.
 `join(paths: ..., closed: ...)` is a `path` initializer and accepts `path[]`
 (or covariant `line[]`), preserving source order, duplicates, exact primitive
 geometry, and degenerate segments while validating the specified connections.
-`transformCopy(...)` and `mirrorCopy(...)` are also immutable, non-drawable
-`path` initializers. `transformCopy` first translates every source point by
-`endPoint - startPoint`; when `mirrorX` is true it mirrors about the vertical
-axis through `endPoint`, then scales about `endPoint`, and finally rotates
-about `endPoint` by `angleDeg`. Its defaults are `scale: 1`, `angleDeg: 0`,
-and `mirrorX: false`; `startPoint` is an explicit transform reference, not an
-implicit source-list endpoint. `mirrorCopy` reflects across the axis from
-`axis1` to `axis2`.
-Both preserve ordered structural line, arc, and Bezier segments and record
-all source references without creating a drawable identity.
-Invalid runtime inputs fail through the occurrence-owned geometry-value
-diagnostic channel. Point and path `offset(...)` are also implemented pure
+A named `transformCopy` member can be assigned to a `path` const or
+materialized with `path ... = from(...)`.
+Point and path `offset(...)` are also implemented pure
 initializers; they reuse the corresponding drawable offset geometry and remain
 consumable by existing point/path-compatible readers. Pure point and line
 `polar(...)` initializers likewise share the drawable polar geometry and

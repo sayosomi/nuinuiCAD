@@ -64,7 +64,7 @@ describe("mirrorCopy preview language and pick boundaries", () => {
       "  line Base = segment(start: (0, 0), end: (10, 0))",
       "}",
       "line Preview = mirrorCopy(axis1: (0, 0), axis2: (0, 10), baseLines: [@Piece])",
-      "line Moved = transformCopy(startPoint: (0, 0), endPoint: (10, 0), baseLines: [@Piece])"
+      "transformCopy Moved(startPoint: (0, 0), endPoint: (10, 0), parts: [moved: Piece])"
     ].join("\n"));
 
     expect(compiled.diagnostics.some((diagnostic) => diagnostic.code === "mirror-copy-group-undefined")).toBe(false);

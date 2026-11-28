@@ -777,11 +777,11 @@ export type ModuleGeometryConstructionSemantic =
       kind: "transformCopy";
       span: DslSpan;
       startPoint: ModuleGeometryReferenceSemantic;
-      endPoint: ModuleGeometryReferenceSemantic;
+      endPoint: ModuleGeometryReferenceSemantic | null;
       scale: ModuleScalarExpressionSemantic | null;
       angleDeg: ModuleScalarExpressionSemantic | null;
       mirrorX: ModuleScalarExpressionSemantic | null;
-      baseLines: readonly ModuleGeometryReferenceSemantic[];
+      source: ModuleGeometryReferenceSemantic;
     }
   | {
       kind: "mirrorCopy";

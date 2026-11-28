@@ -370,15 +370,22 @@ const addTypedOccurrences = (
       addExpression(statementIndex, segment.expression);
     }
   }
-  for (const [occurrenceKey, numeric] of compiled.numericBindings ?? []) {
-    const occurrence = parsePropertyBindingOccurrenceKey(occurrenceKey);
-    if (occurrence) addNumericGeometryPropertyOccurrences(compiled, add, occurrence.statementIndex, numeric, addQualifiedPathOccurrences);
+  const addNumericReferences = (numeric: CompiledNumericBinding, statementIndex?: number) => {
+    if (statementIndex !== undefined) {
+      addNumericGeometryPropertyOccurrences(compiled, add, statementIndex, numeric, addQualifiedPathOccurrences);
+    }
     for (const reference of numeric.references) {
       const physical = reference.physicalNameSpan?.segments.length === 1
         ? reference.physicalNameSpan.segments[0]
         : null;
       if (physical && !isSyntheticRecordBinding(reference.bindingId)) add("reference", physical.from, physical.to, { kind: "typed", bindingId: reference.bindingId });
     }
+  };
+  for (const [occurrenceKey, numeric] of compiled.numericBindings ?? []) {
+    addNumericReferences(numeric, parsePropertyBindingOccurrenceKey(occurrenceKey)?.statementIndex);
+  }
+  for (const { binding } of compiled.transformationNumericBindings ?? []) {
+    addNumericReferences(binding, binding.references[0]?.site.statementIndex);
   }
   // Root collection-index numeric inputs are lowered through the Module
   // runtime too. Their typed spans still belong to the authored statement.

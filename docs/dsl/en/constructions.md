@@ -396,31 +396,6 @@ interpreted, and where its restrictions matter.
 | `parent` | — | no | no | parent |
 | `branch` | — | no | no | branch |
 
-<!-- dsl-ref:construction:line/transformCopy -->
-### `line / transformCopy`
-
-**Syntax**: `line Name = transformCopy(...)`
-
-**Pure value interface**: `path`
-
-**Arguments**:
-
-| Spelling | Kind and constraints | Required | Positional | Special |
-| --- | --- | --- | --- | --- |
-| `startPoint` | point | yes | no | — |
-| `endPoint` | point | yes | no | — |
-| `scale` | number; steps: 0.01, 0.1, 1, 10 | no | no | — |
-| `angleDeg` | number; steps: 0.1, 1, 15, 60, 90 | no | no | — |
-| `mirrorX` | boolean | no | no | — |
-| `baseLines` | path[] | yes | no | — |
-| `enabled` | boolean | no | no | — |
-| `visible` | boolean | no | no | — |
-| `steps` | — | no | no | steps |
-| `id` | — | no | no | id |
-| `roles` | — | no | no | roles |
-| `parent` | — | no | no | parent |
-| `branch` | — | no | no | branch |
-
 <!-- dsl-ref:construction:line/mirrorCopy -->
 ### `line / mirrorCopy`
 
@@ -874,15 +849,23 @@ are errors; source primitive order and degenerate geometry are preserved.
 point and returns the resulting split line value. The split point must satisfy
 the source geometry's supported split rules.
 
-### `transformCopy` and `mirrorCopy`
+### `transformCopy`
 
-**Description:** `transformCopy` copies an ordered line-like list by mapping
-its source start point to `endPoint`, then applying the optional positive
-`scale`, rotation in degrees, and `mirrorX` reflection. `mirrorCopy` declares a
-live, display-only preview that reflects each line-like input independently
-across the axis from `axis1` to `axis2`.
+<!-- dsl-example: syntax-fragment -->
+```nui
+transformCopy Copied(startPoint: A, endPoint: D, parts: [bottom: Bottom, side: Side])
+```
 
-**Notes:** The `transformCopy` source list is not rewritten. The mirror axis
+Every named part is an independent path. For example, use `Copied::bottom`
+as the operand to a compatible path command. Omitting `endPoint` uses the
+evaluated `startPoint`. Translation is followed by optional vertical
+reflection, positive scaling and Y-up rotation about the destination.
+Defaults are `scale: 1`, `angleDeg: 0` and `mirrorX: false`.
+The declaration head owns no drawable. Parts can override its Style and Layer.
+
+### `mirrorCopy`
+
+`mirrorCopy` declares a live, display-only symmetric preview. The mirror axis
 must be defined by two distinct available points. `mirrorCopy.baseLines`
 accepts individual line-like references and named `path[]` values; a literal
 `@Group` selector is also accepted there and recursively selects the group's
@@ -895,8 +878,7 @@ appears in Output Preview, SVG, PDF, and printing when its owner is inside a
 placed Group and the owner's effective output Layer is selected. The owner
 supplies the output layer and stroke; source groups with an element identity
 also follow that source's semantic visibility. Canvas filters do not affect
-output. The old pure `const X: path = mirrorCopy(...)` form is rejected. A
-non-positive or non-finite `transformCopy` scale is invalid.
+output. The old pure `const X: path = mirrorCopy(...)` form is rejected.
 
 ### `bezier`
 
@@ -990,7 +972,7 @@ arc Through = through(point1: A, point2: B, point3: C, start: 0, end: 90)
 line Shifted = offset(sources: [Bottom], distance: 5, side: @right, closed: false)
 line Outline = polyline(points: [A, B, C, D], closed: true)
 line Half = split(source: Bottom, at: Mid)
-line Copy = transformCopy(startPoint: A, endPoint: D, baseLines: [Bottom])
+transformCopy Copy(startPoint: A, endPoint: D, parts: [bottom: Bottom])
 group HalfPattern {
   line MirrorBottom = segment(start: A, end: B)
   line MirrorSide = segment(start: B, end: C)

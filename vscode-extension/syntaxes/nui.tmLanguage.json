@@ -126,6 +126,21 @@
     "declarations": {
       "patterns": [
         {
+          "begin": "(?<![\\p{L}\\p{N}_-])(transformCopy)(?=\\s+[\\p{L}\\p{N}_](?:[\\p{L}\\p{N}_-]*[\\p{L}\\p{N}_])?)",
+          "beginCaptures": {
+            "1": {
+              "name": "keyword.declaration.transformCopy.nui"
+            }
+          },
+          "end": "(?=\\[|\\(|\\n|$)",
+          "patterns": [
+            {
+              "name": "entity.name.namespace.nui",
+              "match": "[\\p{L}\\p{N}_](?:[\\p{L}\\p{N}_-]*[\\p{L}\\p{N}_])?"
+            }
+          ]
+        },
+        {
           "begin": "(?<![\\p{L}\\p{N}_-])(group)(?=\\s+[\\p{L}\\p{N}_](?:[\\p{L}\\p{N}_-]*[\\p{L}\\p{N}_])?)",
           "beginCaptures": {
             "1": {

@@ -59,7 +59,7 @@ export type SourceCreationTemplateForm = {
 export type SourceCreationTemplatePlan = {
   commandId: SourceCreationTemplateCommandId;
   elementType: CadElementType;
-  category: DslConstructionCategory;
+  category: DslConstructionCategory | "transformCopy";
   construction: string;
   hasNameHole: boolean;
   forms: readonly SourceCreationTemplateForm[];
@@ -250,6 +250,18 @@ export const sourceCreationTemplatePlanForLegacyCommand = (
 
   try {
     const internalSpec = constructionForElementType(entry.type);
+    if (entry.type === "copyLine") {
+      const startPoint = argumentHoleFor(entry.type, internalSpec, "startPoint");
+      if (!startPoint) return null;
+      return {
+        commandId: "addCopyLine", elementType: entry.type, category: "transformCopy",
+        construction: "transformCopy", hasNameHole: true,
+        forms: [{
+          argumentHoles: [startPoint, { argName: "parts", parameterKey: "baseLineIds", kind: "lineReference", label: "コピー元" }],
+          exclusiveChoices: []
+        }]
+      };
+    }
     if (internalSpec.elementType !== entry.type) return null;
     const spec = constructionFor("transformation", internalSpec.construction) ?? internalSpec;
 

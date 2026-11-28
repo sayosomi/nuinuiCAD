@@ -1,3 +1,4 @@
+import { transformCopyDeclarationArguments } from "./dslExtractParser";
 import {
   dslCallCompletionContextAt,
   type DslCallCompletionContext
@@ -479,11 +480,19 @@ export const queryDslSignatureHelp = ({
     };
   }
 
-  const signature = authoring.kind === "construction"
-    ? constructionSignatureFor(authoring)
-    : exactSemantic(source, semantic)
-      ? moduleSignatureFor(authoring, semantic)
-      : null;
+  const signature: DslSignatureHelpSignature | null = authoring.kind === "namedParts"
+    ? {
+        identity: "declaration:transformCopy",
+        name: "transformCopy",
+        callingStyle: "named",
+        parameters: transformCopyDeclarationArguments.map(arg => ({ ...arg, identity: `transformCopy:${arg.name}` })),
+        documentation: { key: "signatureHelp.construction.line.transformCopy" }
+      }
+    : authoring.kind === "construction"
+      ? constructionSignatureFor(authoring)
+      : exactSemantic(source, semantic)
+        ? moduleSignatureFor(authoring, semantic)
+        : null;
   if (!signature) return null;
   const activeParameter = activeParameterFor(source, authoring, signature);
   return {

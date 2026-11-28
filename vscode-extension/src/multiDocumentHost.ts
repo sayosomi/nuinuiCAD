@@ -31,6 +31,7 @@ import {
   planMultiDocumentRename,
   projectDslSemanticDocumentView,
   queryMultiDocumentDefinition,
+  queryMultiDocumentCopyOperandDefinition,
   queryMultiDocumentReferences,
   type MultiDocumentRenameDocumentProof,
   type MultiDocumentReverseImporterDiscovery,
@@ -52,6 +53,8 @@ import {
 } from "@nuinuicad/nui-language/workspace";
 import {
   queryDslCanvasSourceDefinitionQualified,
+  queryDslDefinition,
+  queryDslReferences,
   type NormalizedSourceRange
 } from "@nuinuicad/nui-language";
 import { vscodeMultiDocumentGraphSnapshot } from "../../src/vscode/multiDocumentGraphTransport";
@@ -858,13 +861,54 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
     return authorityIsCurrent();
   }
 
+  private async savedGraphLanguageStateFor(document: vscode.TextDocument) {
+    const current = await this.currentRootSemanticStateFor(document);
+    if (!current) return { kind: "unavailable" } as const;
+    const { graph, compiled, documentId, normalizedSource, sourceRevision } = current;
+    if (!graph.nodes.get(documentId)?.artifact.imports.length) return { kind: "local" } as const;
+    const diagnostics = this.diagnosticsStateFor(document);
+    if (!compiled || diagnostics.status !== "current" || diagnostics.owner !== "multi-document" ||
+        !(await this.isSavedGraphSnapshotCurrent(document, diagnostics.snapshot))) {
+      return { kind: "unavailable" } as const;
+    }
+    return { kind: "current", compiled, normalizedSource, sourceRevision } as const;
+  }
+
   async provideDefinition(
     document: vscode.TextDocument,
     position: vscode.Position
   ): Promise<VscodeMultiDocumentHandled<vscode.DefinitionLink[] | undefined>> {
     const query = await this.queryContext(document, position);
     if (!query || (!query.selected.publicIdentity && !query.selected.importAliasIdentity)) {
-      return { handled: false };
+      const current = await this.savedGraphLanguageStateFor(document);
+      if (current.kind === "local") return { handled: false };
+      if (current.kind === "unavailable") return { handled: true, value: undefined };
+      const { compiled, normalizedSource, sourceRevision } = current;
+      const offset = normalizedOffsetAt(normalizedSource, position);
+      const operand = queryMultiDocumentCopyOperandDefinition(compiled, offset);
+      if (operand) return {
+        handled: true,
+        value: [{
+          originSelectionRange: rangeFor(normalizedSource, operand.origin),
+          targetUri: vscode.Uri.parse(String(operand.target.source.documentId)),
+          targetRange: lineRangeFor(operand.targetSource.normalizedSource, operand.target.range),
+          targetSelectionRange: rangeFor(operand.targetSource.normalizedSource, operand.target.range)
+        }]
+      };
+      const result = queryDslDefinition({
+        source: { normalizedSource, sourceRevision },
+        position: offset,
+        semantic: { compiled, sourceRevision, sourceText: normalizedSource }
+      });
+      return {
+        handled: true,
+        value: result ? [{
+          originSelectionRange: rangeFor(normalizedSource, result.referenceRange),
+          targetUri: document.uri,
+          targetRange: lineRangeFor(normalizedSource, result.declarationRange),
+          targetSelectionRange: rangeFor(normalizedSource, result.declarationRange)
+        }] : undefined
+      };
     }
     if (!query.index.valid) return { handled: true, value: undefined };
     const result = queryMultiDocumentDefinition({
@@ -895,7 +939,22 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
   ): Promise<VscodeMultiDocumentHandled<vscode.Location[]>> {
     const query = await this.queryContext(document, position);
     if (!query || (!query.selected.publicIdentity && !query.selected.importAliasIdentity)) {
-      return { handled: false };
+      const current = await this.savedGraphLanguageStateFor(document);
+      if (current.kind === "local") return { handled: false };
+      if (current.kind === "unavailable") return { handled: true, value: [] };
+      const { compiled, normalizedSource, sourceRevision } = current;
+      const result = queryDslReferences({
+        source: { normalizedSource, sourceRevision },
+        position: normalizedOffsetAt(normalizedSource, position),
+        semantic: { compiled, sourceRevision, sourceText: normalizedSource }
+      });
+      const ranges = result ? [
+        ...(includeDeclaration ? [result.declarationRange] : []), ...result.referenceRanges
+      ] : [];
+      return {
+        handled: true,
+        value: ranges.map(range => new vscode.Location(document.uri, rangeFor(normalizedSource, range)))
+      };
     }
     if (!query.index.valid) return { handled: true, value: [] };
 

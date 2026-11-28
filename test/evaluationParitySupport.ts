@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
-import { readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { constants, copyFileSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import type { CadElement } from "../src/types/geometry";
 import { compileCanonicalText, regenerateCanonicalFromModel, type TextCompileResult } from "@nuinuicad/nui-language/document";
 import { emptyDocument } from "@nuinuicad/nui-language";
@@ -60,19 +61,45 @@ export const evaluateWithRustFixture = (
   optionsFor(fixture)
 );
 
+const builtFixtureExecutables = new Set<string>();
+
 export const evaluateWithRustOptions = (
   repoRoot: string,
   elements: CadElement[],
   options: EvaluateElementsOptions
 ): EvaluationPayload => {
   const cargoManifest = join(repoRoot, "rust-evaluator", "Cargo.toml");
-  const input = buildRustEvaluationInput(elements, options);
-  const output = execFileSync(
-    "cargo",
-    ["run", "--quiet", "--manifest-path", cargoManifest, "--example", "evaluate_fixture"],
-    { encoding: "utf8", input: JSON.stringify(input), maxBuffer: 64 * 1024 * 1024 }
-  );
-  return JSON.parse(output) as EvaluationPayload;
+  const targetPath = resolve(repoRoot, process.env.CARGO_TARGET_DIR ?? "rust-evaluator/target");
+  const executableName = process.platform === "win32" ? "evaluate_fixture.exe" : "evaluate_fixture";
+  const cargoExecutable = join(targetPath, "debug", "examples", executableName);
+  const buildExample = () => {
+    execFileSync("cargo", ["build", "--quiet", "--manifest-path", cargoManifest, "--example", "evaluate_fixture"], {
+      cwd: repoRoot, timeout: 120_000, stdio: "inherit"
+    });
+    builtFixtureExecutables.add(cargoExecutable);
+  };
+  if (!builtFixtureExecutables.has(cargoExecutable)) buildExample();
+
+  const directory = mkdtempSync(join(tmpdir(), "nuinuicad-fixture-parity-"));
+  const snapshot = join(directory, executableName);
+  try {
+    try {
+      copyFileSync(cargoExecutable, snapshot, constants.COPYFILE_FICLONE);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+      // Another worker's Cargo build can briefly replace the shared link.
+      buildExample();
+      copyFileSync(cargoExecutable, snapshot, constants.COPYFILE_FICLONE);
+    }
+    const input = buildRustEvaluationInput(elements, options);
+    const output = execFileSync(snapshot, [], {
+      encoding: "utf8", input: JSON.stringify(input), maxBuffer: 64 * 1024 * 1024,
+      timeout: 15_000, killSignal: "SIGKILL"
+    });
+    return JSON.parse(output) as EvaluationPayload;
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
 };
 
 /** Issue regressions that must cross the production persistent Node→Rust stdio boundary. */
@@ -99,22 +126,32 @@ export const createRustStdioParityClient = (
     execFileSync(
       "cargo",
       ["build", "--quiet", "--manifest-path", cargoManifest, "--bin", "evaluation_stdio"],
-      { cwd: repoRoot, stdio: "inherit", env: cargoEnvironment }
+      { cwd: repoRoot, stdio: "inherit", env: cargoEnvironment, timeout: 120_000 }
     );
     binaryPath = options.targetDirectory
       ? join(options.targetDirectory, "debug", "evaluation_stdio")
       : resolveRustEvaluationBinaryPath(repoRoot);
   }
   const rustProcess = new RustEvaluationProcess(binaryPath);
+  const evaluateInput = async (input: EvaluateDocumentInput): Promise<EvaluationPayload> => {
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    try {
+      return await Promise.race([
+        rustProcess.request(input) as Promise<EvaluationPayload>,
+        new Promise<never>((_resolve, reject) => {
+          timeout = setTimeout(() => {
+            reject(new Error("Rust parity stdio request exceeded 15 seconds"));
+            rustProcess.dispose();
+          }, 15_000);
+        })
+      ]);
+    } finally {
+      clearTimeout(timeout);
+    }
+  };
   return {
-    evaluate: async (elements: CadElement[], options: EvaluateElementsOptions): Promise<EvaluationPayload> => {
-      const payload = await rustProcess.request(buildRustEvaluationInput(elements, options));
-      return payload as EvaluationPayload;
-    },
-    evaluateInput: async (input: EvaluateDocumentInput): Promise<EvaluationPayload> => {
-      const payload = await rustProcess.request(input);
-      return payload as EvaluationPayload;
-    },
+    evaluate: (elements: CadElement[], options: EvaluateElementsOptions) => evaluateInput(buildRustEvaluationInput(elements, options)),
+    evaluateInput,
     dispose: () => rustProcess.dispose()
   };
 };

@@ -319,14 +319,14 @@ describe("DSL module source AST", () => {
   });
 
   it("marks exported geometry without changing its geometry AST", () => {
-    const source = "nui 1\nexport line 先に縫う = transformCopy(baseLines: [AB], startPoint: A, endPoint: B)";
+    const source = "nui 1\nexport path 先に縫う = from(source: Copies::part)";
     const parsed = parseDsl(source);
     expect(parsed.diagnostics).toEqual([]);
     const statement = parsed.statements[1];
     expect(statement).toMatchObject({
       kind: "element",
-      category: "line",
-      construction: "transformCopy",
+      category: "path",
+      construction: "from",
       name: "先に縫う",
       exported: true,
       exportSpan: { start: 0, end: 6 }

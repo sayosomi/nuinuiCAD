@@ -778,7 +778,7 @@ it("#1621 filters numeric-property candidates and invalidates a hidden numeric d
     "layer seam_layer",
     "line Visible in seam_layer = segment(start: A, end: B)",
     "line Hidden = segment(start: C, end: D)",
-    "line Copy = transformCopy(startPoint: A, endPoint: B, scale: 1, angleDeg: 0, baseLines: [Visible])"
+    "transformCopy Copies_Copy(startPoint: A, endPoint: B, scale: 1, angleDeg: 0, parts: [Copy: Visible])"
   ].join("\n");
   const compiled = compile(source, HOST_REVISION, "numeric-layer-pick");
   if (!compiled.document) throw new Error("numeric Layer fixture did not compile");

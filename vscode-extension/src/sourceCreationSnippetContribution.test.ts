@@ -117,8 +117,8 @@ describe("official nui snippets", () => {
     )).toBe(true);
     const entries = Object.entries(snippets);
     const names = entries.map(([name]) => name);
-    expect(entries).toHaveLength(88);
-    expect(new Set(names).size).toBe(88);
+    expect(entries).toHaveLength(87);
+    expect(new Set(names).size).toBe(87);
 
     const prefixes = entries.flatMap(([, { prefix }]) => typeof prefix === "string" ? [prefix] : prefix);
     expect(new Set(prefixes).size).toBe(prefixes.length);
@@ -154,6 +154,14 @@ describe("official nui snippets", () => {
       expect(names.some((name) => name.startsWith(`${family} /`)), family).toBe(true);
     }
     expect(names.some((name) => /Profile|Profile Override/.test(name))).toBe(false);
+  });
+
+  it("packages the named copy template with an omitted endPoint", () => {
+    const copy = snippetWithPrefix("nui-geometry-add-copy-line-1");
+    const body = copy.body.join("\n").replace("$1", "Copy").replace("$2", "(0, 0)").replace("$3", "Base");
+    const doc = compileExample(["nui 1", "line Base = segment(start: (0, 0), end: (10, 0))", body].join("\n"));
+    expect(doc.document.elements.map(element => element.name)).toEqual(["Base", "part"]);
+    expect(Object.values(snippets).flatMap(snippet => snippet.body).some(line => line.includes(" = transformCopy("))).toBe(false);
   });
 
   it.each(ordinaryReferenceSnippetCases)("uses bare ordinary references in $prefix", ({ prefix, canonical, obsolete }) => {

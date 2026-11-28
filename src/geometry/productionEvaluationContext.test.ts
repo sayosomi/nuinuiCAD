@@ -24,7 +24,7 @@ const standardPropertiesSource = [
   "line CD = segment(start: C, end: D)",
   "line Off = offset(sources: [AB], distance: 3, side: side, closed: enabled, suppressTrimWarnings: enabled)",
   "point Cross = intersection(line1: AB, line2: CD, index: 0, extensions: enabled)",
-  "line Copy = transformCopy(startPoint: A, endPoint: B, scale: 1, angleDeg: 0, mirrorX: mirrored, baseLines: [AB])",
+  "transformCopy Copies_Copy(startPoint: A, endPoint: B, scale: 1, angleDeg: 0, mirrorX: mirrored, parts: [Copy: AB])",
   "move AB (from: A, to: B, scale: 1, angleDeg: 0, mirrorX: mirrored)",
   "image Guide = image(source: \"guide.png\", origin: (0, 0), scale: 1, angleDeg: 0, mirrorX: mirrored)"
 ].join("\n");
@@ -58,7 +58,7 @@ const controlSource = [
   "for i in range(min: 0, max: 1, step: 1, showGenerated: show) carry loopTotal: number = total {",
   "  next loopTotal = loopTotal + 1",
   "  text T = label(text: \"${total}\", anchor: none, size: 3)",
-  "  line Copy = transformCopy(startPoint: A, endPoint: B, scale: 1, angleDeg: 0, mirrorX: flag, baseLines: [AB])",
+  "  transformCopy Copies_Copy(startPoint: A, endPoint: B, scale: 1, angleDeg: 0, mirrorX: flag, parts: [Copy: AB])",
   "}",
   "text Final = label(text: \"${loopTotal}\", anchor: none, size: 3)"
 ].join("\n");
@@ -145,9 +145,11 @@ describe("buildEvaluationOptions", () => {
       "Off:closed",
       "Off:suppressTrimWarnings",
       "Cross:useExtensions",
-      "Copy:mirrorX",
       "Guide:mirrorX"
     ]));
+
+    expect(propertyOptions.geometryValueProgram?.find(entry => entry.construction.kind === "transformCopy")?.construction)
+      .toMatchObject({ kind: "transformCopy", mirrorX: { kind: "reference" } });
 
     const numericCompiled = compile(numericReferenceSource);
     const numericOptions = optionsFor(numericCompiled);

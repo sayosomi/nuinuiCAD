@@ -23,13 +23,9 @@ describe("dslCallCompletionContextAt", () => {
     ]);
   });
 
-  it("keeps transformCopy argument completion on the renamed registry construction", () => {
+  it("keeps the retired drawable out of ordinary call completion", () => {
     const context = atEnd("line L = transformCopy(");
-    expect(context).toMatchObject({ kind: "argument", spec: { category: "line", construction: "transformCopy", elementType: "copyLine" } });
-    if (!context || context.kind !== "argument") throw new Error("argument context expected");
-    expect(argumentCompletionCandidates(context.spec, context.usedArgumentNames).map((candidate) => candidate.label)).toEqual([
-      "startPoint", "endPoint", "scale", "angleDeg", "mirrorX", "baseLines", "enabled", "visible", "steps"
-    ]);
+    expect(context).toBeNull();
   });
 
   it("excludes used named arguments and waits for container positional arguments", () => {

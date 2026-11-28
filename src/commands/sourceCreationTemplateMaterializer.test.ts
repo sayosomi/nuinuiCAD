@@ -136,13 +136,13 @@ describe("Source creation template materializer", () => {
     ]);
   });
 
-  it("preserves planner order for addCopyLine without introducing mirrorX", () => {
+  it("materializes the required named-copy arguments", () => {
     const materialization = materializeFor("addCopyLine");
 
     expect(argumentHolesFor(materialization).map(({ argName }) => argName)).toEqual([
-      "startPoint", "endPoint", "scale", "angleDeg", "baseLines"
+      "startPoint", "parts"
     ]);
-    expect(render(materialization.parts)).not.toContain("mirrorX");
+    expect(render(materialization.parts)).toContain("parts: [part: <parts>]");
   });
 
   it("does not re-expand addOffsetLine optional arguments", () => {

@@ -4,34 +4,38 @@ nui 1
 const 縫い代幅: number = 5
 
 module 縫い代写し(基準点: point, 写し元縫い線: path, 合わせ先縫い線: path, 写し元先に縫う縫い代線: path, 写し元後で縫う縫い代線: path, mirrorX: boolean = false) {
-  line 脇コピー = transformCopy(
+  transformCopy 写し_脇コピー(
     startPoint: 基準点,
     endPoint: 合わせ先縫い線.end,
     scale: 1,
     angleDeg: 0,
     mirrorX: mirrorX,
-    baseLines: [写し元縫い線]
+    parts: [脇コピー: 写し元縫い線]
   )
 
-  const 角度: number = 合わせ先縫い線.endAngleDeg - 脇コピー.endAngleDeg
+  const 角度: number = 合わせ先縫い線.endAngleDeg - 写し_脇コピー::脇コピー.endAngleDeg
 
-  export line 先に縫う = transformCopy(
+  transformCopy 写し_先に縫う(
     startPoint: 基準点,
-    endPoint: 脇コピー.end,
+    endPoint: 写し_脇コピー::脇コピー.end,
     scale: 1,
     angleDeg: 角度,
     mirrorX: false,
-    baseLines: [写し元先に縫う縫い代線]
+    visible: false,
+    parts: [part: 写し元先に縫う縫い代線]
   )
+  export path 先に縫う = from(source: 写し_先に縫う::part)
 
-  export line 後で縫う = transformCopy(
+  transformCopy 写し_後で縫う(
     startPoint: 基準点,
-    endPoint: 脇コピー.end,
+    endPoint: 写し_脇コピー::脇コピー.end,
     scale: 1,
     angleDeg: 角度,
     mirrorX: false,
-    baseLines: [写し元後で縫う縫い代線]
+    visible: false,
+    parts: [part: 写し元後で縫う縫い代線]
   )
+  export path 後で縫う = from(source: 写し_後で縫う::part)
 }
 
 group 前身頃 {
@@ -105,18 +109,18 @@ group 後ろ身頃 {
     at: 前身頃::交点
   )
 
-  line 先に縫う = transformCopy(
+  transformCopy 写し_先に縫う(
     startPoint: 前身頃::交点,
     endPoint: 後で縫う.start,
     scale: 1,
     angleDeg: 11,
     mirrorX: true,
-    baseLines: [前身頃::先に縫う]
+    parts: [先に縫う: 前身頃::先に縫う]
   )
 
   group 縫い代 {
     line 先に縫う = offset(
-      sources: [後ろ身頃::先に縫う],
+      sources: [後ろ身頃::写し_先に縫う::先に縫う],
       distance: 縫い代幅,
       side: @right,
       closed: false
@@ -132,7 +136,7 @@ group 後ろ身頃 {
     instance 写し = 縫い代写し(
       基準点: 前身頃::交点,
       写し元縫い線: 前身頃::先に縫う,
-      合わせ先縫い線: 後ろ身頃::先に縫う,
+      合わせ先縫い線: 後ろ身頃::写し_先に縫う::先に縫う,
       写し元先に縫う縫い代線: 前身頃::縫い代::先に縫う,
       写し元後で縫う縫い代線: 前身頃::縫い代::後で縫う,
       mirrorX: true

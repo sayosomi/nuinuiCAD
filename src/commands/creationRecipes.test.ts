@@ -177,7 +177,7 @@ describe("creationRecipes", () => {
       extendTrim: "extend AB.start(to: A)",
       bezierCurve: "curve 作成bezierCurve = bezier(start: A, end: A, startAngle: 12, startLength: 12, endAngle: 12, endLength: 12)",
       offsetLine: "line 作成offsetLine = offset(sources: [AB], distance: 12, side: @right, closed: false, suppressTrimWarnings: false)",
-      copyLine: "line 作成copyLine = transformCopy(startPoint: A, endPoint: A, scale: 12, angleDeg: 12, mirrorX: false, baseLines: [AB])",
+      copyLine: "transformCopy 作成copyLine(startPoint: A, endPoint: A, scale: 12, angleDeg: 12, mirrorX: false, parts: [part: AB])",
       symmetricCopyLine: "line 作成symmetricCopyLine = mirrorCopy(axis1: A, axis2: A, baseLines: [AB])",
       move: "move [AB](from: A, to: A, scale: 12, angleDeg: 12, mirrorX: false)",
       symmetricMove: "mirrorMove [AB](axis1: A, axis2: A)",
@@ -209,11 +209,22 @@ describe("creationRecipes", () => {
           serializeElementsToDsl(context.elements),
           serializeElementStatementLogical(element, documentDslRefs([...context.elements, element]))
         ].join("\n");
-        expect(parseDsl(source).diagnostics).toEqual([]);
+        const parsed = parseDsl(source);
+        if (element.type === "copyLine" && !includeName) {
+          expect(parsed.diagnostics).toContainEqual(expect.objectContaining({ code: "extract-missing-name" }));
+          continue;
+        }
+        expect(parsed.diagnostics).toEqual([]);
         const compiled = compileDslToElements(source, { elements: [] });
         expect(compiled.diagnostics, `${recipe.type} named=${includeName}`).toEqual([]);
         const reloaded = compiled.elements.at(-1);
         expect(reloaded).toBeDefined();
+        if (element.type === "copyLine") {
+          const head = parseDsl(source).statements.find(statement => statement.kind === "extract");
+          expect(head).toMatchObject({ name: element.name, declaration: "transformCopy", parts: [{ name: "part", kind: "source", source: "AB" }] });
+          expect(reloaded).toMatchObject({ name: "part", type: "materializedPath" });
+          continue;
+        }
         expect(normalizeForComparison([...context.elements, reloaded!])).toEqual(
           normalizeForComparison([...context.elements, element])
         );

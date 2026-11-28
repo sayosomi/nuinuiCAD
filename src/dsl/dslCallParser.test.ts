@@ -23,7 +23,6 @@ const calls = [
   ["line", "polar", "line L = polar(start: A, angle: 0, length: 1)"],
   ["line", "offset", "line L = offset(sources: [AB], distance: 1)"],
   ["line", "split", "line L = split(source: AB, at: A)"],
-  ["line", "transformCopy", "line L = transformCopy(startPoint: A, endPoint: B, baseLines: [AB])"],
   ["line", "mirrorCopy", "line L = mirrorCopy(axis1: A, axis2: B, baseLines: [AB])"],
   ["transformation", "edge", "edge [AB.end, CD.start] (index: 0)"],
   ["transformation", "extend", "extend AB.end (to: A)"],
@@ -111,11 +110,11 @@ describe("DSL nui 1 call parser", () => {
     expect(messages("for i in range(min: 0, max: 2) {").join("\n")).toContain("必須引数「step」");
   });
 
-  it("rejects the removed copy construction and recommends only the new spelling", () => {
+  it("rejects the removed copy construction", () => {
     const result = parse("line L = copy(startPoint: A, endPoint: B, baseLines: [AB])");
     expect(result.statement).toMatchObject({ category: "line", construction: "copy", elementType: null });
     const diagnostic = result.diagnostics.map((item) => item.message).join("\n");
-    expect(diagnostic).toContain("transformCopy");
+    expect(diagnostic).not.toContain("transformCopy");
     expect(diagnostic).not.toContain("候補: copy");
   });
 
@@ -167,7 +166,7 @@ describe("DSL nui 1 construction registry parser queries", () => {
   it("keeps parser candidates sourced from the registry", () => {
     expect(constructionCandidatesFor("point").map((spec) => spec.construction)).toContain("coordinate");
     expect(constructionCandidatesFor("line").map((spec) => spec.construction)).toContain("offset");
-    expect(constructionCandidatesFor("line").map((spec) => spec.construction)).toContain("transformCopy");
+    expect(constructionCandidatesFor("line").map((spec) => spec.construction)).not.toContain("transformCopy");
     expect(constructionCandidatesFor("line").map((spec) => spec.construction)).not.toContain("copy");
     expect(categoriesForConstruction("offset")).toEqual(["point", "line"]);
   });

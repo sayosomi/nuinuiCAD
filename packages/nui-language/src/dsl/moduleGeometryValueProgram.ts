@@ -181,11 +181,11 @@ export type GeometryValueProgramConstruction =
   | {
       kind: "transformCopy";
       startPoint: GeometryValueProgramPoint;
-      endPoint: GeometryValueProgramPoint;
+      endPoint: GeometryValueProgramPoint | null;
       scale: TypedScalarExpression;
       angleDeg: TypedScalarExpression;
       mirrorX: TypedScalarExpression;
-      baseLines: readonly GeometryValueProgramPath[];
+      source: GeometryValueProgramPath;
     }
   | {
       kind: "mirrorCopy";
@@ -549,16 +549,15 @@ export const buildRootGeometryValueProgram = ({
               : value.construction.kind === "transformCopy"
                 ? (() => {
                     const startPoint = pointForReference(value.construction.startPoint);
-                    const endPoint = pointForReference(value.construction.endPoint);
+                    const endPoint = value.construction.endPoint
+                      ? pointForReference(value.construction.endPoint)
+                      : null;
                     const scale = literalScalarExpression(value.construction.scale);
                     const angleDeg = literalScalarExpression(value.construction.angleDeg);
                     const mirrorX = literalScalarExpression(value.construction.mirrorX);
-                    const baseLines = value.construction.baseLines.flatMap((source) => {
-                      const lowered = pathForReference(source);
-                      return lowered ? [lowered] : [];
-                    });
-                    return startPoint && endPoint && scale && angleDeg && mirrorX && baseLines.length === value.construction.baseLines.length
-                      ? { kind: "transformCopy" as const, startPoint, endPoint, scale, angleDeg, mirrorX, baseLines }
+                    const source = pathForReference(value.construction.source);
+                    return startPoint && endPoint !== undefined && scale && angleDeg && mirrorX && source
+                      ? { kind: "transformCopy" as const, startPoint, endPoint, scale, angleDeg, mirrorX, source }
                       : null;
                   })()
                 : value.construction.kind === "mirrorCopy"

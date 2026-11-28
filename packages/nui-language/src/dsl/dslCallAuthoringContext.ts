@@ -38,7 +38,7 @@ export type DslCallAuthoringArgument = {
 };
 
 export type DslCallAuthoringContext = {
-  kind: "construction" | "module" | "builtin";
+  kind: "construction" | "module" | "builtin" | "namedParts";
   callee: {
     name: string;
     span: DslCallAuthoringRange;
@@ -133,7 +133,7 @@ const currentArgumentFrom = (
   return {
     index,
     segment,
-    label: kind === "module" || kind === "construction"
+    label: kind === "module" || kind === "construction" || kind === "namedParts"
       ? hasPartialIdentifier ? partial : null
       : null,
     value: kind === "builtin" && hasPartialIdentifier ? partial : null
@@ -177,7 +177,7 @@ const callEnvelopesFor = (logicalText: string): LogicalCallEnvelope[] => {
     }));
   return [...matched, ...unmatched]
     .map((candidate) => {
-      const transformation = /^\s*(edge|extend|move|mirrorMove|reverse)\b/.exec(logicalText.slice(0, candidate.open));
+      const transformation = /^\s*(edge|extend|move|mirrorMove|reverse|transformCopy)\b/.exec(logicalText.slice(0, candidate.open));
       if (transformation && candidate.open === logicalText.indexOf("(")) {
         const from = transformation.index + logicalText.slice(0, candidate.open).indexOf(transformation[1]!);
         const to = from + transformation[1]!.length;
@@ -199,6 +199,7 @@ const kindForStrictCall = (
   logicalText: string,
   call: LogicalCallEnvelope
 ): DslCallAuthoringContext["kind"] | null => {
+  if (call.name === "transformCopy" && /^\s*transformCopy\s+/.test(logicalText)) return "namedParts";
   if (getBuiltinFunctionDefinition(call.name)) return "builtin";
 
   const moduleContext = dslModuleCompletionContextAt(logicalText, call.open + 1);
@@ -617,7 +618,9 @@ export const dslCallAuthoringContextAt = (
   if (!strictContext) return null;
   const calleeName = statement.logicalText.slice(calleeLogical.from, calleeLogical.to);
   const candidateKind: DslCallAuthoringContext["kind"] | null =
-    strictContext.kind === "argument"
+    /^\s*transformCopy\s+/.test(statement.logicalText)
+      ? "namedParts"
+      : strictContext.kind === "argument"
       ? "construction"
       : strictContext.kind === "moduleArgumentLabel" || strictContext.kind === "moduleArgumentValue"
         ? "module"
@@ -659,7 +662,7 @@ export const dslCallAuthoringContextAt = (
   return {
     kind,
     callee: {
-      name: calleeName,
+      name: kind === "namedParts" ? "transformCopy" : calleeName,
       span: calleePhysical,
       openParen: openPhysical,
       logicalOpenParen: openLogical

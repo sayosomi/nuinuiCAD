@@ -274,15 +274,12 @@
   "Geometry / addCopyLine": {
     "prefix": "nui-geometry-add-copy-line-1",
     "body": [
-      "line $1 = transformCopy(",
+      "transformCopy $1(",
       "  startPoint: $2,",
-      "  endPoint: $3,",
-      "  scale: $4,",
-      "  angleDeg: $5,",
-      "  baseLines: $6",
+      "  parts: [part: $3]",
       ")"
     ],
-    "description": "Geometry • copyLine / transformCopy"
+    "description": "Geometry • transformCopy"
   },
   "Geometry / addSymmetricCopyLine": {
     "prefix": "nui-geometry-add-symmetric-copy-line-1",
@@ -567,20 +564,6 @@
       "const $1: path = polyline(",
       "  points: $2,",
       "  closed: $3",
-      ")"
-    ],
-    "description": "Geometry Value • path"
-  },
-  "Geometry Value / path: transformCopy form 1": {
-    "prefix": "nui-value-transform-copy-path-1",
-    "body": [
-      "const $1: path = transformCopy(",
-      "  startPoint: $2,",
-      "  endPoint: $3,",
-      "  scale: $4,",
-      "  angleDeg: $5,",
-      "  mirrorX: $6,",
-      "  baseLines: $7",
       ")"
     ],
     "description": "Geometry Value • path"

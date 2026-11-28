@@ -673,8 +673,8 @@ impl ConditionalDependencyGraph {
         scheduled_binding_ids
     }
 
-    /// Immutable binding prerequisites of forward geometry inputs. Follow only
-    /// canonical active edges; control-owned declarations keep their event fence.
+    /// Immutable binding prerequisites of forward geometry inputs and recipes.
+    /// Follow active edges; control-owned declarations keep their event fence.
     pub(crate) fn early_geometry_input_bindings(
         &self,
         branch_selections: &HashMap<String, String>,
@@ -700,25 +700,27 @@ impl ConditionalDependencyGraph {
         for edge in &self.edges {
             #[cfg(test)]
             EARLY_PROJECTION_EDGE_VISITS.with(|count| count.set(count.get() + 1));
-            if edge.from.kind != "element"
+            let recipe = edge.from.kind == "transformation-recipe";
+            if (!recipe && edge.from.kind != "element")
                 || edge.to.kind != "binding"
                 || !edge_is_active(edge, branch_selections)
             {
                 continue;
             }
-            let Some(consumer_order) = element_orders.get(&edge.from.id) else {
+            let consumer_order = element_orders.get(&edge.from.id);
+            if !recipe && consumer_order.is_none() {
                 continue;
-            };
+            }
             let mut pending = vec![edge.to.id.as_str()];
             let mut closure = HashSet::new();
-            let mut has_forward = false;
+            let mut has_forward = recipe;
             while let Some(binding_id) = pending.pop() {
                 if !linear_bindings.contains(binding_id) || !closure.insert(binding_id) {
                     continue;
                 }
                 has_forward |= binding_orders
                     .get(binding_id)
-                    .is_some_and(|order| order > consumer_order);
+                    .is_some_and(|order| consumer_order.is_some_and(|consumer| order > consumer));
                 pending.extend(prerequisites.get(binding_id).into_iter().flatten().copied());
             }
             if has_forward {
