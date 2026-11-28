@@ -29,7 +29,7 @@ import { isCompilableDslStatement, isInUnloweredModuleSubtree, type DslStatement
 import { isElementDslStatement, parseDsl, isTransformationAuthoringDiagnostic } from "./dslParser";
 import { createNameIndex, resolveAnchor as resolveAnchorFromDsl, resolveId, type NameIndex } from "./dslReferences";
 import { formatDslReferencePath, parseDslReferenceToken, parseDslSourceReference, type DslSourceReference } from "./dslReferenceTokens";
-import { DEFAULT_SOURCE_LAYER_ID, resolveSourceLexicalDeclaration, resolveSourceLexicalPath, resolveSourceLexicalPathSegments, type SourceLexicalNamespaceIndex } from "./sourceLexicalNamespaceIndex";
+import { DEFAULT_SOURCE_LAYER_ID, resolveSourceLexicalPath, resolveSourceLexicalPathSegments, type SourceLexicalNamespaceIndex } from "./sourceLexicalNamespaceIndex";
 import type {
   CompileDslContext,
   CompileDslResult,
@@ -1015,11 +1015,12 @@ const moduleQualifiedOwnerFor = ({
   moduleRuntimeContext?: CompileDslContext["moduleRuntimeContext"];
   runtime: boolean;
 }): ElementId | undefined => {
-  if (!sourceNamespace || target.path.segments.length !== 2) return undefined;
-  const instanceLookup = resolveSourceLexicalDeclaration(
+  const segments = target.path.segments;
+  if (!sourceNamespace || segments.length < 2) return undefined;
+  const instanceLookup = resolveSourceLexicalPath(
     sourceNamespace,
     statementIndex,
-    target.path.segments[0]!
+    { absolute: target.path.absolute, segments: segments.slice(0, -1) }
   );
   if (instanceLookup.kind !== "resolved" || instanceLookup.declaration.kind !== "moduleInstance") return undefined;
   const instance = moduleSemanticAnalysis.instancesByStatementId.get(instanceLookup.declaration.statementId);
@@ -1027,7 +1028,7 @@ const moduleQualifiedOwnerFor = ({
   const definition = moduleRuntimeContext?.definitionFor(instance.callee.definitionIdentity)
     ?? moduleSemanticAnalysis.definitionsByStatementId.get(instance.callee.definitionStatementId);
   const exported = definition?.exports.find((candidate) =>
-    candidate.kind === "geometry" && candidate.name === target.path.segments[1]
+    candidate.kind === "geometry" && candidate.name === segments[segments.length - 1]
   );
   if (!definition || !exported || exported.kind !== "geometry") return undefined;
   const entry = materialization.executionStatements.find((candidate) =>
