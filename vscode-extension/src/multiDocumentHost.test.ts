@@ -3134,6 +3134,172 @@ describe("VS Code multi-document host lifecycle", () => {
     host.dispose();
   });
 
+  it("finalizes Issue #1777 diagnostics from exact current graphs across save, reopen, and dependency save", async () => {
+    const rootPath = "/workspace/issue-1777-main.nui";
+    const libraryPath = "/workspace/mini_lib.nui";
+    const librarySource = [
+      "nui 1",
+      "",
+      "export module Sample() {",
+      "  export line Side = segment(",
+      "    start: (0, 0),",
+      "    end: (10, 10),",
+      "  )",
+      "}"
+    ].join("\n");
+    const rootSourceFor = (origin: "A::P" | "Q", exportName: "Side" | "Missing" = "Side") => [
+      "nui 1",
+      "",
+      'import "./mini_lib.nui" as lib',
+      "",
+      "instance M = lib::Sample()",
+      "",
+      `line Preview = segment(start: M::${exportName}.start, end: (30, 10))`,
+      "",
+      "point Q = coordinate(x: 10, y: 0)",
+      "",
+      "group A {",
+      "  point P = coordinate(x: 0, y: 0)",
+      "}",
+      "",
+      "layout Layout {",
+      `  place A(origin: ${origin}, at: (0, 0))`,
+      "}"
+    ].join("\n");
+    let sourceText = rootSourceFor("A::P");
+    const rootBase = documentFor(rootPath, sourceText);
+    const root = {
+      ...rootBase,
+      version: 1,
+      isDirty: false,
+      getText: () => sourceText,
+      offsetAt: (position: { line: number; character: number }) => normalizedOffsetAt(sourceText, position),
+      positionAt: (offset: number) => normalizedPositionAt(sourceText, offset)
+    } satisfies TestDocument;
+    mocks.files.set(libraryPath, encoder.encode(librarySource));
+    mocks.textDocuments = [root];
+
+    const host = createVscodeModuleMultiDocumentHost();
+    host.start();
+    const rootUri = root.uri.toString();
+    const currentStateFor = async (document: TestDocument, version: number) => {
+      let state: ReturnType<typeof host.diagnosticsStateFor> | undefined;
+      await vi.waitFor(() => {
+        state = host.diagnosticsStateFor(document as unknown as vscode.TextDocument);
+        expect(state.status).toBe("current");
+        if (state.status === "current") expect(state.documentVersion).toBe(version);
+      });
+      if (state?.status !== "current" || state.owner !== "multi-document") {
+        throw new Error("missing current Issue #1777 graph diagnostics");
+      }
+      return state;
+    };
+    const changeRoot = async (document: typeof root, nextSource: string, version: number) => {
+      sourceText = nextSource;
+      document.version = version;
+      document.isDirty = true;
+      for (const listener of mocks.changeListeners) listener({ document, contentChanges: [{}] });
+      return await currentStateFor(document, version);
+    };
+
+    try {
+      const initial = await currentStateFor(root, 1);
+      const initialPublication = latestCurrentPublicationFor(rootUri)!;
+      const initialFingerprint = initialPublication.graph.dependencyFingerprints.find((entry) => entry.documentId === `file://${libraryPath}`)?.savedSourceFingerprint;
+      expect(initial.snapshot.diagnostics).toEqual([]);
+      expect(initialPublication.graph.rootSource).toMatchObject({ kind: "root-current", normalizedSource: sourceText });
+      expect(initialPublication.graph.valid).toBe(true);
+      expect(initialPublication.canvasRuntime).toBeTruthy();
+      expect(initialFingerprint).toBeDefined();
+
+      root.isDirty = false;
+      for (const listener of mocks.saveListeners) listener(root);
+      await vi.waitFor(() => {
+        const state = host.diagnosticsStateFor(root as unknown as vscode.TextDocument);
+        expect(state).toMatchObject({ status: "current", documentVersion: 1, owner: "multi-document" });
+      });
+
+      const invalidSource = rootSourceFor("Q");
+      const invalid = await changeRoot(root, invalidSource, 2);
+      const invalidPublication = latestCurrentPublicationFor(rootUri)!;
+      expect(invalid.snapshot.diagnostics.map(({ code, severity, location }) => ({
+        code,
+        severity,
+        sourceKind: location.source.kind,
+        sourceDocumentId: location.source.documentId
+      }))).toEqual([{
+        code: "place-origin-outside-target-group",
+        severity: "error",
+        sourceKind: "root-current",
+        sourceDocumentId: rootUri
+      }]);
+      expect(invalidPublication.documentVersion).toBe(2);
+      expect(invalidPublication.graph.rootSource).toMatchObject({
+        kind: "root-current",
+        normalizedSource: invalidSource
+      });
+      expect(invalidPublication.canvasRuntime).toBeFalsy();
+      expect(invalid.snapshot.compiled?.document ?? null).toBeNull();
+
+      root.isDirty = false;
+      for (const listener of mocks.saveListeners) listener(root);
+      const savedInvalid = await currentStateFor(root, 2);
+      expect(savedInvalid.snapshot.diagnostics.map(({ code }) => code)).toEqual(["place-origin-outside-target-group"]);
+
+      mocks.textDocuments = [];
+      for (const listener of mocks.closeListeners) listener(root);
+      sourceText = invalidSource;
+      const reopened = {
+        ...documentFor(rootPath, sourceText),
+        getText: () => sourceText,
+        offsetAt: (position: { line: number; character: number }) => normalizedOffsetAt(sourceText, position),
+        positionAt: (offset: number) => normalizedPositionAt(sourceText, offset)
+      } satisfies TestDocument;
+      mocks.textDocuments = [reopened];
+      for (const listener of mocks.openListeners) listener(reopened);
+      const reopenedState = await currentStateFor(reopened, 1);
+      expect(reopenedState.snapshot.diagnostics.map(({ code }) => code)).toEqual(["place-origin-outside-target-group"]);
+      expect(latestCurrentPublicationFor(rootUri)?.canvasRuntime).toBeFalsy();
+
+      const beforeDependencySave = latestCurrentPublicationFor(rootUri)!;
+      const nextLibrarySource = `${librarySource}\n// saved dependency generation 2`;
+      mocks.files.set(libraryPath, encoder.encode(nextLibrarySource));
+      mocks.watcherChangeListeners[0]?.(vscode.Uri.file(libraryPath) as unknown as TestUri);
+      await vi.waitFor(() => {
+        const publication = latestCurrentPublicationFor(rootUri);
+        expect(publication?.graph.revision).toBeGreaterThan(beforeDependencySave.graph.revision);
+        expect(publication?.graph.dependencyFingerprints.find((entry) => entry.documentId === `file://${libraryPath}`)?.savedSourceFingerprint)
+          .not.toBe(initialFingerprint);
+      });
+      const afterDependencySave = await currentStateFor(reopened, 1);
+      expect(afterDependencySave.snapshot.diagnostics.map(({ code }) => code)).toEqual(["place-origin-outside-target-group"]);
+      expect(latestCurrentPublicationFor(rootUri)?.canvasRuntime).toBeFalsy();
+
+      const recoveredSource = rootSourceFor("A::P");
+      const recovered = await changeRoot(reopened, recoveredSource, 2);
+      const recoveredPublication = latestCurrentPublicationFor(rootUri)!;
+      expect(recovered.snapshot.diagnostics).toEqual([]);
+      expect(recovered.snapshot.graph.rootSource.sourceRevision).toBe(recoveredPublication.graph.rootSource.sourceRevision);
+      expect(recoveredPublication.graph.rootSource.normalizedSource).toBe(recoveredSource);
+      expect(recoveredPublication.canvasRuntime).toBeTruthy();
+
+      const undefinedExport = await changeRoot(reopened, rootSourceFor("A::P", "Missing"), 3);
+      expect(undefinedExport.snapshot.diagnostics).toEqual(expect.arrayContaining([
+        expect.objectContaining({ code: "module-undefined-export", severity: "error" })
+      ]));
+      expect(latestCurrentPublicationFor(rootUri)?.canvasRuntime).toBeFalsy();
+
+      const bothErrors = await changeRoot(reopened, rootSourceFor("Q", "Missing"), 4);
+      expect(bothErrors.snapshot.diagnostics).toEqual(expect.arrayContaining([
+        expect.objectContaining({ code: "module-undefined-export", severity: "error" }),
+        expect.objectContaining({ code: "place-origin-outside-target-group", severity: "error" })
+      ]));
+      expect(latestCurrentPublicationFor(rootUri)?.canvasRuntime).toBeFalsy();
+    } finally {
+      host.dispose();
+    }
+  });
+
   it("preserves distinct legacy fallback diagnostics at the same location", async () => {
     const rootPath = "/workspace/root.nui";
     const rootSource = [
