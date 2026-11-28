@@ -1951,13 +1951,30 @@ export const compileDslDocument = (
   // constructor field is allowed through this gate so scalar projections can
   // still report independent control-flow diagnostics; the final diagnostic
   // gate below still rejects the document.
-  if (baseDiagnostics.some((item) =>
+  const isEarlyFatalDiagnostic = (item: DslDiagnostic) =>
     item.severity === "error" &&
     item.code !== MISSING_ATTRIBUTE_VALUE_CODE &&
     item.code !== "record-constructor-missing-field" &&
     !isTransformationAuthoringDiagnostic(item, parsed.statements) &&
-    !(hasModuleStatements && item.code?.includes("transformation"))
-  )) {
+    !(hasModuleStatements && item.code?.includes("transformation"));
+  const earlyFatalDiagnostics = baseDiagnostics.filter(isEarlyFatalDiagnostic);
+  const exactCurrentModuleRootAnalysis = moduleRuntimeContext?.analysisFor(moduleRuntimeContext.rootDocumentId);
+  const canFinalizeModuleDiagnostics = Boolean(
+    hasModuleStatements &&
+    moduleRuntimeContext &&
+    graphNamespace &&
+    sourceNamespaceHasCompleteIdentity &&
+    stableStatementIdByIndex &&
+    sourceLexicalNamespace &&
+    exactCurrentModuleRootAnalysis &&
+    !exactCurrentModuleRootAnalysis.diagnostics.some((diagnostic) =>
+      diagnostic.severity === "error" && !diagnostic.isolatedExtractPart
+    )
+  );
+  const canDeferPlaceOriginFatal = earlyFatalDiagnostics.length > 0 &&
+    earlyFatalDiagnostics.every((item) => item.code === "place-origin-outside-target-group") &&
+    canFinalizeModuleDiagnostics;
+  if (earlyFatalDiagnostics.length > 0 && !canDeferPlaceOriginFatal) {
     return {
       document: null,
       majorVersion: versionValidation.majorVersion,

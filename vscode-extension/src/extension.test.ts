@@ -7895,6 +7895,141 @@ describe("VS Code compiler diagnostics lifecycle", () => {
     expect(collection.set).toHaveBeenLastCalledWith(dependency.uri, []);
   });
 
+  it("publishes Issue #1777 current graph diagnostics through the native Source collection", async () => {
+    const fixtureDirectory = await mkdtemp(join(tmpdir(), "issue-1777-diagnostics-"));
+    const rootPath = join(fixtureDirectory, "main.nui");
+    const libraryPath = join(fixtureDirectory, "mini_lib.nui");
+    const librarySource = [
+      "nui 1",
+      "",
+      "export module Sample() {",
+      "  export line Side = segment(",
+      "    start: (0, 0),",
+      "    end: (10, 10),",
+      "  )",
+      "}"
+    ].join("\n");
+    const rootSourceFor = (origin: "A::P" | "Q", exportName: "Side" | "Missing" = "Side") => [
+      "nui 1",
+      "",
+      'import "./mini_lib.nui" as lib',
+      "",
+      "instance M = lib::Sample()",
+      "",
+      `line Preview = segment(start: M::${exportName}.start, end: (30, 10))`,
+      "",
+      "point Q = coordinate(x: 10, y: 0)",
+      "",
+      "group A {",
+      "  point P = coordinate(x: 0, y: 0)",
+      "}",
+      "",
+      "layout Layout {",
+      `  place A(origin: ${origin}, at: (0, 0))`,
+      "}"
+    ].join("\n");
+    await writeFile(libraryPath, librarySource);
+    let sourceText = rootSourceFor("A::P");
+    const root = documentFor(rootPath, `file://${rootPath}`, sourceText);
+    const host = createVscodeModuleMultiDocumentHost();
+    mocks.multiDocumentHost = {
+      diagnosticsStateFor: vi.fn((document: TestDocument) => host.diagnosticsStateFor(document as unknown as import("vscode").TextDocument)),
+      onDiagnosticsChanged: vi.fn()
+    };
+    let context: ReturnType<typeof contextFor> | undefined;
+
+    const currentStateFor = async (version: number) => {
+      let state: ReturnType<typeof host.diagnosticsStateFor> | undefined;
+      await vi.waitFor(() => {
+        state = host.diagnosticsStateFor(root as unknown as import("vscode").TextDocument);
+        expect(state.status).toBe("current");
+        if (state.status === "current") expect(state.documentVersion).toBe(version);
+      });
+      if (state?.status !== "current" || state.owner !== "multi-document") {
+        throw new Error("missing current Issue #1777 diagnostics state");
+      }
+      return state;
+    };
+    const publishCurrent = () => {
+      for (const listener of mocks.multiDocumentDiagnosticsListeners) listener(root.uri.toString());
+    };
+    const sourceDiagnostics = () => collectionFor().entries.get(root.uri.toString()) as Array<{
+      code?: string;
+      severity: number;
+      range: { start: MockPosition; end: MockPosition };
+      source?: string;
+    }> | undefined ?? [];
+    const edit = async (nextSource: string, version: number) => {
+      sourceText = nextSource;
+      root.setSourceText(nextSource);
+      root.version = version;
+      root.isDirty = true;
+      emitDocumentChange(root);
+      const state = await currentStateFor(version);
+      publishCurrent();
+      return state;
+    };
+
+    try {
+      context = setup(false, null, [root], undefined, () => host.start());
+      const initial = await currentStateFor(1);
+      publishCurrent();
+      expect(initial.snapshot.diagnostics).toEqual([]);
+      expect(sourceDiagnostics()).toEqual([]);
+      expect((await host.languageSemanticSnapshotFor(root as unknown as import("vscode").TextDocument))?.compiled.document).not.toBeNull();
+
+      const invalid = await edit(rootSourceFor("Q"), 2);
+      const placeDiagnostics = sourceDiagnostics();
+      expect(invalid.snapshot.diagnostics.map(({ code }) => code)).toEqual(["place-origin-outside-target-group"]);
+      expect(placeDiagnostics).toHaveLength(1);
+      expect(placeDiagnostics[0]).toMatchObject({
+        code: "place-origin-outside-target-group",
+        severity: 0,
+        source: "nuinuiCAD",
+        range: { start: { line: 15 } }
+      });
+      expect(invalid.snapshot.compiled?.document ?? null).toBeNull();
+      const surfaceFeedback = mocks.diagnosticCollections.find((collection) => collection.name === "nuinuiCAD surface feedback");
+      expect((surfaceFeedback?.entries.get(root.uri.toString()) as Array<{ code?: string }> | undefined ?? [])
+        .map(({ code }) => code)).not.toContain("place-origin-outside-target-group");
+
+      const recovered = await edit(rootSourceFor("A::P"), 3);
+      expect(recovered.snapshot.diagnostics).toEqual([]);
+      expect(sourceDiagnostics()).toEqual([]);
+      expect((await host.languageSemanticSnapshotFor(root as unknown as import("vscode").TextDocument))?.compiled.document).not.toBeNull();
+
+      const undefinedExport = await edit(rootSourceFor("A::P", "Missing"), 4);
+      const undefinedPublished = sourceDiagnostics();
+      expect(undefinedExport.snapshot.diagnostics).toEqual(expect.arrayContaining([
+        expect.objectContaining({ code: "module-undefined-export", severity: "error" })
+      ]));
+      expect(undefinedPublished).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          code: "module-undefined-export",
+          severity: 0,
+          source: "nuinuiCAD",
+          range: expect.objectContaining({ start: expect.objectContaining({ line: 6 }) })
+        })
+      ]));
+      expect(undefinedExport.snapshot.compiled?.document ?? null).toBeNull();
+
+      const bothErrors = await edit(rootSourceFor("Q", "Missing"), 5);
+      expect(bothErrors.snapshot.diagnostics).toEqual(expect.arrayContaining([
+        expect.objectContaining({ code: "module-undefined-export", severity: "error" }),
+        expect.objectContaining({ code: "place-origin-outside-target-group", severity: "error" })
+      ]));
+      expect(sourceDiagnostics()).toEqual(expect.arrayContaining([
+        expect.objectContaining({ code: "module-undefined-export", severity: 0 }),
+        expect.objectContaining({ code: "place-origin-outside-target-group", severity: 0 })
+      ]));
+      expect(bothErrors.snapshot.compiled?.document ?? null).toBeNull();
+    } finally {
+      for (const subscription of context?.subscriptions ?? []) subscription.dispose();
+      host.dispose();
+      await rm(fixtureDirectory, { recursive: true, force: true });
+    }
+  });
+
   it("publishes invalid choice literals for typed declarations", () => {
     const source = [
       "nui 1",
