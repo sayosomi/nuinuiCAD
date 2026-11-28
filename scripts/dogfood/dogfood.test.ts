@@ -569,6 +569,59 @@ describe("dogfood launcher validation and runtime boundary", () => {
     expect(spawn).not.toHaveBeenCalled();
   });
 
+  it("builds an immutable snapshot for a freshly checked exact PR HEAD only on explicit opt-in", () => {
+    const context = makeBuildContext();
+    const metadata = buildDogfood(
+      ["--root", context.dogfoodRoot, "--tested-head", SHA_A],
+      buildOverrides(context, { branch: "issue/verified-pr", headSha: SHA_A, originMainSha: SHA_B })
+    );
+    expect(metadata.gitSha).toBe(SHA_A);
+    expect(metadata.identity).toBe(createSnapshotIdentity(SHA_A, process.platform, process.arch));
+    expect(context.events[0]).toBe("fetch");
+
+    const drifted = makeBuildContext();
+    expect(() => buildDogfood(
+      ["--root", drifted.dogfoodRoot, "--tested-head", SHA_A],
+      buildOverrides(drifted, { branch: "issue/verified-pr", headSha: SHA_B, originMainSha: SHA_B })
+    )).toThrow("tested HEAD mismatch");
+
+    const dirty = makeBuildContext();
+    expect(() => buildDogfood(
+      ["--root", dirty.dogfoodRoot, "--tested-head", SHA_A],
+      buildOverrides(dirty, { branch: "issue/verified-pr", headSha: SHA_A, originMainSha: SHA_B, status: " M test.ts" })
+    )).toThrow("requires a clean working tree");
+  });
+
+  it("launches a distinct isolated VS Code profile for Human E2E", async () => {
+    const context = makeBuildContext();
+    const metadata = buildSelectedSnapshot(context);
+    const capture: { command?: string; args?: string[]; options?: DogfoodSpawnOptions } = {};
+    const messages: string[] = [];
+    const result = await launchDogfood(
+      ["--root", context.dogfoodRoot, "--isolated", "private fixture.nui"],
+      launchOverrides(context, {
+        spawn: failingOrSuccessfulSpawn(capture),
+        print: (message) => messages.push(message)
+      })
+    );
+
+    expect(result).toBe(0);
+    const args = capture.args ?? [];
+    expect(args[0]).toBe("--new-window");
+    expect(args[1]).toBe(`--extensionDevelopmentPath=${resolve(snapshotPathFor(context, metadata.identity), "extension")}`);
+    expect(args[4]).toBe("private fixture.nui");
+    const userDataDir = args[2]?.replace(/^--user-data-dir=/, "");
+    const extensionsDir = args[3]?.replace(/^--extensions-dir=/, "");
+    expect(args[2]).toMatch(/^--user-data-dir=/);
+    expect(args[3]).toMatch(/^--extensions-dir=/);
+    expect(userDataDir).toBeTruthy();
+    expect(extensionsDir).toBeTruthy();
+    expect(fs.statSync(userDataDir!).isDirectory()).toBe(true);
+    expect(fs.statSync(extensionsDir!).isDirectory()).toBe(true);
+    expect(userDataDir).not.toContain(snapshotPathFor(context, metadata.identity));
+    expect(messages.some((message) => message.includes("Human E2E isolated VS Code profile:"))).toBe(true);
+  });
+
   it("launches a zero-target new window with only snapshot runtime paths", async () => {
     const context = makeBuildContext();
     const metadata = buildSelectedSnapshot(context);
@@ -613,6 +666,11 @@ describe("dogfood launcher validation and runtime boundary", () => {
     expect(() => parseLaunchArguments(["first.nui", "second.nui"])).toThrow("at most one");
     expect(() => parseLaunchArguments(["--surprise"])).toThrow("Unknown dogfood:launch option");
     expect(() => parseBuildArguments(["--surprise"])).toThrow("Unknown dogfood:build option");
+    expect(parseBuildArguments(["--tested-head", SHA_A])).toEqual({ testedHead: SHA_A });
+    expect(() => parseBuildArguments(["--tested-head", "short"])).toThrow("exact lowercase 40-character");
+    expect(() => parseBuildArguments(["--tested-head", SHA_A, "--tested-head", SHA_B])).toThrow("at most once");
+    expect(parseLaunchArguments(["--isolated", "fixture.nui"])).toEqual({ isolated: true, target: "fixture.nui" });
+    expect(() => parseLaunchArguments(["--isolated", "--isolated"])).toThrow("at most once");
   });
 
   it("propagates a VS Code spawn error as a launch failure", async () => {

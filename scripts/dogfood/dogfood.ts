@@ -39,11 +39,13 @@ export type CurrentSelection = {
 export type BuildDogfoodOptions = {
   root?: string;
   repositoryPath?: string;
+  testedHead?: string;
 };
 
 export type LaunchDogfoodOptions = {
   root?: string;
   target?: string;
+  isolated?: boolean;
 };
 
 export type DogfoodFileSystem = Pick<typeof fs,
@@ -90,8 +92,8 @@ export type DogfoodDependencies = {
 
 export type DogfoodDependencyOverrides = Partial<DogfoodDependencies> & { repositoryPath?: string };
 
-export type ParsedBuildArguments = { root?: string };
-export type ParsedLaunchArguments = { root?: string; target?: string };
+export type ParsedBuildArguments = { root?: string; testedHead?: string };
+export type ParsedLaunchArguments = { root?: string; target?: string; isolated?: boolean };
 
 const runGitText = (repositoryPath: string, args: string[]): string =>
   execFileSync("git", args, { cwd: repositoryPath, encoding: "utf8" });
@@ -165,6 +167,7 @@ export const resolveDogfoodRoot = (
 
 export const parseBuildArguments = (argv: readonly string[]): ParsedBuildArguments => {
   let root: string | undefined;
+  let testedHead: string | undefined;
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
     if (argument === "--root") {
@@ -173,17 +176,27 @@ export const parseBuildArguments = (argv: readonly string[]): ParsedBuildArgumen
       if (value === undefined || value === "" || value === "--") throw new Error("Missing path after --root");
       root = value;
       index += 1;
+    } else if (argument === "--tested-head") {
+      if (testedHead !== undefined) throw new Error("Use --tested-head at most once");
+      const value = argv[index + 1];
+      if (value === undefined || !isFullGitSha(value)) throw new Error("--tested-head requires an exact lowercase 40-character Git SHA");
+      testedHead = value;
+      index += 1;
     } else if (argument.startsWith("-")) {
       throw new Error(`Unknown dogfood:build option: ${argument}`);
     } else {
       throw new Error(`dogfood:build does not accept a positional target: ${argument}`);
     }
   }
-  return root === undefined ? {} : { root };
+  return {
+    ...(root === undefined ? {} : { root }),
+    ...(testedHead === undefined ? {} : { testedHead })
+  };
 };
 
 export const parseLaunchArguments = (argv: readonly string[]): ParsedLaunchArguments => {
   let root: string | undefined;
+  let isolated = false;
   const targets: string[] = [];
   let positionalOnly = false;
   for (let index = 0; index < argv.length; index += 1) {
@@ -196,6 +209,9 @@ export const parseLaunchArguments = (argv: readonly string[]): ParsedLaunchArgum
       if (value === undefined || value === "" || value === "--") throw new Error("Missing path after --root");
       root = value;
       index += 1;
+    } else if (!positionalOnly && argument === "--isolated") {
+      if (isolated) throw new Error("Use --isolated at most once");
+      isolated = true;
     } else if (!positionalOnly && argument.startsWith("-")) {
       throw new Error(`Unknown dogfood:launch option: ${argument}`);
     } else {
@@ -205,11 +221,16 @@ export const parseLaunchArguments = (argv: readonly string[]): ParsedLaunchArgum
   if (targets.length > 1) throw new Error("dogfood:launch accepts at most one file or workspace target");
   return {
     ...(root === undefined ? {} : { root }),
-    ...(targets[0] === undefined ? {} : { target: targets[0] })
+    ...(targets[0] === undefined ? {} : { target: targets[0] }),
+    ...(isolated ? { isolated: true } : {})
   };
 };
 
-const assertSourcePreconditions = (repositoryPath: string, dependencies: DogfoodDependencies): string => {
+const assertSourcePreconditions = (
+  repositoryPath: string,
+  dependencies: DogfoodDependencies,
+  testedHead?: string
+): string => {
   try {
     dependencies.fetchOrigin(repositoryPath);
   } catch (error) {
@@ -217,7 +238,7 @@ const assertSourcePreconditions = (repositoryPath: string, dependencies: Dogfood
   }
 
   const branch = dependencies.getBranch(repositoryPath);
-  if (branch !== "main") {
+  if (testedHead === undefined && branch !== "main") {
     throw new Error(`dogfood:build requires branch main; current branch is ${branch || "detached HEAD"}`);
   }
   const status = dependencies.getWorkingTreeStatus(repositoryPath);
@@ -228,8 +249,11 @@ const assertSourcePreconditions = (repositoryPath: string, dependencies: Dogfood
   if (!isFullGitSha(headSha)) throw new Error(`HEAD is not a full lowercase 40-character Git SHA: ${headSha}`);
   const originMainSha = dependencies.getOriginMainSha(repositoryPath);
   if (!isFullGitSha(originMainSha)) throw new Error(`origin/main is not a full lowercase 40-character Git SHA: ${originMainSha}`);
-  if (headSha !== originMainSha) {
+  if (testedHead === undefined && headSha !== originMainSha) {
     throw new Error(`dogfood:build requires HEAD to equal freshly fetched origin/main; HEAD=${headSha}, origin/main=${originMainSha}`);
+  }
+  if (testedHead !== undefined && headSha !== testedHead) {
+    throw new Error(`dogfood:build tested HEAD mismatch: expected ${testedHead}, actual ${headSha}`);
   }
   return headSha;
 };
@@ -670,7 +694,7 @@ export const buildDogfood = (
   const dependencies = withDependencies(dependencyOverrides);
   const root = resolveDogfoodRoot(parsed.root, dependencies);
   const effectiveRepositoryPath = resolve(dependencyOverrides.repositoryPath ?? sourceRepositoryRoot);
-  const gitSha = assertSourcePreconditions(effectiveRepositoryPath, dependencies);
+  const gitSha = assertSourcePreconditions(effectiveRepositoryPath, dependencies, parsed.testedHead);
   const identity = createSnapshotIdentity(gitSha, dependencies.platform, dependencies.architecture);
   const snapshotsDirectory = join(root, "snapshots");
   const snapshotPath = join(snapshotsDirectory, identity);
@@ -788,6 +812,21 @@ export const launchDogfood = async (
   const selected = selectedSnapshot(root, dependencies);
   const command = dependencies.environment.NUINUICAD_VSCODE_CLI ?? "code";
   const args = ["--new-window", `--extensionDevelopmentPath=${selected.extensionPath}`];
+  if (parsed.isolated) {
+    const sessionsRoot = join(root, "human-e2e-sessions");
+    dependencies.fileSystem.mkdirSync(sessionsRoot, { recursive: true });
+    const rootStat = dependencies.fileSystem.lstatSync(sessionsRoot);
+    if (rootStat.isSymbolicLink() || !rootStat.isDirectory()) {
+      throw new Error(`Refusing unsafe Human E2E session root: ${sessionsRoot}`);
+    }
+    const sessionRoot = dependencies.fileSystem.mkdtempSync(join(sessionsRoot, "session-"));
+    const userDataDir = join(sessionRoot, "user-data");
+    const extensionsDir = join(sessionRoot, "extensions");
+    dependencies.fileSystem.mkdirSync(userDataDir);
+    dependencies.fileSystem.mkdirSync(extensionsDir);
+    args.push(`--user-data-dir=${userDataDir}`, `--extensions-dir=${extensionsDir}`);
+    dependencies.print(`Human E2E isolated VS Code profile: ${sessionRoot}`);
+  }
   if (parsed.target !== undefined) args.push(parsed.target);
   const environment: NodeJS.ProcessEnv = {
     ...dependencies.environment,

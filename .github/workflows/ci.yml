@@ -159,18 +159,10 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Changed Node tests
-        if: ${{ needs.classification.outputs.full_node != 'true' }}
+      - name: Full Node tests
         env:
-          BASE_SHA: ${{ needs.classification.outputs.base_sha }}
-          VITEST_JUNIT_OUTPUT_FILE: ${{ runner.temp }}/node-changed.xml
-        run: npm test -- --changed "$BASE_SHA" --passWithNoTests
-
-      - name: Filesystem-backed binding resolution invariant
-        if: ${{ needs.classification.outputs.full_node != 'true' }}
-        env:
-          VITEST_JUNIT_OUTPUT_FILE: ${{ runner.temp }}/node-binding-resolution.xml
-        run: npm test -- test/bindingResolutionPublicSurface.test.ts
+          VITEST_JUNIT_OUTPUT_FILE: ${{ runner.temp }}/node-full.xml
+        run: npm test
 
       - name: Build VS Code extension
         if: ${{ needs.classification.outputs.vscode == 'true' }}
@@ -183,8 +175,7 @@ jobs:
         with:
           name: nuinuicad-ci-test-results-node-attempt-${{ github.run_attempt }}
           path: |
-            ${{ runner.temp }}/node-changed.xml
-            ${{ runner.temp }}/node-binding-resolution.xml
+            ${{ runner.temp }}/node-full.xml
           if-no-files-found: ignore
           retention-days: 1
 
@@ -242,12 +233,6 @@ jobs:
         if: ${{ needs.classification.outputs.full_node == 'true' }}
         run: cargo build --quiet --manifest-path rust-evaluator/Cargo.toml --example evaluate_fixture
 
-      - name: Full Node tests
-        if: ${{ needs.classification.outputs.full_node == 'true' }}
-        env:
-          VITEST_JUNIT_OUTPUT_FILE: ${{ runner.temp }}/full-node.xml
-        run: npm test
-
       - name: Lifecycle stress tests
         if: ${{ needs.classification.outputs.full_node == 'true' }}
         run: npm run test:stress:lifecycle
@@ -266,7 +251,6 @@ jobs:
           name: nuinuicad-ci-test-results-rust-parity-attempt-${{ github.run_attempt }}
           path: |
             ${{ runner.temp }}/rust-evaluator.xml
-            ${{ runner.temp }}/full-node.xml
             ${{ runner.temp }}/lifecycle-stress-*.xml
             ${{ runner.temp }}/parity.xml
           if-no-files-found: ignore
