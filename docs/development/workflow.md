@@ -11,7 +11,7 @@ This is the repository-owned execution policy for the **post-Chat/Work-unificati
 - **Independent Review** (`nuinuicad-independent-review`): a different reviewer/session reads the *exact pushed remote HEAD* against Issue/spec and actual CI coverage, returns PASS/FAIL/BLOCKED, with no implementation writes. Every changed HEAD requires applicable re-review.
 - **Human E2E session** (`nuinuicad-e2e-session`): prepare/launch an isolated native VS Code development host, provide the checklist, and record the Human's result. It is an environment-preparation skill, **not an E2E executor**. Only the Human operates the product GUI and judges E2E. Do not use MCP, Playwright, CDP, computer use, or agent-driven product E2E.
 
-There is no independent Coordinator skill. The Codex conversation orchestrates the above four responsibilities; decisions that alter product behavior belong to the Human.
+There is no independent Coordinator skill. The Codex conversation orchestrates the above four responsibilities; decisions that alter product behavior belong to the Human. At each role checkpoint, apply or verify Issue state under the [canonical Issue state-label rule](./github-issues.md#issue-state-labels), using only authorized writes; independent review remains read-only.
 
 ## Before any implementation
 
@@ -64,7 +64,7 @@ npm run dogfood:launch -- --isolated /absolute/path/to/test-fixture.nui
 The Human must explicitly declare that they are away and cannot conduct physical E2E. Location, calendar, or remote access never implies permission. During that period:
 
 1. After exact-head review PASS and required CI PASS, a PR requiring Human E2E **may** merge while its E2E status is `PENDING`; record the explicit exception and exact merge/commit on each affected Issue.
-2. Keep every such Issue **OPEN**; use `Refs #N`, not an auto-close keyword. Do not mark the Issue accepted or PASS.
+2. Keep every such Issue **OPEN**; use `Refs #N`, not an auto-close keyword. Apply the [canonical Issue state-label rule](./github-issues.md#issue-state-labels) after verified merge and throughout the remaining E2E lifecycle. Do not mark the Issue accepted or PASS.
 3. Subsequent Issues may be implemented in sequence from freshly verified current `main`, respecting checkout/owner safety.
 4. On return, use a dedicated human-test session to test the integrated `main` at an explicit SHA, one or more Issues in a single physical session. Record per-Issue scenarios, result, Human identity/date, SHA, and any integration dependencies. A single successful launch is not a blanket PASS.
 5. Close each Issue only when its Human E2E acceptance is PASS and all other gates hold. If a test FAILs, keep the Issue open and create/authorize a bounded fix-forward path; do not rewrite the failed historical result.
@@ -72,6 +72,6 @@ The Human must explicitly declare that they are away and cannot conduct physical
 
 ## Policy ownership and retired components
 
-This document owns the development lifecycle; `docs/development/github-issues.md` owns Issue types, readiness and contract structure. `AGENTS.md` owns durable product/engineering principles. Existing `scripts/dogfood/` infrastructure owns SHA-frozen native VS Code snapshot/launcher behavior.
+This document owns the development lifecycle; `docs/development/github-issues.md` owns Issue types, state labels and contract structure. `AGENTS.md` owns durable product/engineering principles. Existing `scripts/dogfood/` infrastructure owns SHA-frozen native VS Code snapshot/launcher behavior.
 
 The `dev-context` repository is retained as an unrelated historical repository but is **not a nuinuiCAD authority, dependency, router or synchronization destination** after activation. Do not resurrect its rules, the legacy `nuinuicad-luna-mcp-e2e` skill, agent-operated GUI E2E, or automatic Chat-to-Work migration.
