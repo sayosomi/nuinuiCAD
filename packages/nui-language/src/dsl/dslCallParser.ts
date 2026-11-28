@@ -419,6 +419,14 @@ export const parseNameWithModifiers = (
   return { ...parseName(source, nameSpan), modifierNames, modifierNameSpans, ...layerMembership };
 };
 
+const retiredTransformCopy = (diagnostics: DslCallDiagnostic[], span: DslSpan) =>
+  diagnostic(
+    diagnostics,
+    "transformCopy の旧構文は廃止されました。transformCopy 名前(startPoint: ..., parts: [パーツ名: コピー元]) を使用してください。",
+    span,
+    "retired-transform-copy-construction"
+  );
+
 const validateArgs = (
   category: string,
   construction: string,
@@ -436,6 +444,10 @@ const validateArgs = (
     return null;
   }
   if (!spec) {
+    if (construction === "transformCopy") {
+      retiredTransformCopy(diagnostics, constructionSpan ?? categorySpan);
+      return null;
+    }
     const bare = bareConstructionFor(construction);
     if (bare) {
       diagnostic(
@@ -607,7 +619,9 @@ export const parseDslConstructionInvocation = (
   const categories = categoriesForConstruction(construction);
   const category = selectedSpec?.category ?? categories[0];
   const payloadSpans: Record<string, DslSpan> = {};
-  if (!category) {
+  if (construction === "transformCopy") {
+    retiredTransformCopy(diagnostics, { start: 0, end: construction.length });
+  } else if (!category) {
     diagnostic(diagnostics, `未知の construction「${construction}」です。`, { start: 0, end: construction.length }, "unknown-construction", {
       key: "diagnostic.unknown-construction",
       parameters: { category: "geometry", construction }

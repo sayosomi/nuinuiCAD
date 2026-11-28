@@ -32,6 +32,7 @@ type TestDocument = {
   getText: () => string;
   offsetAt: (position: { line: number; character: number }) => number;
   positionAt: (offset: number) => vscode.Position;
+  lineAt: (line: number) => { range: vscode.Range };
 };
 
 const disposable = () => ({ dispose: vi.fn() });
@@ -147,7 +148,7 @@ import issue1490 from "../../test/fixtures/issue-1490/matrix.json";
 import { canonicalRegressionFiles, canonicalRegressionRanges } from "../../test/canonicalRegressionSource";
 import { compileFreshCanonicalText, isLastGoodDslDocument } from "@nuinuicad/nui-language/document";
 import type { LastGoodDslDocument } from "@nuinuicad/nui-language/document";
-import { compileDslDocument, createDslSemanticOccurrenceIndex, createModuleRuntimeContext, queryDslCompletion, sourceOwnerForRuntimeElementId } from "@nuinuicad/nui-language";
+import { compileDslDocument, createDslSemanticOccurrenceIndex, createModuleRuntimeContext, queryDslCompletion, queryDslReferencePickTarget, sourceOwnerForRuntimeElementId } from "@nuinuicad/nui-language";
 import {
   analyzeMultiDocumentModuleSemantics,
   buildMultiDocumentImportGraph,
@@ -160,6 +161,10 @@ import { CanvasImageResources } from "./canvasImageResources";
 import { canvasImageSourceUrl } from "../../src/vscode/canvasImageResources";
 import { canonicalVscodeDocumentId, observeVscodeMultiDocumentGraphPhases, VscodeMultiDocumentHost } from "./multiDocumentHost";
 import { createVscodeModuleMultiDocumentHost } from "./moduleMultiDocumentHost";
+import { referencePickCandidates } from "../../src/model/referencePickCandidates";
+import { prepareRustEvaluation } from "../../src/geometry/rustEvaluationRunner";
+import { createNuiDefinitionProvider } from "./definitionProvider";
+import { createNuiReferenceProvider } from "./referenceProvider";
 import { createNuiRenameProvider } from "./renameProvider";
 import { createNuiCompletionProvider, normalizedOffsetAt, normalizedPositionAt } from "./completionProvider";
 import { evaluateElements } from "../../src/geometry/evaluate";
@@ -181,7 +186,10 @@ const documentFor = (
   isDirty: options.dirty ?? false,
   getText: () => source,
   offsetAt: (position) => normalizedOffsetAt(source, position),
-  positionAt: (offset) => normalizedPositionAt(source, offset)
+  positionAt: (offset) => normalizedPositionAt(source, offset),
+  lineAt: (line) => ({
+    range: new vscode.Range(new vscode.Position(line, 0), new vscode.Position(line, source.split("\n")[line]?.length ?? 0))
+  })
 });
 
 const issue1609RootSourceFor = (testCase: "A" | "B" | "D" | "E" | "F") => {
@@ -3743,7 +3751,13 @@ export module Helper(x: number) {
       writeFileSync(rootPath, rootSource);
       writeFileSync(libraryPath, librarySource);
       mocks.files.set(libraryPath, encoder.encode(readFileSync(libraryPath, "utf8")));
-      const root = documentFor(rootPath, readFileSync(rootPath, "utf8"));
+      let currentText = readFileSync(rootPath, "utf8");
+      const root = {
+        ...documentFor(rootPath, currentText),
+        getText: () => currentText,
+        offsetAt: (position: { line: number; character: number }) => normalizedOffsetAt(currentText, position),
+        positionAt: (offset: number) => normalizedPositionAt(currentText, offset)
+      };
       mocks.textDocuments = [root];
       const host = createVscodeModuleMultiDocumentHost();
       host.start();
@@ -3756,9 +3770,10 @@ export module Helper(x: number) {
         const compiled = imported ? semantic?.compiled : compileFreshCanonicalText(rootSource).doc;
         expect(compiled?.diagnostics.filter(diagnostic => diagnostic.severity === "error")).toEqual([]);
         expect(compiled?.document?.elements.map(element => element.name)).toContain("local");
-        if (!imported || !compiled?.document) return;
+        if (!compiled || !isLastGoodDslDocument(compiled)) throw new Error("Expected the current compiled root");
         const current = latestCurrentPublicationFor(root.uri.toString());
-        const prepared = current?.canvasRuntime?.preparedRustEvaluation;
+        const prepared = imported ? current?.canvasRuntime?.preparedRustEvaluation
+          : prepareRustEvaluation(compiled.document.elements, buildEvaluationOptions({ compiledDocument: compiled, evaluationLimitIndex: compiled.document.evaluationLimitIndex }));
         expect(prepared?.rustEligible).toBe(true);
         if (!prepared) throw new Error("Expected the current host's Rust input");
         const rust = createRustStdioParityClient(process.cwd());
@@ -3779,8 +3794,149 @@ export module Helper(x: number) {
             expect(id).toBeDefined();
             expect(evaluationPayloadToResult(payload).computedGeometry.get(id!)).toMatchObject(endpoints);
           }
+          if (importedParts) {
+            const offset = rootSource.indexOf("C::local.start");
+            const sourceRevision = compiled.spans.sourceMap.sourceRevision;
+            const target = queryDslReferencePickTarget({
+              source: { normalizedSource: rootSource, sourceRevision },
+              position: offset,
+              semantic: { sourceRevision, sourceText: rootSource, compiled }
+            });
+            expect(target).toBeTruthy();
+            const result = evaluationPayloadToResult(payload);
+            const candidates = referencePickCandidates({ compiled, evaluation: result, target });
+            for (const [name, x, y] of [["local", 100, 60], ["first", 110, 50], ["second", 140, 50]] as const) {
+              const id = input.elements.find(element => element.name === name)?.id;
+              const candidate = candidates.find(entry => entry.elementId === id);
+              expect(candidate?.options).toContainEqual(expect.objectContaining({
+                reference: { base: `C::${name}`, pointKey: "start" },
+                point: expect.objectContaining({ x, y })
+              }));
+            }
+          }
         } finally {
           rust.dispose();
+        }
+        if (importedParts) {
+          const editorDocument = root as unknown as vscode.TextDocument;
+          const session = vi.fn(() => createLanguageAnalysisSession(rootSource));
+          const rename = createNuiRenameProvider(session);
+          const definition = createNuiDefinitionProvider(session);
+          const references = createNuiReferenceProvider(session);
+          const projectRoot = async (next: string) => {
+            currentText = next;
+            root.version += 1;
+            root.isDirty = true;
+            mocks.changeListeners[0]?.({ document: root });
+            await vi.waitFor(() => expect(host.diagnosticsStateFor(editorDocument)).toMatchObject({
+              status: "current", documentVersion: root.version, owner: "multi-document"
+            }));
+            const active = await host.languageSemanticSnapshotFor(root);
+            if (!active?.compiled) throw new Error("Expected the edited graph's compiled root");
+            return active.compiled;
+          };
+          const head = rootSource.indexOf("transformCopy C") + "transformCopy ".length;
+          const local = rootSource.indexOf("local: L");
+          const first = rootSource.indexOf("first: I");
+          const useLocal = rootSource.indexOf("C::local.start");
+          const useFirst = rootSource.indexOf("C::first.end");
+          let renamedSource = "";
+          for (const [oldName, newName, offsets] of [
+            ["C", "Renamed", [head, useLocal, useFirst]],
+            ["local", "edgeLocal", [local, useLocal + "C::".length]]
+          ] as const) {
+            for (const offset of offsets.slice(0, 2)) {
+              const position = root.positionAt(offset);
+              expect(await rename.prepareRename!(editorDocument, position, undefined as never)).toMatchObject({ placeholder: oldName });
+              const edit = await rename.provideRenameEdits!(editorDocument, position, newName, undefined as never);
+              expect(edit).toBeInstanceOf(vscode.WorkspaceEdit);
+              const changes = (edit as unknown as { replacements: Array<{ uri: TestUri; range: vscode.Range; newText: string }> }).replacements;
+              expect(changes.map(change => [change.uri.fsPath, root.offsetAt(change.range.start), root.offsetAt(change.range.end), change.newText]))
+                .toEqual(offsets.map(from => [rootPath, from, from + oldName.length, newName]));
+              if (oldName === "C") {
+                renamedSource = [...changes].reverse().reduce((source, change) =>
+                  source.slice(0, root.offsetAt(change.range.start)) + change.newText + source.slice(root.offsetAt(change.range.end)), rootSource);
+              }
+              const locations = await references.provideReferences(editorDocument, position, { includeDeclaration: true }, undefined as never);
+              expect(locations?.map(location => [location.uri.fsPath, root.offsetAt(location.range.start), root.offsetAt(location.range.end)]))
+                .toEqual(offsets.map(from => [rootPath, from, from + oldName.length]));
+            }
+          }
+          for (const [use, tokenOffsets, declaration, name] of [
+            [useLocal, [0, 3, 9], local, "local"],
+            [useFirst, [0, 3, 9], first, "first"]
+          ] as const) {
+            for (const offset of tokenOffsets) {
+              const links = await definition.provideDefinition(editorDocument, root.positionAt(use + offset), undefined as never) as vscode.DefinitionLink[];
+              expect(links).toHaveLength(1);
+              expect(links[0]?.targetUri.fsPath).toBe(rootPath);
+              expect(root.offsetAt(links[0]!.targetSelectionRange!.start)).toBe(declaration);
+              expect(root.offsetAt(links[0]!.targetSelectionRange!.end)).toBe(declaration + name.length);
+            }
+          }
+          for (const [name, from] of [["local", local], ["first", first]] as const) {
+            const member = compiled.document.elements.find(element => element.name === name)!;
+            const target = await host.canvasSourceDefinitionFor(editorDocument, member.id);
+            expect(target).toMatchObject({ handled: true, value: { targetUri: { fsPath: rootPath }, range: { from, to: from + name.length } } });
+          }
+          for (const operand of ["I::Edge", "J::Edge"]) {
+            const links = await definition.provideDefinition(editorDocument, root.positionAt(rootSource.indexOf(operand) + 3), undefined as never) as vscode.DefinitionLink[];
+            expect(links).toHaveLength(1);
+            expect(links[0]?.targetUri.fsPath).toBe(libraryPath);
+            const library = documentFor(libraryPath, librarySource);
+            expect(library.offsetAt(links[0]!.targetSelectionRange!.start)).toBe(librarySource.indexOf("Edge"));
+          }
+          await expect(rename.provideRenameEdits!(editorDocument, root.positionAt(head), "L", undefined as never)).rejects.toThrow();
+          await expect(rename.provideRenameEdits!(editorDocument, root.positionAt(local), "first", undefined as never)).rejects.toThrow();
+          const initialIds = compiled.document.elements.filter(element => ["local", "first", "second"].includes(element.name)).map(element => element.id);
+          const graphContext = compiled.moduleRuntimeContext;
+          expect(graphContext?.valid).toBe(true);
+          const rust = createRustStdioParityClient(process.cwd());
+          try {
+            const expectFirstEnd = async (x: number, y: number, expectedId?: string) => {
+              const prepared = latestCurrentPublicationFor(root.uri.toString())?.canvasRuntime?.preparedRustEvaluation;
+              if (!prepared?.rustEligible) throw new Error("Expected current Rust evaluation input");
+              const payload = await rust.evaluateInput(prepared.input);
+              expect(payload.errors).toEqual([]);
+              const first = prepared.input.elements.find(element => element.name === "first");
+              expect(first).toBeDefined();
+              if (expectedId) expect(first?.id).toBe(expectedId);
+              expect(evaluationPayloadToResult(payload).computedGeometry.get(first!.id)).toMatchObject({ end: { x, y } });
+            };
+            for (const [documentText, name] of [[renamedSource, "Renamed"], [rootSource, "C"], [renamedSource, "Renamed"], [rootSource, "C"]]) {
+              const active = await projectRoot(documentText);
+              expect(active.statements.some(statement => statement.kind === "extract" && statement.name === name)).toBe(true);
+              expect(active.document?.elements.filter(element => ["local", "first", "second"].includes(element.name)).map(element => element.id)).toEqual(initialIds);
+              expect(active.moduleRuntimeContext?.rootDocumentId).toBe(graphContext?.rootDocumentId);
+              expect(active.moduleRuntimeContext?.graph.dependencyFingerprints).toEqual(graphContext?.graph.dependencyFingerprints);
+              await expectFirstEnd(110, 70, initialIds[1]);
+            }
+            await projectRoot(rootSource.replace("Helper(x: 10)", "Helper(x: 15)"));
+            await expectFirstEnd(115, 70, initialIds[1]);
+            await projectRoot(rootSource);
+            const changeLibrary = (next: string) => {
+              writeFileSync(libraryPath, next);
+              mocks.files.set(libraryPath, encoder.encode(next));
+            };
+            changeLibrary('nui 1\nimport "./missing.nui" as Missing');
+            expect(await definition.provideDefinition(editorDocument, root.positionAt(useLocal), undefined as never)).toBeUndefined();
+            await expect(rename.provideRenameEdits!(editorDocument, root.positionAt(head), "Fresh", undefined as never)).rejects.toThrow();
+            const libraryUri = vscode.Uri.file(libraryPath) as unknown as TestUri;
+            mocks.watcherChangeListeners[0]?.(libraryUri);
+            await vi.waitFor(() => expect(latestCurrentGraphFor(root.uri.toString())?.valid).toBe(false));
+            const useOperand = root.positionAt(rootSource.indexOf("I::Edge") + 3);
+            expect(await definition.provideDefinition(editorDocument, useOperand, undefined as never)).toBeUndefined();
+            changeLibrary(librarySource.replace("end: (x, 20)", "end: (x, 24)"));
+            mocks.watcherChangeListeners[0]?.(libraryUri);
+            await vi.waitFor(() => expect(latestCurrentGraphFor(root.uri.toString())?.valid).toBe(true));
+            await expectFirstEnd(110, 74);
+            const recovered = await definition.provideDefinition(editorDocument, useOperand, undefined as never) as vscode.DefinitionLink[];
+            expect(recovered[0]?.targetUri.fsPath).toBe(libraryPath);
+            expect(await rename.prepareRename!(editorDocument, root.positionAt(head), undefined as never)).toMatchObject({ placeholder: "C" });
+          } finally {
+            rust.dispose();
+          }
+          expect(session).not.toHaveBeenCalled();
         }
       } finally {
         host.dispose();

@@ -3246,6 +3246,28 @@ describe("DrawingCanvas point dragging", () => {
     expect(hiddenView.container.querySelectorAll("[data-element-identity]")).toHaveLength(0);
   });
 
+  it("labels and hit-tests each named copy by its own drawable identity", () => {
+    const source = [
+      "nui 1",
+      "line First = segment(start: (0, 0), end: (10, 0))",
+      "line Second = segment(start: (30, 0), end: (40, 0))",
+      "transformCopy Copies(startPoint: (0, 0), endPoint: (0, 40), parts: [left: First, right: Second])"
+    ].join("\n");
+    const view = renderSourceBackedCanvas({ source });
+    const names = [...view.container.querySelectorAll("[data-element-identity]")].map(node => node.textContent);
+    expect(names).toEqual(expect.arrayContaining(["left", "right"]));
+    expect(names).not.toContain("Copies");
+    const members = view.elements.filter(element => element.name === "left" || element.name === "right");
+    expect(new Set(members.map(element => element.id)).size).toBe(2);
+    const offsetLines = members.map(element => {
+      const geometry = view.evaluation.computedGeometry.get(element.id);
+      if (geometry?.kind !== "offsetLine" || !geometry.start || !geometry.end) throw new Error("Expected a named path");
+      return { line: geometry, points: [geometry.start, geometry.end] };
+    });
+    expect(hitTestCanvasGeometry({ screen: { x: 5, y: 40 }, offsetLines, lines: [], points: [] })).toBe(members[0]!.id);
+    expect(hitTestCanvasGeometry({ screen: { x: 35, y: 40 }, offsetLines, lines: [], points: [] })).toBe(members[1]!.id);
+  });
+
   it("projects source-backed mirrorCopy Style and one live Geometry Names label per declaration", () => {
     const source = [
       "nui 1",

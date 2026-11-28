@@ -2281,6 +2281,35 @@ export const buildTypedDependencyGraph = ({
       ...(deferred.activation ? { activation: deferred.activation } : {})
     }, deferred.occurrenceNamespace);
   }
+  // A loop evaluates its templates within the loop's own scheduler turn.
+  // The owner must wait for each external input of a named-copy template.
+  const frameCopies = (geometryValueProgram ?? []).filter(entry =>
+    entry.construction.kind === "transformCopy" && entry.frameOwnerIds?.length);
+  if (frameCopies.length > 0) {
+    const valueEdges = new Map<string, TypedDependencyEdge[]>();
+    for (const edge of edges) {
+      if (edge.from.kind !== "geometry-value") continue;
+      const direct = valueEdges.get(edge.from.id) ?? [];
+      direct.push(edge);
+      valueEdges.set(edge.from.id, direct);
+    }
+    for (const entry of frameCopies) {
+      const occurrence = geometryValueOccurrenceKey(entry.occurrence);
+      for (const frameId of entry.frameOwnerIds ?? []) {
+        const ownerId = rootForGroupElementIdByStatementId.get(frameId) ??
+          moduleForGroupExecutionStatementByOwnerStatementId.get(frameId)?.runtimeElementId ?? frameId;
+        if (elementsById.get(ownerId)?.type !== "forGroup") continue;
+        const from = elementEndpoint(elementsById, ownerId, elementStatementIndex.get(ownerId) ?? 0);
+        for (const edge of valueEdges.get(occurrence) ?? []) {
+          if (edge.to.kind !== "geometry-stage") continue;
+          let input = elementsById.get(edge.to.ownerId);
+          while (input && input.id !== ownerId && input.parentGroupId) input = elementsById.get(input.parentGroupId);
+          if (input?.id === ownerId) continue;
+          add({ ...edge, from }, occurrence);
+        }
+      }
+    }
+  }
   for (const [recipeIndex, recipe] of recipes.entries()) {
     const target = recipe.targets[0];
     if (!target) continue;

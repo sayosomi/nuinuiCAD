@@ -498,8 +498,7 @@ describe("SAY-64 output core", () => {
   it("applies the owner gate to source groups without source element identity", () => {
     const doc = sourceFor([
       "nui 1",
-      "line Base = segment(start: (2, 3), end: (6, 5))",
-      "const Value: path = transformCopy(startPoint: (0, 0), endPoint: (10, 0), baseLines: [Base])",
+      "const Value: path = segment(start: (12, 3), end: (16, 5))",
       "group Placed {",
       "  line Preview = mirrorCopy(axis1: (0, 0), axis2: (0, 10), baseLines: [Value])",
       "}",
@@ -1021,6 +1020,28 @@ describe("SAY-64 output core", () => {
     expect(line?.end.y).toBeCloseTo(0);
   });
 
+  it("includes each named copy on its selected output layer with its hidden source dependency", () => {
+    const doc = sourceFor([
+      "nui 1",
+      "layer final",
+      "layer construction",
+      "group G {",
+      "  line Base in construction = segment(start: (2, 3), end: (12, 3), visible: false)",
+      "  transformCopy C in final(startPoint: (0, 0), endPoint: (0, 20), parts: [main: Base, guide in construction: Base])",
+      "}",
+      "layout L {",
+      "  place G(at: (30, 40))",
+      "}",
+      "svg S(layout: L, layers: [final])",
+      "print P(layout: L, layers: [construction], paper: a4, overlap: 0)"
+    ]);
+    const evaluation = evaluationFor(doc);
+    const svg = buildOutputPlan({ compiledDocument: doc, output: doc.document.svgOutputs[0], evaluation });
+    const print = buildOutputPlan({ compiledDocument: doc, output: doc.document.printOutputs[0], evaluation });
+    expect(svg.drawables).toMatchObject([{ name: "main", segments: [{ start: { x: 32, y: 63 }, end: { x: 42, y: 63 } }] }]);
+    expect(print.drawables).toMatchObject([{ name: "guide", segments: [{ start: { x: 32, y: 63 }, end: { x: 42, y: 63 } }] }]);
+  });
+
   it("emits supported final geometry from alternate and derived constructions", () => {
     const doc = sourceFor([
       "nui 1",
@@ -1030,7 +1051,7 @@ describe("SAY-64 output core", () => {
       "  point C = coordinate(x: 5, y: 5)",
       "  line Polar = polar(start: A, angle: 0, length: 10)",
       "  arc Through = through(point1: A, point2: B, point3: C, start: 0, end: 180)",
-      "  line Copy = transformCopy(startPoint: A, endPoint: B, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [Polar])",
+      "  transformCopy Copies_Copy(startPoint: A, endPoint: B, scale: 1, angleDeg: 0, mirrorX: false, parts: [Copy: Polar])",
       "}",
       "layout L {",
       "  place G(at: (0, 0))",

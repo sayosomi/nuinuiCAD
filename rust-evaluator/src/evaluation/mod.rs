@@ -1799,6 +1799,7 @@ fn transformation_plan_dependency_available(
 
 fn transformation_recipe_plan_ready(
     recipe_index: usize,
+    is_move: bool,
     scalar_binding_resolver: Option<&dyn ScalarDocumentBindingResolver>,
     state: &EvaluationState,
     completion: &ElementCompletionFacts<'_>,
@@ -1886,10 +1887,12 @@ fn transformation_recipe_plan_ready(
                     return false;
                 };
                 scalar_binding_resolver.is_some_and(|resolver| {
-                    matches!(
-                        resolver.resolve_binding(binding_id, state),
-                        ScalarEvaluation::Ok { .. }
-                    )
+                    match resolver.resolve_binding(binding_id, state) {
+                        ScalarEvaluation::Ok { .. } => true,
+                        ScalarEvaluation::Error { issue_code, .. } => {
+                            issue_code != "evaluation-binding-unavailable"
+                        }
+                    }
                 })
             })
         })
@@ -1906,7 +1909,18 @@ fn transformation_recipe_plan_ready(
                     dependencies.iter().all(|dependency| {
                         transformation_plan_dependency_available(
                             dependency, state, completion, scope,
-                        )
+                        ) || (*field == "argumentDependencies"
+                            && is_move
+                            && dependency
+                                .get("ownerId")
+                                .and_then(Value::as_str)
+                                .is_some_and(|owner| {
+                                    let id = scope
+                                        .and_then(|scope| scope.get(owner))
+                                        .map_or(owner, String::as_str);
+                                    completion.completed.contains(id)
+                                        && !state.base_transformation_geometry.contains_key(id)
+                                }))
                     })
                 })
                 .unwrap_or(true)
@@ -2144,8 +2158,11 @@ fn execute_transformation_invocation(
             Ok(materialized) => materialized,
             Err(errors) => {
                 state.errors.extend(errors);
-                for (id, previous) in &original {
-                    if let Some(previous) = previous {
+                for target in targets {
+                    let id = &target.runtime_owner_id;
+                    if target.stage_path.is_empty() || target.stage_path == ["final".to_owned()] {
+                        state.computed_geometry.remove(id);
+                    } else if let Some(previous) = original.get(id).and_then(Option::as_ref) {
                         state.computed_geometry.insert(id.clone(), previous.clone());
                     } else {
                         state.computed_geometry.remove(id);
@@ -2174,11 +2191,15 @@ fn execute_transformation_invocation(
         }
     }
     if state.errors.len() != error_count_before {
-        for (id, previous) in original {
-            if let Some(previous) = previous {
-                state.computed_geometry.insert(id, previous);
+        let is_move = recipe.get("construction").and_then(Value::as_str) == Some("move");
+        for target in targets {
+            let id = &target.runtime_owner_id;
+            if is_move && target.stage_path.is_empty() {
+                state.computed_geometry.remove(id);
+            } else if let Some(previous) = original.get(id).and_then(Option::as_ref) {
+                state.computed_geometry.insert(id.clone(), previous.clone());
             } else {
-                state.computed_geometry.remove(&id);
+                state.computed_geometry.remove(id);
             }
         }
         return;
@@ -2254,7 +2275,7 @@ fn execute_transformation_recipes_selected(
     state: &mut EvaluationState,
     candidate_recipe_indices: Option<&HashSet<usize>>,
     scope: Option<&HashMap<ElementId, ElementId>>,
-) {
+) -> bool {
     for (recipe_index, recipe) in recipes.iter().enumerate() {
         if candidate_recipe_indices.is_some_and(|indices| !indices.contains(&recipe_index)) {
             continue;
@@ -2356,6 +2377,7 @@ fn execute_transformation_recipes_selected(
         }
         if !transformation_recipe_plan_ready(
             recipe_index,
+            recipe.get("construction").and_then(Value::as_str) == Some("move"),
             scalar_binding_resolver,
             state,
             completion,
@@ -2516,9 +2538,20 @@ fn execute_transformation_recipes_selected(
                 state
                     .completed_transformation_recipe_indices
                     .insert(recipe_index);
+                if candidate_recipe_indices.is_none()
+                    && recipe.get("construction").and_then(Value::as_str) == Some("move")
+                    && recipe
+                        .get("runtimeInstancePath")
+                        .and_then(Value::as_array)
+                        .is_some_and(|path| !path.is_empty())
+                {
+                    // Publish the body snapshot before subsequent caller recipes.
+                    return true;
+                }
             }
         }
     }
+    false
 }
 
 #[cfg(test)]
@@ -3088,6 +3121,35 @@ fn evaluate_document_input_with_scalar_program(
                     })
                     .collect::<Vec<_>>();
                 let instance_path = &snapshot.instance_path;
+                let mut failed_body_move = false;
+                let pending_body_move = !instance_path.is_empty()
+                    && transformation_recipes.iter().enumerate().any(|(index, recipe)| {
+                        if recipe.get("construction").and_then(Value::as_str) != Some("move")
+                            || recipe.get("enabled").and_then(Value::as_bool) == Some(false)
+                            || !recipe.get("runtimeInstancePath").and_then(Value::as_array).is_some_and(|path| {
+                                path.len() >= instance_path.len() && instance_path.iter().zip(path).all(|(part, value)| value.as_str() == Some(part))
+                            })
+                        {
+                            return false;
+                        }
+                        if recipe.get("id").and_then(Value::as_str).is_some_and(|id| state.errors.iter().any(|error| error.element_id == id)) {
+                            failed_body_move = true;
+                        }
+                        !state.completed_transformation_recipe_indices.contains(&index)
+                            && recipe.get("targets").and_then(Value::as_array).is_some_and(|targets| targets.iter().any(|target| {
+                                target.get("ownerId").and_then(Value::as_str).is_some_and(|owner| {
+                                    state.computed_geometry.contains_key(owner) ||
+                                    state.for_group_generated_rows.iter().any(|row| row.template_element_id == owner &&
+                                        state.computed_geometry.contains_key(&row.generated_element_id) &&
+                                        !state.completed_transformation_targets.get(&index).is_some_and(|done| done.contains(&row.generated_element_id))
+                                    )
+                                })
+                            }))
+                    });
+                if pending_body_move {
+                    continue;
+                }
+
                 let has_unevaluated_geometry_value =
                     geometry_value_program
                         .iter()
@@ -3118,7 +3180,8 @@ fn evaluate_document_input_with_scalar_program(
                     || runtime_descendant_ids
                         .iter()
                         .any(|id| state.errors.iter().any(|error| &error.element_id == id))
-                    || has_geometry_value_failure;
+                    || has_geometry_value_failure
+                    || failed_body_move;
                 // A failed body is unavailable to consumers immediately;
                 // private alias completion must not postpone that fact.
                 if failed {
@@ -3707,6 +3770,101 @@ fn evaluate_document_input_with_scalar_program(
     }
     let mut scheduled_indices = Vec::with_capacity(pending_indices.len());
 
+    macro_rules! run_ready_transformation_recipes {
+        () => {{
+            loop {
+                let recipe_rank = state
+                    .transformation_dependency_plans
+                    .as_ref()
+                    .and_then(Value::as_array)
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|plan| {
+                        let index = plan.get("recipeIndex")?.as_u64()? as usize;
+                        if state
+                            .completed_transformation_recipe_indices
+                            .contains(&index)
+                            || plan.get("scalarPrerequisites")?.as_array()?.is_empty()
+                        {
+                            return None;
+                        }
+                        let id = plan.get("recipeId")?.as_str()?;
+                        dependency_rank_by_endpoint_id
+                            .get(&format!("transformation-recipe:recipe:{id}"))
+                            .copied()
+                    })
+                    .max();
+                if let (Some(rank), Some(resolver)) =
+                    (recipe_rank, scalar_mutation_resolver.as_mut())
+                {
+                    // Release graph-ready immutable inputs without crossing
+                    // authored scalar events or retiring active control scopes.
+                    let ready = ready_binding_ids_for_source_order(
+                        0,
+                        &conditional_branch_selections,
+                        &state,
+                        &binding_execution_positions,
+                        &early_binding_ids,
+                        &evaluated_geometry_value_entries,
+                        Some(resolver),
+                        &completed_element_ids,
+                    );
+                    resolver.advance_before_with_execution_position(
+                        0,
+                        Some(rank as f64),
+                        &DependencyBindingSchedule {
+                            early_binding_ids: &early_binding_ids,
+                            execution_positions: &binding_execution_positions,
+                            prerequisites: &binding_prerequisites_by_id,
+                        },
+                        &ready,
+                        conditional_dependency_graph.is_some(),
+                        &mut state,
+                    );
+                }
+                let completed_before = state.completed_transformation_recipe_indices.len();
+                let completed_body_move = execute_transformation_recipes_selected(
+                    &transformation_recipes,
+                    &numeric_entries_by_element_id,
+                    scalar_mutation_resolver
+                        .as_ref()
+                        .map(|resolver| resolver as &dyn ScalarDocumentBindingResolver)
+                        .or_else(|| {
+                            scalar_binding_resolver
+                                .as_ref()
+                                .map(|resolver| resolver as &dyn ScalarDocumentBindingResolver)
+                        }),
+                    &ElementCompletionFacts {
+                        completed: &completed_element_ids,
+                        failed: &failed_element_ids,
+                    },
+                    &mut state,
+                    None,
+                    None,
+                );
+                if completed_body_move {
+                    capture_completed_instances(
+                        &mut state,
+                        &completed_element_ids,
+                        &mut captured_instance_ids,
+                        &mut completed_instance_ids,
+                        &mut failed_instance_ids,
+                        &failed_element_ids,
+                        &evaluation_limit_excluded_element_ids,
+                        &evaluated_geometry_value_entries,
+                        None,
+                    );
+                }
+                if !completed_body_move
+                    && (recipe_rank.is_none()
+                        || completed_before == state.completed_transformation_recipe_indices.len())
+                {
+                    break;
+                }
+            }
+        }};
+    }
+
     'elements: while !pending_indices.is_empty() {
         let pending_element_index = pending_indices[0];
         let pending_element = &state.elements[pending_element_index];
@@ -4191,6 +4349,7 @@ fn evaluate_document_input_with_scalar_program(
                 evaluated_geometry_value_entries[geometry_value_index] = true;
             }
         }
+        run_ready_transformation_recipes!();
         let active_scalar_binding_resolver: Option<&dyn ScalarDocumentBindingResolver> =
             scalar_mutation_resolver
                 .as_ref()
@@ -4202,28 +4361,6 @@ fn evaluate_document_input_with_scalar_program(
                 });
         let geometry_input_scalar_binding_resolver: &dyn ScalarDocumentBindingResolver =
             active_scalar_binding_resolver.unwrap_or(&empty_geometry_value_resolver);
-        macro_rules! run_transformation_recipes_through {
-            ($source_order:expr) => {
-                execute_transformation_recipes_through(
-                    &transformation_recipes,
-                    &numeric_entries_by_element_id,
-                    scalar_mutation_resolver
-                        .as_ref()
-                        .map(|resolver| resolver as &dyn ScalarDocumentBindingResolver)
-                        .or_else(|| {
-                            scalar_binding_resolver
-                                .as_ref()
-                                .map(|resolver| resolver as &dyn ScalarDocumentBindingResolver)
-                        }),
-                    &ElementCompletionFacts {
-                        completed: &completed_element_ids,
-                        failed: &failed_element_ids,
-                    },
-                    &mut state,
-                    None,
-                )
-            };
-        }
         macro_rules! complete_attempt_and_continue {
             () => {{
                 completed_element_ids.insert(id.clone());
@@ -4238,13 +4375,12 @@ fn evaluate_document_input_with_scalar_program(
                     &evaluated_geometry_value_entries,
                     Some(&id),
                 );
-                run_transformation_recipes_through!(current_execution_position);
+                run_ready_transformation_recipes!();
                 continue 'elements;
             }};
         }
-        run_transformation_recipes_through!(current_execution_position - 0.5);
         if template_descendant_ids.contains(&id) {
-            run_transformation_recipes_through!(current_execution_position);
+            run_ready_transformation_recipes!();
             continue;
         }
         if let Some(condition_group_id) =
@@ -4256,11 +4392,11 @@ fn evaluate_document_input_with_scalar_program(
                 .entry(id.clone())
                 .or_default()
                 .disabled_by_group_id = Some(condition_group_id);
-            run_transformation_recipes_through!(current_execution_position);
+            run_ready_transformation_recipes!();
             complete_attempt_and_continue!();
         }
         if !base_effective_enabled_ids.contains(&id) {
-            run_transformation_recipes_through!(current_execution_position);
+            run_ready_transformation_recipes!();
             complete_attempt_and_continue!();
         }
         if effective_enabled_ids.insert(id.clone()) {
@@ -4311,7 +4447,7 @@ fn evaluate_document_input_with_scalar_program(
                     }
                     Err(errors) => {
                         state.errors.extend(errors);
-                        run_transformation_recipes_through!(current_execution_position);
+                        run_ready_transformation_recipes!();
                         complete_attempt_and_continue!();
                     }
                 }
@@ -4352,7 +4488,7 @@ fn evaluate_document_input_with_scalar_program(
             if let Some(resolver) = scalar_mutation_resolver.as_mut() {
                 resolver.register_conditional_result(&id, active_branch);
             }
-            run_transformation_recipes_through!(current_execution_position);
+            run_ready_transformation_recipes!();
             complete_attempt_and_continue!();
         }
 
@@ -4364,7 +4500,7 @@ fn evaluate_document_input_with_scalar_program(
                 Some(current_execution_position),
                 &mut state,
             ) else {
-                run_transformation_recipes_through!(current_execution_position);
+                run_ready_transformation_recipes!();
                 complete_attempt_and_continue!();
             };
 
@@ -4458,7 +4594,7 @@ fn evaluate_document_input_with_scalar_program(
                     );
                     break 'elements;
                 }
-                run_transformation_recipes_through!(current_execution_position);
+                run_ready_transformation_recipes!();
                 complete_attempt_and_continue!();
             }
 
@@ -4492,7 +4628,7 @@ fn evaluate_document_input_with_scalar_program(
                 &[],
                 &mut state,
             );
-            run_transformation_recipes_through!(current_execution_position);
+            run_ready_transformation_recipes!();
             complete_attempt_and_continue!();
         }
 
@@ -4527,7 +4663,7 @@ fn evaluate_document_input_with_scalar_program(
                                     "{element_name} の geometry collection index を評価できません。({issue_code})"
                                 ),
                             ));
-                            run_transformation_recipes_through!(current_execution_position);
+                            run_ready_transformation_recipes!();
                             complete_attempt_and_continue!();
                         }
                         state.elements[index] = materialized_element.clone();
@@ -4567,7 +4703,7 @@ fn evaluate_document_input_with_scalar_program(
                             "{element_name} の geometry collection index を評価できません。({issue_code})"
                         ),
                     ));
-                    run_transformation_recipes_through!(current_execution_position);
+                    run_ready_transformation_recipes!();
                     complete_attempt_and_continue!();
                 }
                 state.elements[index] = element.clone();
@@ -4610,28 +4746,9 @@ fn evaluate_document_input_with_scalar_program(
             &evaluated_geometry_value_entries,
             Some(&id),
         );
-        run_transformation_recipes_through!(current_execution_position);
+        run_ready_transformation_recipes!();
     }
-    let final_scalar_binding_resolver: Option<&dyn ScalarDocumentBindingResolver> =
-        scalar_mutation_resolver
-            .as_ref()
-            .map(|resolver| resolver as &dyn ScalarDocumentBindingResolver)
-            .or_else(|| {
-                scalar_binding_resolver
-                    .as_ref()
-                    .map(|resolver| resolver as &dyn ScalarDocumentBindingResolver)
-            });
-    execute_transformation_recipes_through(
-        &transformation_recipes,
-        &numeric_entries_by_element_id,
-        final_scalar_binding_resolver,
-        &ElementCompletionFacts {
-            completed: &completed_element_ids,
-            failed: &failed_element_ids,
-        },
-        &mut state,
-        None,
-    );
+    run_ready_transformation_recipes!();
     let computed_geometry_values_before_terminal_release = state
         .computed_geometry_values
         .keys()

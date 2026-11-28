@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { compileDslToElements } from "@nuinuicad/nui-language";
+import { compileFreshCanonicalText } from "@nuinuicad/nui-language/document";
 import { parseDsl } from "@nuinuicad/nui-language";
 import type { DiagnosticSpanContext } from "@nuinuicad/nui-language";
 import type { CadElement, ElementId } from "../types/geometry";
@@ -159,17 +160,21 @@ describe("compilePropertyBindings: opted-in properties resolve to a binding sour
   });
 
   it("transformCopy mirrorX", () => {
-    const constructionLine = "line C = transformCopy(startPoint: A, endPoint: B, scale: 1, angleDeg: 0, mirrorX: 反転, baseLines: [AB])";
-    const compiled = compileFor([
+    const constructionLine = "transformCopy C(startPoint: A, endPoint: B, mirrorX: 反転, parts: [part: AB])";
+    const source = [
+      "nui 1",
       "const 反転: boolean = true",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "line AB = segment(start: A, end: B)",
       constructionLine
-    ].join("\n"));
-    const { sourcesByOccurrenceKey, diagnostics } = compilePropertyBindings(compiled);
-    expect(diagnostics).toEqual([]);
-    expect(sourcesByOccurrenceKey.get(propertyBindingOccurrenceKey(4, "mirrorX"))).toMatchObject({ kind: "binding", type: { kind: "boolean" } });
+    ].join("\n");
+    const compiled = compileFreshCanonicalText(source).currentCompiled;
+    expect(compiled.diagnostics).toEqual([]);
+    const part = (compiled.moduleSemanticAnalysis ?? compiled.sourceSemanticAnalysis)?.geometryValues.find(value => value.name === "part");
+    expect(part?.construction).toMatchObject({
+      kind: "transformCopy", mirrorX: { references: [{ name: "反転", resolution: "resolved" }] }
+    });
   });
 
   it("image.mirrorX", () => {

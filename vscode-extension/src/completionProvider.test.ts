@@ -981,15 +981,14 @@ describe("VS Code native nui completion provider", () => {
     }
   });
 
-  it("offers transformCopy and its existing argument names through the native provider", () => {
+  it("offers transformCopy declaration arguments through the native provider", () => {
     const constructionItems = itemsFor("nui 1\nline L = tran");
-    expect(constructionItems.map((item) => item.label)).toContain("transformCopy");
+    expect(constructionItems.map((item) => item.label)).not.toContain("transformCopy");
     expect(constructionItems.map((item) => item.label)).not.toContain("copy");
-    expect(constructionItems.find((item) => item.label === "transformCopy")?.insertText).toBe("transformCopy");
 
-    const argumentItems = itemsFor("nui 1\nline L = transformCopy(");
+    const argumentItems = itemsFor("nui 1\ntransformCopy C(");
     expect(argumentItems.map((item) => item.label)).toEqual(expect.arrayContaining([
-      "startPoint", "endPoint", "scale", "angleDeg", "mirrorX", "baseLines"
+      "startPoint", "endPoint", "scale", "angleDeg", "mirrorX", "parts"
     ]));
   });
 

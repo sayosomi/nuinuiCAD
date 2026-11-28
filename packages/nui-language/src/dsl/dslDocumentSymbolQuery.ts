@@ -34,10 +34,11 @@ export type DslDocumentSymbolQueryInput = {
   sourceMap: LogicalStatementSourceMap;
 };
 
-type StructuralSymbolKind = "moduleDefinition" | "modifierDefinition" | "group" | "conditionalGroup" | "forGroup";
+type StructuralSymbolKind = "moduleDefinition" | "modifierDefinition" | "group" | "conditionalGroup" | "forGroup" | "transformCopy";
 
 const structuralSymbolKindOf = (statement: DslStatement): StructuralSymbolKind | null => {
   if (statement.kind === "moduleDefinition" || statement.kind === "modifierDefinition" || statement.kind === "group") return statement.kind;
+  if (statement.kind === "extract" && statement.declaration === "transformCopy") return "transformCopy";
   if (statement.kind !== "element") return null;
   return statement.type === "conditionalGroup" || statement.type === "forGroup"
     ? statement.type
@@ -116,6 +117,12 @@ const leafSymbolFor = (
       ? { name: statement.name, detail: "", kind: "object", range, selectionRange, children: [] }
       : null;
   }
+  if (statement.kind === "extract" && statement.declaration === "transformCopy") {
+    const selectionRange = symbolNameSelectionRange(statement, source);
+    return selectionRange
+      ? { name: statement.name, detail: "transformCopy", kind: "namespace", range, selectionRange, children: [] }
+      : null;
+  }
   if (statement.kind === "group") {
     const selectionRange = symbolNameSelectionRange(statement, source);
     return selectionRange
@@ -148,7 +155,7 @@ const leafSymbolFor = (
       ? { name: statement.name, detail: "", kind: "struct", range, selectionRange, children: [] }
       : null;
   }
-  if (statement.kind !== "element" || !statement.name || !isNamedGeometryCategory(statement.category)) return null;
+  if (statement.kind !== "element" || !statement.name || (!isNamedGeometryCategory(statement.category) && statement.extractPart?.declaration !== "transformCopy")) return null;
 
   const selectionRange = symbolNameSelectionRange(statement, source);
   if (!selectionRange) return null;
@@ -163,7 +170,7 @@ const leafSymbolFor = (
     name: statement.name,
     detail: detailWithModifiers(statement.category, statement.modifierNames),
     kind,
-    range,
+    range: statement.extractPart?.declaration === "transformCopy" ? selectionRange : range,
     selectionRange,
     children: []
   };
@@ -282,6 +289,7 @@ const structuralSymbolFor = (
 ): DslDocumentSymbol | null => {
   const structuralKind = structuralSymbolKindOf(statement);
   if (!structuralKind) return null;
+  if (structuralKind === "transformCopy") return leafSymbolFor(statement, source);
   const range = structuralRangeFor(statement, statementIndex, blocks, source);
   if (!range) return null;
   if (structuralKind === "conditionalGroup") {

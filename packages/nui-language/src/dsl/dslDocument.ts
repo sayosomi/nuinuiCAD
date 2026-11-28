@@ -2090,6 +2090,24 @@ export const compileDslDocument = (
             }
           }
         }
+        if (lookup.kind === "resolved" && lookup.declaration.statement.kind === "element" &&
+            lookup.declaration.statement.extractPart?.declaration === "transformCopy") {
+          const targetSourceOrder = lookup.declaration.statementIndex;
+          const elementId = compiled.elementIdsByStatementIndex?.get(targetSourceOrder);
+          if (!elementId) return null;
+          const stage = resolveTransformationStageSelection({
+            useStatementIndex: statementIndex,
+            ownerId: elementId,
+            members: node.property.split("."),
+            recipes: compiled.runtimeTransformationRecipes ?? compiled.transformationRecipes ?? []
+          });
+          const property = stage.propertyPath.join(".");
+          if (!numericGeometryPropertySupportedByStaticTarget({ kind: "family", family: "genericPath" }, property)) return null;
+          return {
+            elementId, property, stagePath: stage.stagePath, targetSourceOrder,
+            type: { kind: "number" as const }
+          };
+        }
         if (lookup.kind !== "resolved" ||
             lookup.declaration.kind !== "typedDeclaration" ||
             lookup.declaration.statement.kind !== "typedDeclaration" ||

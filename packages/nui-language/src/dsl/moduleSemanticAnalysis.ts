@@ -3324,23 +3324,6 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       const value = selected ? scalarForSpan(selected.valueSpan, { kind: "number" }, "0") : null;
       return value ? { kind: hasDistance ? "distance" as const : "ratio" as const, value } : null;
     };
-    const pointReference = (candidate: typeof xArgument): ModuleGeometryReferenceSemantic => candidate
-      ? resolveGeometry(
-          statementIndex,
-          ownerIndex,
-          source.slice(candidate.valueSpan.start, candidate.valueSpan.end),
-          candidate.valueSpan,
-          "point",
-          {
-            expectedInterfaceType: "point",
-            allowCoordinate: true,
-            role: "pointReference",
-            scalarResolver: options.scalarResolver,
-            bareScalarResolver: options.bareScalarResolver,
-            geometryPropertyResolver: geometryPropertyResolver
-          }
-        )
-      : geometryReference("", constructionSpan, "point", null, "invalid", null, "pointReference");
     const pathReferences = (candidate: typeof xArgument): ModuleGeometryReferenceSemantic[] => {
       if (!candidate) return [geometryReference("", constructionSpan, "line", null, "invalid", null, "lineReference")];
       const sourcesSpan = candidate.valueSpan;

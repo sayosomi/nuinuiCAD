@@ -185,19 +185,19 @@ describe("#1497 sealed affine-copy mathematical conformance", () => {
       // references. Keep the files and hashes untouched, then project their
       // old reference spelling into the current nui1 form for evaluation.
       const currentSyntaxSource = canonicalNui1References(source);
-      const authoredSource = canonicalRegressionSource(currentSyntaxSource);
+      const authoredSource = canonicalRegressionSource(canonicalRegressionSource(source) === source ? currentSyntaxSource : source);
       const authoredCompiled = compileCanonicalText(current, authoredSource);
       expectLegacyMirrorDiagnostics(currentSyntaxSource, authoredCompiled);
-      const controlSource = sourceForNonMirrorControls(currentSyntaxSource);
-      const compiled = controlSource === currentSyntaxSource
+      const controlSource = sourceForNonMirrorControls(authoredSource);
+      const compiled = controlSource === authoredSource
         ? authoredCompiled
-        : compileCanonicalText(current, canonicalRegressionSource(controlSource));
+        : compileCanonicalText(current, controlSource);
       observations.push({
         id: unit.id,
         file: checkpoint.file,
         phase: "compile",
         diagnostics: authoredCompiled.diagnostics,
-        evaluatedSourceHasMirrorOnlyRemovals: controlSource !== currentSyntaxSource
+        evaluatedSourceHasMirrorOnlyRemovals: controlSource !== authoredSource
       });
       expect(compiled.status, JSON.stringify({ file: checkpoint.file, controlSource, diagnostics: compiled.diagnostics })).not.toBe("fatal");
       expect(compiled.diagnostics).toEqual([]);
@@ -245,16 +245,40 @@ describe("#1497 sealed affine-copy mathematical conformance", () => {
           if (owner) mirrorPreviewsByName.set(owner.name, preview);
         }
         try {
-          expect(result.errors).toHaveLength(Object.keys(checkpoint.errors ?? {}).length);
+          // Migrated copies have a drawable diagnostic and an occurrence
+          // diagnostic. Explicit join owns the original continuity check.
+          const expectedDrawables = new Map(Object.entries(checkpoint.errors ?? {}));
+          const expectedPure = new Map(Object.entries(checkpoint.pureErrors ?? {})
+            .filter(([name]) => !mirrorPureNames.has(name)));
           for (const [name, message] of Object.entries(checkpoint.errors ?? {})) {
+            if (message === "reverse") {
+              expectedDrawables.set(`Sources_${name}`, "chain end");
+              expectedDrawables.set(name, "source geometry");
+              expectedPure.set(name, "member source is unavailable");
+            } else if (name === "Zero") {
+              expect(message).toBe("0");
+              expectedDrawables.set(name, "source geometry");
+              expectedPure.set(name, "scale must be a finite positive number");
+            }
+          }
+          if (expectedPure.has("Negative")) {
+            const part = compiled.doc.statements.find(statement =>
+              statement.kind === "element" && statement.extractPart?.declaration === "transformCopy" &&
+              statement.enclosing && compiled.doc.statements[statement.enclosing.statementIndex]?.name === "Copies_Negative"
+            );
+            expect(part?.name).toBe("part");
+            expectedDrawables.set("part", "source geometry");
+            expectedPure.set("part", expectedPure.get("Negative")!);
+            expectedPure.set("Negative", "reference is unavailable");
+          }
+          expect(result.errors).toHaveLength(expectedDrawables.size);
+          for (const [name, message] of expectedDrawables) {
             const element = compiled.doc.document.elements.find(e => e.name === name)!;
             expect(result.errors.find(e => e.elementId === element.id)?.message).toContain(message);
-            expect(byName[name]).toBeUndefined();
+            expect(result.computedGeometry.has(element.id)).toBe(false);
           }
-          const expectedPureRuntimeErrors = Object.entries(checkpoint.pureErrors ?? {})
-            .filter(([name]) => !mirrorPureNames.has(name));
-          expect(result.geometryValueErrors ?? []).toHaveLength(expectedPureRuntimeErrors.length);
-          for (const [name, message] of expectedPureRuntimeErrors) {
+          expect(result.geometryValueErrors ?? []).toHaveLength(expectedPure.size);
+          for (const [name, message] of expectedPure) {
             expect(pureErrorByName.get(name)).toContain(message);
             expect(pureByName.has(name)).toBe(false);
           }

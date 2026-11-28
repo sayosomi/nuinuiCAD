@@ -1338,6 +1338,8 @@ export const parseDslSnapshot = (snapshot: SourceSnapshot): ParseDslResult => {
             part.leftPhysicalSpan = project(part.leftSpan);
             part.rightPhysicalSpan = project(part.rightSpan);
             part.intervalPhysicalSpan = project(part.intervalSpan);
+          } else {
+            part.sourcePhysicalSpan = project(part.sourceSpan);
           }
         }
         statement.layerReferencePhysicalSpan = statement.layerReferenceSpan ? project(statement.layerReferenceSpan) : null;

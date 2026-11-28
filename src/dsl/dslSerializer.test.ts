@@ -30,7 +30,6 @@ const buildElements = () => {
       "curve neckline = bezier(start: A,end: B,startAngle: -90,startLength: 35,endAngle: 180,endLength: 45,intermediates: [knot(point: C, angle: 45, incoming: 20, outgoing: 25)], id: c1)",
       "arc three = through(point1: A,point2: B,point3: C,start: 180,end: 270, id: a3)",
       'text label = label(text: "前中心",anchor: A,size: 4, id: t1)',
-      "line cp = transformCopy(startPoint: A,endPoint: B,scale: 1,angleDeg: 0,mirrorX: false,baseLines: [AB], id: e2)",
       "line sym = mirrorCopy(axis1: A,axis2: B,baseLines: [AB], id: e3)",
       "if (1) {",
       "}",
@@ -81,8 +80,9 @@ const buildElements = () => {
     axisPoint1: referenceAnchor("p1"),
     axisPoint2: referenceAnchor("p2")
   };
+  const copy = { ...createCadElement("copyLine", result.elements, { createId: () => "e2" }), name: "cp", startPoint: referenceAnchor("p1"), endPoint: referenceAnchor("p2"), baseLineIds: ["l1"] };
   const elements = [...result.elements];
-  elements.splice(elements.findIndex((element) => element.id === "e2"), 0, edge);
+  elements.splice(elements.findIndex((element) => element.id === "e3"), 0, edge, copy);
   elements.splice(elements.findIndex((element) => element.id === "l5"), 0, extend);
   const firstContainer = elements.findIndex((element) => element.type === "conditionalGroup");
   elements.splice(firstContainer, 0, move, mirrorMove);
@@ -93,7 +93,7 @@ describe("serializeElementsToDsl flat output", () => {
   it("keeps the flat id-based output canonical", () => {
     const elements = buildElements();
     const serialized = serializeElementsToDsl(elements);
-    expect(serialized).toContain("transformCopy(");
+    expect(serialized).toContain("transformCopy cp(");
     expect(serialized).not.toContain("copy(");
     expect(serialized).toMatchInlineSnapshot(`
       "group 前身頃 (id: g1)
@@ -216,14 +216,13 @@ describe("serializeElementsToDsl flat output", () => {
       edge [l1.start, l2.end](
         index: 0,
       )
-      line cp = transformCopy(
+      transformCopy cp(
         startPoint: p1,
         endPoint: p2,
         scale: 1,
         angleDeg: 0,
         mirrorX: false,
-        baseLines: [l1],
-        id: e2,
+        parts: [part: l1],
       )
       line sym = mirrorCopy(
         axis1: p1,

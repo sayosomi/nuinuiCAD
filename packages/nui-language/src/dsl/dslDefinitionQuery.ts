@@ -97,12 +97,12 @@ const isGeometryTargetIdentity = (compiled: CompiledDslDocument, identity: DslSe
   return statement?.kind === "typedDeclaration" && isDslGeometryValueType(dslRequiredValueTypeOf(statement.valueType));
 };
 
-const isExtractPartGeometryIdentity = (compiled: CompiledDslDocument, identity: DslSemanticIdentity): boolean => {
-  if (identity.kind !== "element") return false;
+const partDeclarationKind = (compiled: CompiledDslDocument, identity: DslSemanticIdentity) => {
+  if (identity.kind !== "element") return undefined;
   const statementIndex = [...(compiled.statementMap?.elementIdByStatementIndex ?? [])]
     .find(([, elementId]) => elementId === identity.elementId)?.[0];
   const statement = statementIndex === undefined ? undefined : compiled.statements[statementIndex];
-  return statement?.kind === "element" && statement.extractPart !== undefined;
+  return statement?.kind === "element" ? statement.extractPart?.declaration : undefined;
 };
 
 const finalGeometryDeclarationRangeForPath = (
@@ -307,7 +307,7 @@ const geometryPropertyDefinitionAt = (
     const finalIdentity = finalSegment
       ? uniqueReferenceIdentityAtRange(index, { from: finalSegment.start, to: finalSegment.end })
       : null;
-    if (!finalIdentity || (!isGeometryTargetIdentity(compiled, finalIdentity) && !isExtractPartGeometryIdentity(compiled, finalIdentity))) return;
+    if (!finalIdentity || (!isGeometryTargetIdentity(compiled, finalIdentity) && partDeclarationKind(compiled, finalIdentity) === undefined)) return;
     matched = true;
     if (!resolved || !hasTarget) return;
     const declarationRange = finalGeometryDeclarationRangeForPath(compiled, index, name);
@@ -452,16 +452,16 @@ const qualifiedPathDefinitionRangeAt = (
     : null;
   if (!finalIdentity) return { qualified: true, declarationRange: null };
   const geometryTarget = isGeometryTargetIdentity(compiled, finalIdentity);
-  const extractPart = isExtractPartGeometryIdentity(compiled, finalIdentity);
+  const partDeclaration = partDeclarationKind(compiled, finalIdentity);
   const geometryEvidence = geometryPathReferenceEvidence(compiled, pathRange);
   if (propertyName) {
-    if (!geometryTarget && !extractPart) return { qualified: false, declarationRange: null };
+    if (!geometryTarget && !partDeclaration) return { qualified: false, declarationRange: null };
     if (geometryEvidence === "resolvedNonNumericProperty") return { qualified: false, declarationRange: null };
     if (geometryEvidence !== "resolved" && (
       geometryEvidence !== "none" || finalIdentity.kind !== "element" ||
       !hasTypedChoiceGeometryPath(compiled, pathRange, finalIdentity.elementId)
     )) return { qualified: true, declarationRange: null };
-  } else if (!extractPart && (!geometryTarget || geometryEvidence !== "resolved")) {
+  } else if (!partDeclaration && (!geometryTarget || geometryEvidence !== "resolved")) {
     return { qualified: false, declarationRange: null };
   }
   const declarationRange = finalGeometryDeclarationRangeForPath(compiled, index, pathRange);
@@ -474,7 +474,10 @@ const qualifiedPathDefinitionRangeAt = (
     }
     return { qualified: true, declarationRange: null };
   }
-  return { qualified: true, declarationRange: dslSemanticDeclarationRange(index, occurrence.identity) };
+  return {
+    qualified: true,
+    declarationRange: partDeclaration === "transformCopy" ? declarationRange : dslSemanticDeclarationRange(index, occurrence.identity)
+  };
 };
 
 /** Query a resolved DSL reference without importing host APIs or CodeMirror. */

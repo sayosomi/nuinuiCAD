@@ -1,3 +1,5 @@
+import { exactPhysicalSpan } from "../dsl/dslDiagnosticSpan";
+import type { ModuleGeometryReferenceSite } from "../dsl/moduleSemanticTypes";
 import { compileDslDocument, type CompiledDslDocument } from "../dsl/dslDocument";
 import {
   dslSemanticIdentityKey,
@@ -39,6 +41,7 @@ import { bindDocumentRecordSemantics } from "./multiDocumentRecordSemantics";
 import { createModuleRuntimeContext } from "../dsl/moduleRuntimeContext";
 import {
   sourceIdentityOf,
+  qualifySourceLocation,
   qualifySemanticIdentity,
   type DocumentId,
   type DocumentQualifiedSemanticIdentity,
@@ -145,6 +148,53 @@ export const createMultiDocumentModuleIdentityResolver = (
     if (identity.kind !== "module" || identity.target.kind !== "moduleDefinition") return defaultIdentity(identity);
     return resolvedModuleIdentity(compiled, identity.target);
   };
+};
+
+/** Project a copied operand's resolved Module export through its exact graph. */
+export const queryMultiDocumentCopyOperandDefinition = (
+  compiled: CompiledDslDocument,
+  position: number
+) => {
+  const context = compiled.moduleRuntimeContext;
+  const analysis = compiled.moduleSemanticAnalysis;
+  if (!context?.valid || !analysis) return null;
+  const source = context.graph.rootSource;
+  if (!compiledSourceIsExact(source, compiled)) return null;
+
+  const sites: [number, readonly ModuleGeometryReferenceSite[]][] = [];
+  for (const [statementId, references] of analysis.rootGeometryReferencesByStatementId) {
+    const index = compiled.statementMap?.statementIndexByStatementId?.get(statementId);
+    if (index !== undefined) sites.push([index, references]);
+  }
+  for (const definition of analysis.definitions) {
+    for (const body of definition.bodyStatements) sites.push([body.statementIndex, body.geometryReferences]);
+  }
+
+  for (const [index, references] of sites) {
+    const statement = compiled.statements[index];
+    if (statement?.kind !== "element" || statement.extractPart?.declaration !== "transformCopy") continue;
+    for (const site of references) {
+      const target = site.reference.target;
+      if (site.runtimeOnly || site.reference.resolution !== "deferred" || target?.kind !== "deferredModuleExport") continue;
+      const operand = exactPhysicalSpan(compiled.spans, statement, target.referenceSpan)?.segments;
+      if (operand?.length !== 1 || position < operand[0]!.from || position >= operand[0]!.to) continue;
+      const instance = context.instanceFor(target.instanceIdentity);
+      if (instance?.calleeResolution !== "resolved") return null;
+      const definition = context.definitionFor(instance.callee?.definitionIdentity);
+      const entry = definition?.exports.find(candidate => candidate.kind === "geometry" && candidate.name === target.exportName);
+      const owner = entry?.exportedIdentity && context.graph.nodes.get(entry.exportedIdentity.documentId);
+      if (!entry || !owner) return null;
+      const declaration = owner.artifact.parsed.statements[entry.exportedStatementIndex];
+      const name = declaration?.namePhysicalSpan?.segments;
+      if (declaration?.name !== entry.name || name?.length !== 1) return null;
+      return {
+        origin: operand[0]!,
+        targetSource: owner.artifact.source,
+        target: qualifySourceLocation(sourceIdentityOf(owner.artifact.source), name[0]!)
+      };
+    }
+  }
+  return null;
 };
 
 /** Build an exact Module-aware semantic document view for generic queries. */

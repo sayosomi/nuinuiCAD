@@ -1,3 +1,4 @@
+import { transformCopyDeclarationArguments } from "./dslExtractParser";
 import { bezierKnotFields } from "./dslBezierKnots";
 import { dslModuleParameterTypeNames, dslTypedDeclarationTypeNames } from "./dslDeclarationParser";
 import { argumentCompletionCandidates, constructionCompletionCandidates, pureGeometryValueConstructionCandidates } from "./dslCallCompletionCandidates";
@@ -1371,6 +1372,9 @@ const queryCandidates = (
           sourceText: formatDslReferencePath({ absolute: false, segments: [declaration.name] }) }))
     ].filter(candidate => candidate.label.startsWith(prefix));
   }
+  if (context.kind === "transformCopyArgument") return transformCopyDeclarationArguments
+    .filter(arg => !context.used.has(arg.name))
+    .map(arg => ({ kind: "argumentName" as const, label: arg.name, identity: arg.name }));
   if (context.kind === "knotArgument") return bezierKnotFields.filter(field => !context.used.has(field)).map(label => ({ kind: "argumentName" as const, label, identity: label }));
   if (context.kind === "keyword") return context.options.map((label) => ({ kind: "keyword" as const, label }));
   if (context.kind === "modifierProperty") return context.options.map((label) => ({ kind: "property" as const, label }));

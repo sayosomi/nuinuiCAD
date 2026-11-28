@@ -156,7 +156,7 @@ describe("official snippet configuration", () => {
     return expect(feature.configure()).resolves.toBe(true).then(() => {
       const copied = JSON.parse(mocks.clipboardWriteText.mock.calls[0]?.[0] as string) as Record<string, SnippetDefinition>;
       expect(Object.keys(copied)).toEqual(Object.keys(canonicalSnippets));
-      expect(Object.keys(copied)).toHaveLength(88);
+      expect(Object.keys(copied)).toHaveLength(87);
       for (const [name, canonical] of Object.entries(canonicalSnippets)) {
         const editable = copied[name]!;
         expect(editable.prefix).toEqual(canonical.prefix);
@@ -216,7 +216,7 @@ describe("official snippet configuration", () => {
     );
     const createOptions = mocks.createFile.mock.calls[0]?.[1] as { contents: Uint8Array; overwrite: boolean; ignoreIfExists: boolean };
     const contents = JSON.parse(new TextDecoder().decode(createOptions.contents)) as Record<string, SnippetDefinition>;
-    expect(Object.keys(contents)).toHaveLength(88);
+    expect(Object.keys(contents)).toHaveLength(87);
     expect(contents["Calculation / Measurement / Average of Two Values / 2値の平均"]?.scope).toBe("nui");
     expect(mocks.applyEdit).toHaveBeenCalledOnce();
     expect(mocks.clipboardWriteText).not.toHaveBeenCalled();

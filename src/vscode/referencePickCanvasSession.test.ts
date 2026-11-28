@@ -1200,22 +1200,22 @@ reverse L()`;
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "line Base = segment(start: A, end: B)",
-      "line Copy = transformCopy(startPoint: A, endPoint: B, scale: 1, angleDeg: 0, baseLines: [Base])"
+      "transformCopy Copies_Copy(startPoint: A, endPoint: B, scale: 1, angleDeg: 0, parts: [Copy: Base])"
     ].join("\n");
     const currentSource = [
       canvasSource,
-      "line New = transformCopy(",
+      "transformCopy New(",
       "  startPoint: ",
       "  endPoint: ",
       "  scale: ",
       "  angleDeg: ",
-      "  baseLines: ",
+      "  parts: [part: ],",
       ")"
     ].join("\n");
-    const position = currentSource.indexOf("scale: ") + "scale: ".length;
-    const started = startWithCanvasSnapshot(
-      dualAuthorityFixture(currentSource, canvasSource, position)
-    );
+    const position = currentSource.lastIndexOf("scale: ") + "scale: ".length;
+    const fixture = dualAuthorityFixture(currentSource, canvasSource, position);
+    expect(fixture.request.targetProof).toMatchObject({ role: "numericPropertyBase" });
+    const started = startWithCanvasSnapshot(fixture);
 
     expect(started.result.status).toBe("started");
     if (started.result.status !== "started") return;

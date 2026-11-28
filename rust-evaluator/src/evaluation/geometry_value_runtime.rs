@@ -3580,7 +3580,11 @@ fn evaluate_geometry_value_leaf(
             let Some(geometry) = target_geometry(source, resolver, state, source_order)
                 .filter(|geometry| is_line_like_geometry(Some(geometry)))
             else {
-                append_geometry_value_error(state, entry, "transformCopy member source is unavailable or non-line-like.");
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "transformCopy member source is unavailable or non-line-like.",
+                );
                 return;
             };
             let source_segments = source_segments_for_geometry(&geometry);
@@ -3606,7 +3610,10 @@ fn evaluate_geometry_value_leaf(
                 );
                 return;
             };
-            value["closed"] = json!(geometry.get("closed").and_then(Value::as_bool).unwrap_or(false));
+            value["closed"] = json!(geometry
+                .get("closed")
+                .and_then(Value::as_bool)
+                .unwrap_or(false));
             Some(value)
         }
         GeometryValueConstruction::MirrorCopy {

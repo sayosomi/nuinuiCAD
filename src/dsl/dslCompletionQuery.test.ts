@@ -81,11 +81,11 @@ describe("queryDslCompletion", () => {
     expect(labels(queryIncomplete("nui 1\nconst value: point = th"))).not.toContain("through");
     expect(labels(queryIncomplete("nui 1\nconst value: line = th"))).not.toContain("through");
     const lineConstructions = labels(queryIncomplete("line L = tran"));
-    expect(lineConstructions).toContain("transformCopy");
+    expect(lineConstructions).not.toContain("transformCopy");
     expect(lineConstructions).not.toContain("copy");
-    const transformCopyArguments = labels(queryIncomplete("line L = transformCopy("));
+    const transformCopyArguments = labels(queryIncomplete("transformCopy C("));
     expect(transformCopyArguments).toEqual(expect.arrayContaining([
-      "startPoint", "endPoint", "scale", "angleDeg", "mirrorX", "baseLines"
+      "startPoint", "endPoint", "scale", "angleDeg", "mirrorX", "parts"
     ]));
     const argument = queryIncomplete("point P = offset(\n  d");
     expect(argument?.category).toBe("argument");

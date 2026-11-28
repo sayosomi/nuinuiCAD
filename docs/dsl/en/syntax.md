@@ -37,6 +37,8 @@ reference rather than a second place to edit parser behavior.
 | `role` | `dsl-ref:statement:role` |
 <!-- dsl-ref:statement:extract -->
 | `extract` | `dsl-ref:statement:extract` |
+<!-- dsl-ref:statement:transformCopy -->
+| `transformCopy` | `dsl-ref:statement:transformCopy` |
 <!-- dsl-ref:statement:view -->
 | `view` | `dsl-ref:statement:view` |
 <!-- dsl-ref:statement:activeView -->

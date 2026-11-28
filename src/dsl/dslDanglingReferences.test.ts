@@ -50,7 +50,7 @@ const sourceWithAllDanglingKinds = [
   'point DotAnchorUser = offset(from: Missing_Point, dx: 1, dy: 2)',
   'line DerivedAnchorUser = segment(start: Outer_Group::Missing_Shape_1.pivot, end: A)',
   'point NormalRefUser = intersection(line1: MissingLine, line2: Missing_Line_2, index: 0, extensions: false)',
-  'line ListRefUser = transformCopy(startPoint: A, endPoint: A, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [MissingLine, Missing_Line_2, Outer_Group::Missing_Line])',
+  'line ListRefUser = mirrorCopy(axis1: A, axis2: A, baseLines: [MissingLine, Missing_Line_2, Outer_Group::Missing_Line])',
   'point ParentUser = coordinate(x: 1, y: 1, parent: Outer_Group::Missing_Parent_1)',
 ].join("\n");
 
@@ -69,7 +69,7 @@ describe("dangling reference diagnostics and retention", () => {
       .toEqual({ mode: "derived", elementId: 'Outer_Group::Missing_Shape_1', pointKey: "pivot" });
     expect((byName.get("NormalRefUser") as Extract<CadElement, { type: "intersectionPoint" }>).line1Id)
       .toBe("MissingLine");
-    expect((byName.get("ListRefUser") as Extract<CadElement, { type: "copyLine" }>).baseLineIds)
+    expect((byName.get("ListRefUser") as Extract<CadElement, { type: "symmetricCopyLine" }>).baseLineIds)
       .toEqual(["MissingLine", 'Missing_Line_2', 'Outer_Group::Missing_Line']);
     expect(byName.get("ParentUser")?.parentGroupId).toBe('Outer_Group::Missing_Parent_1');
     expect(document.visibilityProfiles.find((profile) => profile.name === "Draft")?.roleVisibility)

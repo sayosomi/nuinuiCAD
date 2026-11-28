@@ -1,13 +1,11 @@
+import { isLastGoodDslDocument } from "@nuinuicad/nui-language/document";
+import { buildEvaluationOptions } from "../geometry/productionEvaluationContext";
 import { describe, expect, it } from "vitest";
 import { renderHook } from "@testing-library/react";
 import convexNotchSource from "../../docs/module/manual-fixtures/nui1-convex-notch.nui?raw";
 import seamAllowanceCopySource from "../../docs/module/manual-fixtures/nui1-seam-allowance-copy.nui?raw";
-import { buildNumericBindingRuntimeEntries } from "../geometry/numericBindingRuntime";
-import { buildPropertyBindingRuntimeEntries } from "../geometry/propertyBindingRuntime";
 import { evaluateElements } from "../geometry/evaluate";
 import { elementParameterReferenceOptionsForPosition } from "../geometry/elementParameterReferenceOptions";
-import { buildConditionalMutationOwners, conditionalOwnerIdByElementId } from "../scalars/conditionalMutationControl";
-import { buildForGroupExecutionOwners, forGroupMutationOwnerByElementId } from "../scalars/forGroupMutationControl";
 import { pickCandidates } from "../model/pickCandidates";
 import {
   activePickCandidates,
@@ -41,76 +39,8 @@ const compileFixture = (name: string) => {
 };
 
 const evaluateFixture = (compiled: ReturnType<typeof compileFixture>) => {
-  if (!compiled.document || !compiled.statementMap) throw new Error("fixture did not compile");
-  const elements = compiled.document.elements;
-  return evaluateElements(elements, {
-    evaluationLimitIndex: compiled.document.evaluationLimitIndex,
-    scalarProgram: compiled.scalarProgram,
-    bindingVersions: compiled.bindingVersions,
-    statementInfoByElementId: compiled.statementMap.byElementId,
-    statementIdByStatementIndex: compiled.statementMap.statementIdByStatementIndex,
-    sourceExecutionPositionByElementId: compiled.moduleMaterialization?.sourceExecutionPositionByRuntimeElementId,
-    scalarExecutionPositionByElementId: compiled.scalarExecutionPositionByRuntimeElementId,
-    propertyBindingEntries: compiled.scalarProgram && compiled.propertyBindings
-      ? buildPropertyBindingRuntimeEntries({
-          propertyBindings: compiled.propertyBindings,
-          elementIdByStatementIndex: compiled.statementMap.elementIdByStatementIndex,
-          materializedPropertyBindings: compiled.materializedPropertyBindings
-        }, elements)
-      : undefined,
-    numericBindingEntries: compiled.scalarProgram
-      ? buildNumericBindingRuntimeEntries({
-          numericBindings: compiled.numericBindings ?? new Map(),
-          elementIdByStatementIndex: compiled.statementMap.elementIdByStatementIndex,
-          materializedNumericBindings: compiled.materializedNumericBindings
-        }, elements)
-      : undefined,
-    conditionalGroupConditionsByElementId: compiled.scalarProgram &&
-      (compiled.conditionalGroupConditions || compiled.materializedConditionalGroupConditions)
-      ? new Map([
-          ...(compiled.conditionalGroupConditions
-            ? [...compiled.conditionalGroupConditions].flatMap(([key, expression]) => {
-                const statementIndex = Number(key.split(":", 1)[0]);
-                const elementId = compiled.statementMap!.elementIdByStatementIndex.get(statementIndex);
-                return elementId ? [[elementId, expression] as const] : [];
-              })
-            : []),
-          ...(compiled.materializedConditionalGroupConditions ?? []).map((entry) => [entry.elementId, entry.expression] as const)
-        ])
-      : undefined,
-    conditionalOwnerStatementIdByElementId: compiled.bindingVersions
-      ? new Map([
-          ...conditionalOwnerIdByElementId(buildConditionalMutationOwners(
-            compiled.bindingVersions,
-            elements,
-            compiled.statementMap.byElementId,
-            compiled.statementMap.statementIdByStatementIndex,
-            new Set(compiled.moduleConditionalOwnerStatementIdByElementId?.values() ?? [])
-          )),
-          ...(compiled.moduleConditionalOwnerStatementIdByElementId
-            ? [...compiled.moduleConditionalOwnerStatementIdByElementId]
-            : [])
-        ])
-      : undefined,
-    forGroupMutationOwnerByElementId: compiled.bindingVersions
-      ? new Map([
-          ...forGroupMutationOwnerByElementId(buildForGroupExecutionOwners(
-            compiled.bindingVersions,
-            elements,
-            compiled.statementMap.byElementId,
-            compiled.statementMap.statementIdByStatementIndex,
-            new Set(compiled.moduleForGroupExecutionOwnerByElementId
-              ? [...compiled.moduleForGroupExecutionOwnerByElementId].map(([, owner]) => owner.ownerStatementId)
-              : [])
-          )),
-          ...(compiled.moduleForGroupExecutionOwnerByElementId
-            ? [...compiled.moduleForGroupExecutionOwnerByElementId]
-            : [])
-        ])
-      : undefined,
-    moduleConditionalOwnerStatementIdByElementId: compiled.moduleConditionalOwnerStatementIdByElementId,
-    moduleForGroupExecutionOwnerByElementId: compiled.moduleForGroupExecutionOwnerByElementId
-  });
+  if (!isLastGoodDslDocument(compiled)) throw new Error("fixture did not compile");
+  return evaluateElements(compiled.document.elements, buildEvaluationOptions({ compiledDocument: compiled, evaluationLimitIndex: compiled.document.evaluationLimitIndex }));
 };
 
 const errorsOf = (compiled: ReturnType<typeof compileFixture>) =>
@@ -156,7 +86,7 @@ describe("Module v1 manual fixtures", () => {
     expect(instance?.type).toBe("moduleInstance");
     expect(instance?.parentGroupId).toBeDefined();
     const children = compiled.document!.elements.filter((element) =>
-      element.parentGroupId === instance?.id && element.name
+      element.parentGroupId === instance?.id && element.name && element.visible !== false
     );
     expect(children.map((element) => element.name)).toEqual(["脇コピー", "先に縫う", "後で縫う"]);
 
@@ -447,7 +377,7 @@ describe("Module v1 manual fixtures", () => {
       "}",
       "instance I = M()",
       "line Base = segment(start: (0, 0), end: (5, 0))",
-      "line Use = transformCopy(startPoint: (0, 0), endPoint: (5, 0), scale: 1, angleDeg: 0, mirrorX: false, baseLines: [Base])"
+      "line Use = offset(sources: [Base], distance: 1)"
     ].join("\n");
     useCadDocumentStore.setState(initialCadDocumentState());
     useCadUiStore.setState(initialCadUiState());
@@ -536,8 +466,8 @@ describe("Module v1 manual fixtures", () => {
       "}",
       "instance I_dot = M_dot()",
       "line Base = segment(start: (0, 0), end: (5, 0))",
-      "line LineUse = transformCopy(startPoint: (0, 0), endPoint: (5, 0), scale: 1, angleDeg: 0, mirrorX: false, baseLines: [Base])",
-      "line PointUse = transformCopy(startPoint: (0, 0), endPoint: (5, 0), scale: 1, angleDeg: 0, mirrorX: false, baseLines: [Base])"
+      "line LineUse = offset(sources: [Base], distance: 1)",
+      "line PointUse = polar(start: (0, 0), angle: 0, length: 5)"
     ].join("\n");
     useCadDocumentStore.setState(initialCadDocumentState());
     useCadUiStore.setState(initialCadUiState());
@@ -584,7 +514,7 @@ describe("Module v1 manual fixtures", () => {
       pickRefForOption(exportEndpoint.candidate.elementId, exportEndpoint.option),
       evaluateFixture(afterLine)
     )).toBe(true);
-    expect(useCadDocumentStore.getState().sourceText).toContain('startPoint: I_dot::Out_dot.start');
+    expect(useCadDocumentStore.getState().sourceText).toContain('start: I_dot::Out_dot.start');
     expect(useCadDocumentStore.getState().sourceText).not.toContain("module-runtime:");
     expect(errorsOf(compileSource(useCadDocumentStore.getState().sourceText))).toEqual([]);
   });

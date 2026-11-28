@@ -155,7 +155,7 @@ unavailable when both handles are zero. String and boolean element properties
 are not general scalar geometry-property reads. A property must also be valid
 for the value's interface and available at the read position.
 
-Line and path values, including immutable `transformCopy` and `mirrorCopy`
+Line and path values, including named `transformCopy` members
 results, expose endpoint coordinates as `.startPoint.x`, `.startPoint.y`,
 `.endPoint.x`, and `.endPoint.y` alongside `.length`, `.startAngleDeg`, and
 `.endAngleDeg`.

@@ -201,13 +201,12 @@ describe("dslDocument round-trip matrix", () => {
     expect(text).toContain("suppressTrimWarnings: true");
   });
 
-  it("round-trips copyLine, symmetricCopyLine, move, symmetricMove", () => {
+  it("round-trips symmetricCopyLine, move, symmetricMove", () => {
     const { document, parsed, text } = roundTrip(
       [
       "point A = coordinate(x: 0,y: 0)",
       "point B = coordinate(x: 100,y: 0)",
       "line AB = segment(start: A,end: B)",
-      "line cp = transformCopy(startPoint: A,endPoint: B,scale: 1,angleDeg: 0,mirrorX: false,baseLines: [AB])",
       "line sym = mirrorCopy(axis1: A,axis2: B,baseLines: [AB])",
       "move AB(from: A, to: B, scale: 1, angleDeg: 0, mirrorX: false)",
       "line AB_moved = from(source: AB)",
@@ -216,8 +215,7 @@ describe("dslDocument round-trip matrix", () => {
     ].join("\n")
     );
     expectSemanticallyEqualDocuments(document, { ...document, elements: parsed.elements });
-    expect(text).toContain("transformCopy(");
-    expect(text).not.toContain("copy(");
+    expect(text).toContain("mirrorCopy(");
   });
 
   it("round-trips image", () => {

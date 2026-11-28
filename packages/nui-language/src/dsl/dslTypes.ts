@@ -285,6 +285,7 @@ export type DslExtractPart = {
   kind: "source";
   source: string;
   sourceSpan: DslSpan;
+  sourcePhysicalSpan?: DslPhysicalSpan | null;
 });
 
 export type DslStatement =

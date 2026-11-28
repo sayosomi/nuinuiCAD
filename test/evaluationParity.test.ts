@@ -4487,11 +4487,11 @@ line Extended = from(source: extended)`);
     }
   }, 30000);
 
-  it("matches pure transformCopy path values across TypeScript and Rust", () => {
+  it("matches named transformCopy path values across TypeScript and Rust", () => {
     const fixture = fixtureFromSource([
       "nui 1",
       "const Curve: path = bezier(start: (0, 0), end: (10, 0), startAngle: 90, startLength: 2, endAngle: -90, endLength: 2)",
-      "const Transformed: path = transformCopy(startPoint: (0, 0), endPoint: (20, 10), scale: 2, angleDeg: 90, mirrorX: true, baseLines: [Curve])",
+      "transformCopy Copies_Transformed(startPoint: (0, 0), endPoint: (20, 10), scale: 2, angleDeg: 90, mirrorX: true, visible: false, parts: [Transformed: Curve])",
       "const Arc: path = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: @counterclockwise)"
     ].join("\n"));
     const program = fixture.compiled?.doc.geometryValueProgram;
@@ -4703,23 +4703,16 @@ line Extended = from(source: extended)`);
     }
   }, 30000);
 
-  it("matches invalid transformCopy scale and ordered sources across TypeScript and Rust", () => {
+  it("matches invalid shared transformCopy scale across TypeScript and Rust", () => {
     const fixture = fixtureFromSource([
       "nui 1",
       "line First = segment(start: (0, 0), end: (10, 0))",
       "line Second = segment(start: (20, 0), end: (30, 0))",
-      "const BadScale: path = transformCopy(startPoint: (0, 0), endPoint: (10, 0), scale: 0, baseLines: [First])",
-      "const Discontinuous: path = transformCopy(startPoint: (0, 0), endPoint: (10, 0), baseLines: [First, Second])",
-      "const EmptyTransform: path = transformCopy(startPoint: (0, 0), endPoint: (10, 0), baseLines: [])"
+      "transformCopy BadScale(startPoint: (0, 0), scale: 0, parts: [first: First, second: Second])"
     ].join("\n"));
-    const program = fixture.compiled?.doc.geometryValueProgram;
-    if (!program || program.length !== 3) throw new Error("expected three invalid transformCopy path program entries");
-    const badScale = program.find((entry) => entry.sourceStatementIndex === 3);
-    const discontinuous = program.find((entry) => entry.sourceStatementIndex === 4);
-    const emptyTransform = program.find((entry) => entry.sourceStatementIndex === 5);
-    if (!badScale || !discontinuous || !emptyTransform) throw new Error("expected invalid transformCopy path entries");
+    const entries = fixture.compiled?.doc.geometryValueProgram?.filter(entry => entry.construction.kind === "transformCopy") ?? [];
+    expect(entries).toHaveLength(2);
     const options = optionsFor(fixture);
-
     expect(isRustEligibleFixture(fixture)).toBe(true);
     const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
     const rustPayload = evaluateWithRustOptions(repoRoot, fixture.elements, options);
@@ -4727,23 +4720,14 @@ line Extended = from(source: extended)`);
 
     for (const payload of [tsPayload, rustPayload]) {
       const result = evaluationPayloadToResult(payload);
-      expect(result.errors).toEqual([]);
-      expect(result.computedGeometryValues).toEqual(new Map());
-      expect(result.geometryValueErrors).toEqual([
-        {
-          occurrence: badScale.occurrence,
-          message: "transformCopy geometry value construction scale must be a finite positive number."
-        },
-        {
-          occurrence: discontinuous.occurrence,
-          message: "transformCopy geometry value construction baseLines are not continuous in the specified order."
-        },
-        {
-          occurrence: emptyTransform.occurrence,
-          message: "transformCopy geometry value construction inputs are unavailable, non-line-like, or contain no segments."
-        }
-      ]);
-      expect(result.geometryValueErrors?.every((error) => !("elementId" in error))).toBe(true);
+      expect(result.computedGeometryValues?.size ?? 0).toBe(0);
+      expect(result.geometryValueErrors).toEqual(entries.map(entry => ({
+        occurrence: entry.occurrence,
+        message: "transformCopy geometry value construction scale must be a finite positive number."
+      })));
+      for (const element of fixture.elements.filter(element => ["first", "second"].includes(element.name))) {
+        expect(result.computedGeometry.has(element.id)).toBe(false);
+      }
     }
   }, 30000);
 

@@ -163,10 +163,7 @@ describe("Source creation template planning", () => {
 
     expect(holes).toEqual([
       { argName: "startPoint", parameterKey: "startPoint", kind: "reference", label: "始点" },
-      { argName: "endPoint", parameterKey: "endPoint", kind: "reference", label: "終点" },
-      { argName: "scale", parameterKey: "scale", kind: "number", label: "倍率" },
-      { argName: "angleDeg", parameterKey: "angleDeg", kind: "number", label: "角度" },
-      { argName: "baseLines", parameterKey: "baseLineIds", kind: "lineReferenceList", label: "基準線" }
+      { argName: "parts", parameterKey: "baseLineIds", kind: "lineReference", label: "コピー元" }
     ]);
     expect(holes.map(({ argName }) => argName)).not.toContain("mirrorX");
   });

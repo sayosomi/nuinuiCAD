@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { isLastGoodDslDocument } from "@nuinuicad/nui-language/document";
+import { buildEvaluationOptions } from "../geometry/productionEvaluationContext";
 import { evaluateElements } from "../geometry/evaluate";
 import { pickCandidates } from "../model/pickCandidates";
 import { compileDslDocument } from "@nuinuicad/nui-language";
@@ -16,13 +18,8 @@ const errorDiagnostics = (compiled: ReturnType<typeof compileSource>) =>
   compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error");
 
 const evaluateSource = (compiled: ReturnType<typeof compileSource>) => {
-  if (!compiled.document || !compiled.statementMap) throw new Error("nested export source did not compile");
-  return evaluateElements(compiled.document.elements, {
-    evaluationLimitIndex: compiled.document.evaluationLimitIndex,
-    statementInfoByElementId: compiled.statementMap.byElementId,
-    statementIdByStatementIndex: compiled.statementMap.statementIdByStatementIndex,
-    sourceExecutionPositionByElementId: compiled.moduleMaterialization?.sourceExecutionPositionByRuntimeElementId
-  });
+  if (!isLastGoodDslDocument(compiled)) throw new Error("nested export source did not compile");
+  return evaluateElements(compiled.document.elements, buildEvaluationOptions({ compiledDocument: compiled, evaluationLimitIndex: compiled.document.evaluationLimitIndex }));
 };
 
 const source = [
@@ -33,12 +30,14 @@ const source = [
   "module B() {",
   "  instance C1 = C()",
   "  line BUse = segment(start: (0, 0), end: (5, 0))",
-  "  export line Forwarded = transformCopy(startPoint: C1::Out.start, endPoint: C1::Out.end, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [C1::Out])",
+  "  transformCopy Copies_Forwarded(startPoint: C1::Out.start, endPoint: C1::Out.end, scale: 1, angleDeg: 0, mirrorX: false, visible: false, parts: [part: C1::Out])",
+  "  export path Forwarded = from(source: Copies_Forwarded::part)",
   "}",
   "module A() {",
   "  instance B1 = B()",
   "  line AUse = segment(start: (0, 0), end: (5, 0))",
-  "  export line ForwardedAgain = transformCopy(startPoint: B1::Forwarded.start, endPoint: B1::Forwarded.end, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [B1::Forwarded])",
+  "  transformCopy Copies_ForwardedAgain(startPoint: B1::Forwarded.start, endPoint: B1::Forwarded.end, scale: 1, angleDeg: 0, mirrorX: false, visible: false, parts: [part: B1::Forwarded])",
+  "  export path ForwardedAgain = from(source: Copies_ForwardedAgain::part)",
   "}",
   "instance Root = A()",
   "line RootUse = segment(start: (0, 0), end: (5, 0))"

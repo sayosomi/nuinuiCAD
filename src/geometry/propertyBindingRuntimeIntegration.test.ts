@@ -1,3 +1,4 @@
+import { buildEvaluationOptions } from "./productionEvaluationContext";
 // End-to-end coverage for Task 23: compiles real nui 1 source through the
 // production document pipeline (mirroring scalarProgramEvaluation.test.ts's
 // approach), builds Task 23's elementId-keyed property binding entries via
@@ -245,10 +246,7 @@ describe("Task 23 standard property runtime, end-to-end through the real compile
   });
 
   it("materializes a bound boolean property uniformly across every forGroup-generated instance (template-id lookup)", () => {
-    // copyLine (not move) stores its computed geometry under its own
-    // elementId - move instead overwrites its *base* line's geometry in
-    // place, which would only let the last of the 3 iterations' writes
-    // survive && wouldn't exercise "every generated instance individually".
+    // Each named copy publishes the geometry of its own generated occurrence.
     const source = (mirrorXArg: string) =>
       [
         "nui 1",
@@ -257,18 +255,15 @@ describe("Task 23 standard property runtime, end-to-end through the real compile
         "point B = coordinate(x: 10, y: 0)",
         "line AB = segment(start: A, end: B)",
         "for i in range(min: 0, max: 2, step: 1) {",
-        `  line C = transformCopy(startPoint: A, endPoint: B, scale: 1, angleDeg: 0, mirrorX: ${mirrorXArg}, baseLines: [AB])`,
+        `  transformCopy Copies_C(startPoint: A, endPoint: B, scale: 1, angleDeg: 0, mirrorX: ${mirrorXArg}, parts: [C: AB])`,
         "}"
       ].join("\n");
 
     const bound = compileCanonical(source("反転"));
     const literalFalse = compileCanonical(source("false"));
 
-    const boundResult = evaluateElements(bound.document.elements, {
-      scalarProgram: bound.scalarProgram,
-      propertyBindingEntries: entriesFor(bound)
-    });
-    const literalFalseResult = evaluateElements(literalFalse.document.elements, {});
+    const boundResult = evaluateElements(bound.document.elements, buildEvaluationOptions({ compiledDocument: bound, evaluationLimitIndex: bound.document.evaluationLimitIndex }));
+    const literalFalseResult = evaluateElements(literalFalse.document.elements, buildEvaluationOptions({ compiledDocument: literalFalse, evaluationLimitIndex: literalFalse.document.evaluationLimitIndex }));
     const boundRows = boundResult.forGroupGeneratedRows ?? [];
     const literalFalseRows = literalFalseResult.forGroupGeneratedRows ?? [];
 

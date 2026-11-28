@@ -542,6 +542,22 @@ const moduleExpectation = (
   return type?.kind === "number" ? "number" : null;
 };
 
+const numericTargetInSpan = (
+  exact: ExactPosition,
+  position: number,
+  anchor: DslReferencePickSourceAnchor,
+  span: DslSpan
+): DslReferencePickTarget | null => {
+  const numeric = numericOperandTarget(exact.statement.logicalText, exact.logicalPosition, span);
+  if (!numeric) return null;
+  const range = physicalRangeForLogical(exact, numeric.range, position);
+  if (!range) return null;
+  const activationRange = numeric.activationRange ? physicalRangeForLogical(exact, numeric.activationRange, position) : range;
+  return activationRange ? targetFromExpectation(anchor, numeric.expectation, range, {
+    activationRange, numericProperty: numeric.numericProperty
+  }) : null;
+};
+
 const targetForCall = (
   source: SourceSnapshot,
   position: number,
@@ -569,19 +585,7 @@ const targetForCall = (
     return range ? targetFromExpectation(anchor, expectation, range) : null;
   }
 
-  const numeric = numericOperandTarget(call.logicalText, call.logicalCursorPosition, argument.valueSpan);
-  if (!numeric) return null;
-  const range = physicalRangeForLogical(exact, numeric.range, position);
-  if (!range) return null;
-  const activationRange = numeric.activationRange
-    ? physicalRangeForLogical(exact, numeric.activationRange, position)
-    : range;
-  return activationRange
-    ? targetFromExpectation(anchor, numeric.expectation, range, {
-        activationRange,
-        numericProperty: numeric.numericProperty
-      })
-    : null;
+  return numericTargetInSpan(exact, position, anchor, argument.valueSpan);
 };
 
 const transformationTargetFor = (
@@ -747,6 +751,27 @@ const targetCandidateAt = (
       if (!point) continue;
       const target = slot(point, "point");
       if (target) return target;
+    }
+    if (authored.declaration === "transformCopy") {
+      for (const attr of authored.attrs) {
+        if (attr.key !== "angleDeg" && attr.key !== "scale") continue;
+        const span = { start: attr.valueStart, end: attr.valueEnd };
+        if (attr.value) {
+          const target = numericTargetInSpan(exact, position, anchor, span);
+          const region = physicalRangeForLogical(exact, attr.rawValueSpan ?? span, position);
+          if (target && region) return { target, region };
+          continue;
+        }
+        const colon = exact.statement.logicalText.indexOf(":", attr.keyStart + attr.key.length);
+        const delimiter = physicalRangeForLogical(exact, { start: colon, end: colon + 1 }, position);
+        if (!delimiter || delimiter.to > position ||
+            !/^[ \t]*$/.test(source.normalizedSource.slice(delimiter.to, position))) continue;
+        const at = { from: position, to: position };
+        const target = numericTargetInSpan(exact, position, anchor, {
+          start: exact.logicalPosition, end: exact.logicalPosition
+        });
+        if (target) return { target, region: { from: delimiter.to, to: at.to } };
+      }
     }
     for (const part of authored.parts) {
       if (part.kind === "source") {

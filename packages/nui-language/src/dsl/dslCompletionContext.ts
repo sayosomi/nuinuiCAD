@@ -48,6 +48,7 @@ import { parseDslSourceReferenceAt } from "./dslReferenceTokens";
 export type DslCompletionContext =
   | { kind: "layerReference"; from: number; to: number; prefix: string | null }
   | { kind: "knotArgument"; from: number; to: number; used: ReadonlySet<string> }
+  | { kind: "transformCopyArgument"; from: number; to: number; used: ReadonlySet<string> }
   | { kind: "keyword"; from: number; to: number; options: readonly string[] }
   | { kind: "construction"; from: number; to: number; category: DslConstructionCategory }
   | { kind: "argument"; from: number; to: number; spec: DslConstructionSpec; usedArgumentNames: ReadonlySet<string> }
@@ -534,7 +535,28 @@ export const dslCompletionContextAt = (
         if (qualified >= 0 && !token.startsWith("@")) return { kind: "moduleQualifiedMember", from: pos - (token.length - qualified - 2), to: pos,
           qualifiedInstanceName: token.slice(0, qualified), expectedGeometryKind: point ? "point" : "path" };
         return { kind: "parameter", from: span.start, to: pos, ...(point && head.declaration === "extract" ? { extractBoundary: true as const } : {}), parameter: { source: "attr", key: point ? "left" : "source",
-          definition: point ? { key: "startPoint", label: "point", kind: "reference", allowCoordinate: false } : { key: "source", label: "path", kind: "lineReference" } } };
+          definition: point ? { key: "startPoint", label: "point", kind: "reference", allowCoordinate: head.declaration === "transformCopy" } : { key: "source", label: "path", kind: "lineReference" } } };
+      }
+      if (head.declaration === "transformCopy") {
+        const start = code.indexOf("(") + 1;
+        if (start > 0 && start <= pos) {
+          const end = scanDslNesting(code).matchedDelimiters.find(pair => pair.open.index === start - 1)?.close.index ?? code.length;
+          if (pos > end) return null;
+          const nesting = scanDslNesting(code, { start, end });
+          const from = ([...nesting.topLevelCommas].reverse().find(comma => comma < pos) ?? start - 1) + 1;
+          const prefix = code.slice(from, pos);
+          const fragment = prefix.trimStart();
+          const topArg = scanCallArgs(code, { start, end }).args.find(arg => pos >= arg.valueSpan.start && pos <= arg.valueSpan.end);
+          if (topArg?.key === "scale" || topArg?.key === "angleDeg") {
+            return numberFieldCompletionContext(code, pos, topArg.valueSpan.start, {
+              source: "attr", key: topArg.key, definition: { key: topArg.key, label: topArg.key, kind: "number" }
+            });
+          }
+          if (/^\w*$/.test(fragment)) return {
+            kind: "transformCopyArgument", from: pos - fragment.length, to: pos,
+            used: new Set(head.attrs.map(attr => attr.key))
+          };
+        }
       }
     }
   }

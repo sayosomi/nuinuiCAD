@@ -9,12 +9,23 @@ const trim = (source: string, start: number, end: number): DslSpan => {
   return { start, end };
 };
 
+export const transformCopyDeclarationArguments = [
+  { name: "startPoint", type: "point", optional: false },
+  { name: "endPoint", type: "point", optional: true, defaultValue: "startPoint" },
+  { name: "scale", type: "number", optional: true, defaultValue: "1" },
+  { name: "angleDeg", type: "number", optional: true, defaultValue: "0" },
+  { name: "mirrorX", type: "boolean", optional: true, defaultValue: "false" },
+  { name: "parts", optional: false },
+  { name: "enabled", type: "boolean", optional: true, defaultValue: "true" },
+  { name: "visible", type: "boolean", optional: true, defaultValue: "true" }
+] as const;
+
 /** The extract grammar extends the shared declaration-head and argument
  * scanners. Interval punctuation is confined to the authored parts list. */
 export const parseDslExtract = (source: string, declaration: "extract" | "transformCopy" = "extract") => {
   const copy = declaration === "transformCopy";
-  const requiredArgs = [copy ? "startPoint" : "source", "parts"];
-  const allowedArgs = [...requiredArgs, "enabled", "visible", ...copy ? ["endPoint", "scale", "angleDeg", "mirrorX"] : []];
+  const requiredArgs = copy ? transformCopyDeclarationArguments.filter(arg => !arg.optional).map(arg => arg.name) : ["source", "parts"];
+  const allowedArgs: readonly string[] = copy ? transformCopyDeclarationArguments.map(arg => arg.name) : [...requiredArgs, "enabled", "visible"];
   const diagnostics: DslCallDiagnostic[] = [];
   const report = (code: string, span: DslSpan, message: string) => diagnostics.push({ code, span, message });
   const outer = scanDslNesting(source);
@@ -44,7 +55,7 @@ export const parseDslExtract = (source: string, declaration: "extract" | "transf
   const parts: DslExtractPart[] = [];
   if (partsSpan) {
     if (source[partsSpan.start] !== "[" || source[partsSpan.end - 1] !== "]") {
-      report("extract-parts-list-required", partsSpan, "parts は名前付き区間のリストで指定してください。");
+      report("extract-parts-list-required", partsSpan, copy ? "parts は名前付きコピー元のリストで指定してください。" : "parts は名前付き区間のリストで指定してください。");
     }
     const content = { start: partsSpan.start + 1, end: source[partsSpan.end - 1] === "]" ? partsSpan.end - 1 : partsSpan.end };
     const nesting = scanDslNesting(source, content);
@@ -76,7 +87,7 @@ export const parseDslExtract = (source: string, declaration: "extract" | "transf
       }
       parts.push({ ...partHead, kind: "interval", colonSpan, left, leftSpan, right, rightSpan, intervalSpan: { start: separator, end: separator + 2 } });
     }
-    if (!parts.length) report("extract-parts-empty", partsSpan, "extract には少なくとも1つの区間が必要です。");
+    if (!parts.length) report("extract-parts-empty", partsSpan, copy ? "transformCopy には少なくとも1つのパーツが必要です。" : "extract には少なくとも1つの区間が必要です。");
   }
   return { ...head, parts, attrs, payloadSpans, keywordSpan: { start: 0, end: declaration.length }, opensBlock: false, diagnostics };
 };

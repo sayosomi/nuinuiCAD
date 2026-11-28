@@ -18,8 +18,8 @@ line Base = segment(
   end: B,
 )
 
-line Copy = transformCopy(
+transformCopy Copies_Copy(
   startPoint: A,
   endPoint: CopyOrigin,
-  baseLines: [Base],
+  parts: [Copy: Base],
 )
